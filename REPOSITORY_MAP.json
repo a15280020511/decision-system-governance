@@ -1,0 +1,23 @@
+{
+  "schema_version": "repository-map-v1",
+  "governance_repository": "a15280020511/decision-system-governance",
+  "business_repositories": [
+    {
+      "id": "evidence-data-center",
+      "repository": "a15280020511/evidence-data-center",
+      "runtime_network": "allowlisted-data-sources"
+    },
+    {
+      "id": "compute-simulation-center",
+      "repository": "a15280020511/compute-simulation-center",
+      "runtime_network": "deny-numeric; allowlisted-literature-separate-workflow"
+    },
+    {
+      "id": "expert-assessment-center",
+      "repository": "a15280020511/expert-assessment-center",
+      "runtime_network": "allowlisted-model-provider"
+    }
+  ],
+  "sole_relay": "GPTs Orchestration Console",
+  "direct_center_contact_allowed": false
+}

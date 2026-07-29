@@ -1,0 +1,72 @@
+{
+  "schema_version": "three-center-isolation-contract-v2",
+  "status": "production",
+  "sole_relay": "gpts-usage-center",
+  "maintenance_actor": "ordinary-web-gpt-with-github-plugin",
+  "topology": {
+    "api-center": {
+      "issue_prefix": "[api]",
+      "network_policy": "allowlisted-public-data-only",
+      "accepts_from": ["gpts-usage-center"],
+      "returns_to": ["gpts-usage-center"],
+      "direct_center_links": []
+    },
+    "compute-center": {
+      "issue_prefix": "[compute]",
+      "business_runtime_network_policy": "deny",
+      "ticket_control_plane": {
+        "network_policy": "github-api-only",
+        "allowed_file": "compute-center/compute_ticket.py",
+        "purpose": "Authorize issue state and enforce duplicate-task protection before computation.",
+        "business_data_fetch_allowed": false,
+        "cross_center_access_allowed": false
+      },
+      "accepts_from": ["gpts-usage-center"],
+      "returns_to": ["gpts-usage-center"],
+      "direct_center_links": []
+    },
+    "expert-center": {
+      "issue_prefix": "[execution]",
+      "network_policy": "deny-during-analysis",
+      "accepts_from": ["gpts-usage-center"],
+      "returns_to": ["gpts-usage-center"],
+      "direct_center_links": []
+    }
+  },
+  "invariants": [
+    "The three business centers are peers and never call, dispatch, import, read runtime artifacts from, or write runtime artifacts to each other.",
+    "GPTs is the only controller, courier and evidence relay between centers.",
+    "An API result becomes compute input only after GPTs retrieves and verifies the complete snapshot, manifest and hashes, then creates a new compute ticket.",
+    "A compute result becomes expert evidence only after GPTs retrieves and verifies the complete result package, then creates a new expert ticket.",
+    "The numerical compute runtime never fetches business data, calls models, downloads code or contacts another center.",
+    "The compute ticket control plane may contact only api.github.com for issue authorization and duplicate protection; it may not fetch business data.",
+    "No center may silently repair another center's data, assumptions, prompts, code, workflow or output.",
+    "The maintenance actor may modify repository code and run repository-wide audits but is not a runtime business-center relay."
+  ],
+  "forbidden": {
+    "cross_center_workflow_dispatch": true,
+    "cross_center_workflow_call": true,
+    "cross_center_runtime_import": true,
+    "cross_center_artifact_download": true,
+    "compute_business_data_http": true,
+    "compute_model_calls": true,
+    "expert_external_http_during_analysis": true
+  },
+  "evidence_transfer": {
+    "required_relay_fields": [
+      "pipeline_id",
+      "stage_id",
+      "source_center",
+      "task_id",
+      "issue_number",
+      "run_id",
+      "artifact_id",
+      "file",
+      "sha256",
+      "observed_at"
+    ],
+    "complete_body_required": true,
+    "artifact_metadata_alone_is_insufficient": true,
+    "hash_verification_required": true
+  }
+}
