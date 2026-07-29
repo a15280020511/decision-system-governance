@@ -4,12 +4,12 @@
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 21,
-  "total_bytes": 113692,
+  "total_bytes": 116341,
   "files": [
     {
       "path": ".github/workflows/governance-validate.yml",
-      "size_bytes": 1372,
-      "sha256": "4f369e143b35001c395e70016b2ac4708f3523251e28eb80760d5e685afd445a"
+      "size_bytes": 4021,
+      "sha256": "685d02c14699d8692acf06b8d141a712545af040dc46257f7cc0777e0e821dd2"
     },
     {
       "path": "ARCHITECTURE.md",
