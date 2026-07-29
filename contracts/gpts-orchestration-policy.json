@@ -1,0 +1,77 @@
+{
+  "schema_version": "gpts-orchestration-policy-v1",
+  "usage_center": "custom-gpts",
+  "maintenance_center": "ordinary-web-gpt-with-github-plugin",
+  "sole_cross_center_relay": "custom-gpts",
+  "direct_center_to_center_calls_allowed": false,
+  "composition_mode": "dependency-aware-free-composition",
+  "default_execution_mode": "serial",
+  "centers": ["api", "compute", "expert"],
+  "single_center_use_allowed": true,
+  "any_subset_allowed": true,
+  "any_order_allowed_when_prerequisites_are_satisfied": true,
+  "center_repetition_allowed": true,
+  "parallel_execution": {
+    "allowed": true,
+    "condition": "stages are independent and do not consume each other's output",
+    "default": false
+  },
+  "limits": {
+    "maximum_stages_per_pipeline": 6,
+    "maximum_uses_of_same_center_per_pipeline": 2,
+    "maximum_feedback_cycles": 1
+  },
+  "stage_prerequisites": {
+    "api": [
+      "GPTs selected enabled connectors from api-center/api-catalog.json",
+      "ticket contains public non-personal data only",
+      "no arbitrary URL or client-supplied Secret"
+    ],
+    "compute": [
+      "structured inputs are present",
+      "facts, observations, proxies and assumptions are distinguished",
+      "compute preflight is executed",
+      "blocking data gaps or approvals are resolved before calculation"
+    ],
+    "expert": [
+      "GPTs assembled one complete evidence package",
+      "all upstream file bodies and hashes were retrieved and verified",
+      "experts receive no tools, web access or autonomous Artifact access"
+    ]
+  },
+  "feedback_rules": [
+    "Every repeated center use requires a new task_id and stage_id.",
+    "Expert hypotheses cannot directly trigger compute; GPTs must restructure them and obtain user approval when material.",
+    "Compute data gaps cannot directly trigger API; GPTs must choose connectors and create a new [api] ticket.",
+    "API results do not automatically trigger compute or expert execution.",
+    "Additional paid or external calls require user approval when cost or scope materially changes."
+  ],
+  "common_valid_sequences": [
+    ["api"],
+    ["compute"],
+    ["expert"],
+    ["api", "compute"],
+    ["api", "expert"],
+    ["compute", "expert"],
+    ["api", "compute", "expert"],
+    ["compute", "api", "compute"],
+    ["expert", "api", "expert"],
+    ["expert", "compute", "expert"]
+  ],
+  "evidence_relay": {
+    "required_fields": [
+      "pipeline_id",
+      "stage_id",
+      "source_center",
+      "task_id",
+      "issue_number",
+      "run_id",
+      "artifact_id",
+      "file",
+      "sha256",
+      "observed_at"
+    ],
+    "body_must_be_retrieved_before_relay": true,
+    "artifact_metadata_alone_is_insufficient": true
+  }
+}
