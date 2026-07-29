@@ -9,8 +9,9 @@
       "compatible_governance_versions": ">=3.1.0,<4.0.0"
     },
     "compute-simulation-center": {
-      "center_version": "3.1.0",
-      "compatible_governance_versions": ">=3.2.0,<4.0.0"
+      "center_version": "3.2.0",
+      "compatible_governance_versions": ">=3.2.0,<4.0.0",
+      "runtime_plan_extension": "compute-systems-route-v1"
     },
     "expert-assessment-center": {
       "center_version": "3.0.0",
