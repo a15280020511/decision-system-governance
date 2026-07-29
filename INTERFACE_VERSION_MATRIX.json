@@ -1,16 +1,16 @@
 {
   "schema_version": "interface-version-matrix-v1",
-  "governance_version": "3.1.0",
-  "source_repository": "a15280020511/test",
-  "source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
+  "governance_version": "3.2.0",
+  "migration_source_repository": "a15280020511/test",
+  "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "centers": {
     "evidence-data-center": {
       "center_version": "3.0.0",
       "compatible_governance_versions": ">=3.1.0,<4.0.0"
     },
     "compute-simulation-center": {
-      "center_version": "3.0.0",
-      "compatible_governance_versions": ">=3.1.0,<4.0.0"
+      "center_version": "3.1.0",
+      "compatible_governance_versions": ">=3.2.0,<4.0.0"
     },
     "expert-assessment-center": {
       "center_version": "3.0.0",
