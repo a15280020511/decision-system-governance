@@ -78,7 +78,7 @@ jobs:
           found = [item for item in forbidden if item in openapi or item in workflow]
           if found:
               raise SystemExit(f"legacy two-step interface remains: {found}")
-          if workflow.count("issues:") != 1 or "types: [opened]" not in workflow:
+          if workflow.count("\n  issues:\n") != 1 or "types: [opened]" not in workflow:
               raise SystemExit("control workflow must trigger exactly on Issue opened")
           if openapi.count("operationId:") != 3:
               raise SystemExit("GPT Action must expose exactly three operations")
