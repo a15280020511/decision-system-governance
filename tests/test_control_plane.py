@@ -16,12 +16,22 @@ SPEC.loader.exec_module(MODULE)
 
 
 class PrepareTests(unittest.TestCase):
-    def run_prepare(self, body: dict, command: str) -> dict:
+    def run_prepare(
+        self,
+        body: dict,
+        *,
+        issue_number: int = 42,
+        title: str = "[control]",
+    ) -> tuple[dict, dict | None]:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             event = {
-                "issue": {"title": "[control] test", "body": json.dumps(body)},
-                "comment": {"body": command, "user": {"login": "a15280020511"}},
+                "issue": {
+                    "number": issue_number,
+                    "title": title,
+                    "body": json.dumps(body),
+                },
+                "sender": {"login": "a15280020511"},
                 "repository": {"owner": {"login": "a15280020511"}},
             }
             event_path = root / "event.json"
@@ -37,88 +47,85 @@ class PrepareTests(unittest.TestCase):
             finally:
                 if old_output is not None:
                     os.environ["GITHUB_OUTPUT"] = old_output
-            return json.loads(
+            status = json.loads(
                 (root / "out" / "prepare-status.json").read_text(encoding="utf-8")
             )
+            child_path = root / "out" / "child-ticket.json"
+            child = (
+                json.loads(child_path.read_text(encoding="utf-8"))
+                if child_path.exists()
+                else None
+            )
+            return status, child
 
-    def test_accepts_exact_compute_wrapper(self) -> None:
-        task_id = "compute-20260802-001"
-        status = self.run_prepare(
+    def test_accepts_one_step_compute_ticket_and_generates_task_id(self) -> None:
+        status, child = self.run_prepare(
             {
-                "schema_version": "governance-control-ticket-v2",
-                "task_id": task_id,
+                "schema_version": "governance-control-ticket-v3",
                 "route": "compute",
                 "ticket": {
-                    "task_id": task_id,
                     "operation": "descriptive_statistics",
                     "inputs": {"values": [1, 2, 3]},
                 },
             },
-            f"/dispatch-control {task_id}",
+            issue_number=42,
         )
         self.assertTrue(status["accepted"])
+        self.assertEqual(status["task_id"], "gov-42-compute")
         self.assertEqual(
             status["target_repository"],
             "a15280020511/compute-simulation-center",
         )
+        self.assertEqual(child["task_id"], "gov-42-compute")
 
     def test_rejects_secret_bearing_ticket(self) -> None:
-        task_id = "api-20260802-001"
-        status = self.run_prepare(
+        status, _ = self.run_prepare(
             {
-                "schema_version": "governance-control-ticket-v2",
-                "task_id": task_id,
+                "schema_version": "governance-control-ticket-v3",
                 "route": "intelligence",
-                "ticket": {
-                    "task_id": task_id,
-                    "api_key": "must-not-appear",
-                },
-            },
-            f"/dispatch-control {task_id}",
+                "ticket": {"api_key": "must-not-appear"},
+            }
         )
         self.assertFalse(status["accepted"])
         self.assertIn("secret-bearing field", status["reason"])
 
-    def test_rejects_command_ticket_mismatch(self) -> None:
-        status = self.run_prepare(
+    def test_rejects_client_supplied_task_id(self) -> None:
+        status, _ = self.run_prepare(
             {
-                "schema_version": "governance-control-ticket-v2",
-                "task_id": "expert-20260802-001",
+                "schema_version": "governance-control-ticket-v3",
                 "route": "expert",
                 "ticket": {
-                    "task_id": "expert-20260802-001",
+                    "task_id": "client-id",
                     "route": "expert-team",
                     "task": {"question": "test"},
-                    "approved_budget": {
-                        "calls": 4,
-                        "maximum_recovery_calls": 1,
-                        "cost_policy": "unbounded_with_anomaly_guard",
-                    },
                 },
-            },
-            "/dispatch-control expert-20260802-999",
+            }
         )
         self.assertFalse(status["accepted"])
-        self.assertIn("exactly match", status["reason"])
+        self.assertIn("must omit task_id", status["reason"])
 
-    def test_rejects_removed_notify_field(self) -> None:
-        task_id = "compute-20260802-002"
-        status = self.run_prepare(
+    def test_rejects_old_schema(self) -> None:
+        status, _ = self.run_prepare(
             {
                 "schema_version": "governance-control-ticket-v2",
-                "task_id": task_id,
                 "route": "compute",
-                "notify": True,
-                "ticket": {
-                    "task_id": task_id,
-                    "operation": "descriptive_statistics",
-                    "inputs": {"values": [1, 2, 3]},
-                },
-            },
-            f"/dispatch-control {task_id}",
+                "ticket": {"operation": "descriptive_statistics"},
+            }
         )
         self.assertFalse(status["accepted"])
-        self.assertIn("unknown control ticket fields", status["reason"])
+        self.assertIn("governance-control-ticket-v3", status["reason"])
+
+    def test_rejects_noncanonical_title(self) -> None:
+        status, _ = self.run_prepare(
+            {
+                "schema_version": "governance-control-ticket-v3",
+                "route": "compute",
+                "ticket": {"operation": "descriptive_statistics"},
+            },
+            title="[control] extra",
+        )
+        self.assertFalse(status["accepted"])
+        self.assertIn("exactly [control]", status["reason"])
 
 
 class TerminalTests(unittest.TestCase):
@@ -136,6 +143,12 @@ class TerminalTests(unittest.TestCase):
         heading, _, success = MODULE._trusted_terminal(rows, route="expert")
         self.assertEqual(heading, "EXECUTION_FAILED")
         self.assertFalse(success)
+
+    def test_generated_task_id_is_deterministic(self) -> None:
+        self.assertEqual(
+            MODULE._generated_task_id(125, "intelligence"),
+            "gov-125-intelligence",
+        )
 
 
 if __name__ == "__main__":
