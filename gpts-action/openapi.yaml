@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Decision System Governance Gateway
-  version: 2.0.0
+  version: 2.0.1
   description: >
     One-step GPT interface for the three isolated decision centers.
     Submit exactly one governance Issue. The governance workflow automatically
@@ -38,7 +38,7 @@ paths:
                     JSON string with schema_version, route, ticket, and optional
                     wait_seconds. The nested ticket must omit task_id.
                   examples:
-                    - '{"schema_version":"governance-control-ticket-v3","route":"compute","ticket":{"operation":"descriptive_statistics","inputs":{"values":[1,2,3]}}}'
+                    - '{"schema_version":"governance-control-ticket-v3","route":"compute","ticket":{"operation":"descriptive_statistics","inputs":{"data":[1,2,3]}}}'
       responses:
         '201':
           description: Task accepted by GitHub for governance processing
