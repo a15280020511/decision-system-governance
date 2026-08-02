@@ -1,5 +1,5 @@
 {
-  "schema_version": "gpts-orchestration-policy-v2",
+  "schema_version": "gpts-orchestration-policy-v3",
   "usage_center": "custom-gpts",
   "command_gateway": "decision-system-governance",
   "maintenance_center": "ordinary-web-gpt-with-github-plugin",
@@ -28,7 +28,16 @@
     "business_execution_allowed": false,
     "business_artifact_download_allowed": false,
     "trusted_terminal_author": "github-actions[bot]",
-    "notification_channel": "serverchan-optional"
+    "notification_channel": "none"
+  },
+  "installed_integrations": {
+    "serverchan": {
+      "manifest": "integrations/serverchan/integration.json",
+      "installation_status": "installed",
+      "activation_status": "disabled",
+      "implementation_status": "not_designed",
+      "runtime_entrypoints": []
+    }
   },
   "parallel_execution": {
     "allowed": true,
