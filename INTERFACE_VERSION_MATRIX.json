@@ -1,8 +1,27 @@
 {
   "schema_version": "interface-version-matrix-v1",
-  "governance_version": "3.2.0",
+  "governance_version": "3.3.0",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
+  "control_plane": {
+    "schema_version": "governance-control-ticket-v1",
+    "gpt_action_openapi_version": "1.0.0",
+    "routes": {
+      "intelligence": {
+        "repository": "a15280020511/evidence-data-center",
+        "formal_issue_prefix": "[api]"
+      },
+      "compute": {
+        "repository": "a15280020511/compute-simulation-center",
+        "formal_issue_prefix": "[compute]"
+      },
+      "expert": {
+        "repository": "a15280020511/expert-assessment-center",
+        "formal_issue_prefix": "[execution]",
+        "formal_comment_command": "/run-expert-team <task_id>"
+      }
+    }
+  },
   "centers": {
     "evidence-data-center": {
       "center_version": "3.0.0",
@@ -20,5 +39,6 @@
   },
   "runtime_cross_repository_read": false,
   "shared_business_workflows": false,
-  "shared_business_secrets": false
+  "shared_business_secrets": false,
+  "governance_issue_gateway_allowed": true
 }
