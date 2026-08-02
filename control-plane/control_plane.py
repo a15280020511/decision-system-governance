@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Governance control plane for dispatching formal tickets to isolated centers."""
+"""Governance control plane for one-step GPT task submission."""
 from __future__ import annotations
 
 import argparse
@@ -14,6 +14,7 @@ from typing import Any, Mapping
 
 API_ROOT = "https://api.github.com"
 OWNER = "a15280020511"
+SCHEMA_VERSION = "governance-control-ticket-v3"
 ROUTES = {
     "intelligence": {
         "repository": f"{OWNER}/evidence-data-center",
@@ -38,16 +39,13 @@ ROUTES = {
         ),
     },
 }
-COMMAND_RE = re.compile(
-    r"^/dispatch-control\s+([A-Za-z0-9][A-Za-z0-9._:-]{7,127})$"
-)
-TASK_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$")
 SECRET_KEY_RE = re.compile(
     r"(?:^|_)(?:secret|token|password|passwd|private_key|api_key|sendkey|sckey)(?:$|_)",
     re.IGNORECASE,
 )
 MAX_BODY_CHARS = 100_000
 TRUSTED_COMMENT_AUTHOR = "github-actions[bot]"
+MAX_ISSUE_SCAN_PAGES = 5
 
 
 def _reject_constant(value: str) -> None:
@@ -92,19 +90,23 @@ def _forbidden_secret_path(value: Any, path: str = "ticket") -> str:
     return ""
 
 
-def _event_data(path: str) -> tuple[str, str, str, str]:
+def _event_data(path: str) -> tuple[str, str, str, int]:
     event = _load_json_text(Path(path).read_text(encoding="utf-8"))
     issue = event.get("issue") if isinstance(event.get("issue"), Mapping) else {}
-    comment = event.get("comment") if isinstance(event.get("comment"), Mapping) else {}
-    sender = comment.get("user") if isinstance(comment.get("user"), Mapping) else {}
+    sender = event.get("sender") if isinstance(event.get("sender"), Mapping) else {}
     repository = event.get("repository") if isinstance(event.get("repository"), Mapping) else {}
     owner = repository.get("owner") if isinstance(repository.get("owner"), Mapping) else {}
+    actor = str(sender.get("login") or owner.get("login") or "")
     return (
         str(issue.get("title") or ""),
         str(issue.get("body") or ""),
-        str(comment.get("body") or "").strip(),
-        str(sender.get("login") or owner.get("login") or ""),
+        actor,
+        int(issue.get("number") or 0),
     )
+
+
+def _generated_task_id(issue_number: int, route: str) -> str:
+    return f"gov-{issue_number}-{route}"
 
 
 def prepare(args: argparse.Namespace) -> int:
@@ -112,22 +114,20 @@ def prepare(args: argparse.Namespace) -> int:
     root.mkdir(parents=True, exist_ok=True)
     errors: list[str] = []
     packet: dict[str, Any] = {}
+    issue_number = 0
+    actor = ""
+    issue_title = ""
+    issue_body = ""
 
     try:
-        issue_title, issue_body, comment_body, actor = _event_data(args.event_path)
+        issue_title, issue_body, actor, issue_number = _event_data(args.event_path)
     except (OSError, json.JSONDecodeError, ValueError) as exc:
-        issue_title = issue_body = comment_body = actor = ""
         errors.append(f"event parse failed: {exc}")
 
-    command_id = ""
-    match = COMMAND_RE.fullmatch(comment_body)
-    if match:
-        command_id = match.group(1)
-    else:
-        errors.append("command must be: /dispatch-control <task_id>")
-
-    if not issue_title.startswith("[control]"):
-        errors.append("governance issue title must start with [control]")
+    if issue_title != "[control]":
+        errors.append("governance issue title must be exactly [control]")
+    if issue_number <= 0:
+        errors.append("governance issue number is missing")
     if len(issue_body) > MAX_BODY_CHARS:
         errors.append(f"issue body exceeds {MAX_BODY_CHARS} characters")
 
@@ -139,26 +139,13 @@ def prepare(args: argparse.Namespace) -> int:
     except (json.JSONDecodeError, ValueError) as exc:
         errors.append(f"control ticket JSON invalid: {exc}")
 
-    allowed = {
-        "schema_version",
-        "task_id",
-        "route",
-        "ticket",
-        "wait_seconds",
-    }
+    allowed = {"schema_version", "route", "ticket", "wait_seconds"}
     unexpected = sorted(set(packet) - allowed)
     if unexpected:
         errors.append(f"unknown control ticket fields: {unexpected}")
 
-    if packet.get("schema_version") != "governance-control-ticket-v2":
-        errors.append("schema_version must be governance-control-ticket-v2")
-
-    task_id = packet.get("task_id")
-    if not isinstance(task_id, str) or TASK_ID_RE.fullmatch(task_id) is None:
-        errors.append("task_id must be 8-128 safe characters")
-        task_id = ""
-    if command_id and task_id and command_id != task_id:
-        errors.append("command task_id must exactly match ticket task_id")
+    if packet.get("schema_version") != SCHEMA_VERSION:
+        errors.append(f"schema_version must be {SCHEMA_VERSION}")
 
     route = packet.get("route")
     if route not in ROUTES:
@@ -167,11 +154,10 @@ def prepare(args: argparse.Namespace) -> int:
 
     ticket = packet.get("ticket")
     if not isinstance(ticket, dict):
-        errors.append("ticket must be the exact child-center ticket object")
+        errors.append("ticket must be the child-center ticket object without task_id")
         ticket = {}
-    child_task_id = ticket.get("task_id") if isinstance(ticket, dict) else None
-    if task_id and child_task_id != task_id:
-        errors.append("child ticket task_id must exactly match control task_id")
+    if "task_id" in ticket:
+        errors.append("child ticket must omit task_id; governance generates it from the Issue number")
 
     forbidden_path = _forbidden_secret_path(ticket)
     if forbidden_path:
@@ -186,12 +172,14 @@ def prepare(args: argparse.Namespace) -> int:
         errors.append("wait_seconds must be an integer between 60 and 2700")
         wait_seconds = 2400
 
+    task_id = _generated_task_id(issue_number, route) if issue_number > 0 and route else ""
     accepted = not errors
     route_config = ROUTES.get(route, {})
     status = {
         "accepted": accepted,
         "reason": "; ".join(errors) if errors else "control ticket accepted",
         "actor": actor,
+        "governance_issue_number": issue_number,
         "task_id": task_id,
         "route": route,
         "wait_seconds": wait_seconds,
@@ -205,12 +193,15 @@ def prepare(args: argparse.Namespace) -> int:
     }
     _write_json(root / "prepare-status.json", status)
     if accepted:
-        _write_json(root / "child-ticket.json", ticket)
+        child_ticket = dict(ticket)
+        child_ticket["task_id"] = task_id
+        _write_json(root / "child-ticket.json", child_ticket)
 
     for key, value in status.items():
         if key in {
             "accepted",
             "reason",
+            "governance_issue_number",
             "task_id",
             "route",
             "wait_seconds",
@@ -231,9 +222,7 @@ def _github_request(
 ) -> Any:
     if not token:
         raise RuntimeError("CONTROL_PLANE_TOKEN is not configured")
-    data = None
-    if payload is not None:
-        data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    data = None if payload is None else json.dumps(payload, ensure_ascii=False).encode("utf-8")
     request = urllib.request.Request(
         API_ROOT + path,
         data=data,
@@ -251,8 +240,45 @@ def _github_request(
             raw = response.read().decode("utf-8")
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")[:2000]
-        raise RuntimeError(f"GitHub API {method} {path} failed: HTTP {exc.code}: {body}") from exc
+        raise RuntimeError(
+            f"GitHub API {method} {path} failed: HTTP {exc.code}: {body}"
+        ) from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"GitHub API {method} {path} network failure: {exc}") from exc
     return json.loads(raw) if raw else None
+
+
+def _find_existing_child_issue(token: str, repo: str, title: str) -> Mapping[str, Any] | None:
+    for page in range(1, MAX_ISSUE_SCAN_PAGES + 1):
+        rows = _github_request(
+            "GET",
+            f"/repos/{repo}/issues?state=all&per_page=100&page={page}",
+            token=token,
+        )
+        if not isinstance(rows, list):
+            return None
+        for row in rows:
+            if not isinstance(row, Mapping) or row.get("pull_request"):
+                continue
+            if str(row.get("title") or "") == title:
+                return row
+        if len(rows) < 100:
+            return None
+    return None
+
+
+def _comment_exists(token: str, repo: str, issue_number: int, body: str) -> bool:
+    rows = _github_request(
+        "GET",
+        f"/repos/{repo}/issues/{issue_number}/comments?per_page=100",
+        token=token,
+    )
+    if not isinstance(rows, list):
+        return False
+    return any(
+        isinstance(row, Mapping) and str(row.get("body") or "").strip() == body
+        for row in rows
+    )
 
 
 def dispatch(args: argparse.Namespace) -> int:
@@ -260,37 +286,48 @@ def dispatch(args: argparse.Namespace) -> int:
     status = _load_json_text((root / "prepare-status.json").read_text(encoding="utf-8"))
     if status.get("accepted") is not True:
         raise SystemExit("refusing to dispatch an unaccepted control ticket")
+
     token = os.getenv("CONTROL_PLANE_TOKEN", "")
     repo = str(status["target_repository"])
-    ticket_text = (root / "child-ticket.json").read_text(encoding="utf-8").strip()
-    issue = _github_request(
-        "POST",
-        f"/repos/{repo}/issues",
-        token=token,
-        payload={
-            "title": status["child_issue_title"],
-            "body": ticket_text,
-        },
-    )
+    title = str(status["child_issue_title"])
+    existing = _find_existing_child_issue(token, repo, title)
+    reused = existing is not None
+
+    if existing is None:
+        ticket_text = (root / "child-ticket.json").read_text(encoding="utf-8").strip()
+        issue = _github_request(
+            "POST",
+            f"/repos/{repo}/issues",
+            token=token,
+            payload={"title": title, "body": ticket_text},
+        )
+    else:
+        issue = existing
+
     issue_number = int(issue["number"])
-    if status.get("child_command"):
+    command = str(status.get("child_command") or "")
+    command_posted = False
+    if command and not _comment_exists(token, repo, issue_number, command):
         _github_request(
             "POST",
             f"/repos/{repo}/issues/{issue_number}/comments",
             token=token,
-            payload={"body": status["child_command"]},
+            payload={"body": command},
         )
+        command_posted = True
+
     result = {
         "task_id": status["task_id"],
         "route": status["route"],
         "repository": repo,
         "issue_number": issue_number,
         "issue_url": issue["html_url"],
-        "command_posted": bool(status.get("child_command")),
+        "child_issue_reused": reused,
+        "command_posted": command_posted,
     }
     _write_json(root / "dispatch-status.json", result)
     for key, value in result.items():
-        _write_output(key, value)
+        _write_output(key, str(value).lower() if isinstance(value, bool) else value)
     return 0
 
 
@@ -300,8 +337,6 @@ def _trusted_terminal(
     route: str,
 ) -> tuple[str, str, bool] | None:
     config = ROUTES[route]
-    success_prefixes = config["success"]
-    failure_prefixes = config["failure"]
     if not isinstance(rows, list):
         return None
     for row in reversed(rows):
@@ -311,10 +346,10 @@ def _trusted_terminal(
         if str(user.get("login") or "") != TRUSTED_COMMENT_AUTHOR:
             continue
         body = str(row.get("body") or "").strip()
-        for prefix in success_prefixes:
+        for prefix in config["success"]:
             if body.startswith(prefix):
                 return prefix.removeprefix("## ").strip(), body, True
-        for prefix in failure_prefixes:
+        for prefix in config["failure"]:
             if body.startswith(prefix):
                 return prefix.removeprefix("## ").strip(), body, False
     return None
@@ -332,6 +367,7 @@ def poll(args: argparse.Namespace) -> int:
     deadline = time.monotonic() + int(args.wait_seconds)
     transient_errors = 0
     terminal: tuple[str, str, bool] | None = None
+    monitor_error = ""
 
     while time.monotonic() < deadline:
         try:
@@ -344,16 +380,21 @@ def poll(args: argparse.Namespace) -> int:
             if terminal:
                 break
             transient_errors = 0
-        except RuntimeError:
+        except RuntimeError as exc:
             transient_errors += 1
+            monitor_error = str(exc)
             if transient_errors >= 5:
-                raise
+                break
         time.sleep(30)
 
     if terminal:
         heading, body, success = terminal
         final_status = heading
         excerpt = body[:12000]
+    elif transient_errors >= 5:
+        success = False
+        final_status = "CONTROL_MONITOR_ERROR"
+        excerpt = monitor_error[:12000]
     else:
         success = False
         final_status = "CONTROL_TIMEOUT"
@@ -376,20 +417,19 @@ def poll(args: argparse.Namespace) -> int:
 
 def render(args: argparse.Namespace) -> int:
     root = Path(args.output_dir)
-    phase = args.phase
-    if phase == "rejected":
+    if args.phase == "rejected":
         status = _load_json_text((root / "prepare-status.json").read_text(encoding="utf-8"))
         text = "\n".join(
             [
                 "## CONTROL_REJECTED",
                 "",
-                f"- Task ID: `{status.get('task_id') or 'unknown'}`",
+                f"- Task ID: `{status.get('task_id') or 'not-generated'}`",
                 f"- Reason: `{status.get('reason') or 'unknown'}`",
                 "- Child center dispatch: `not attempted`",
                 "- Model/API/compute calls caused by this ticket: `0`",
             ]
         )
-    elif phase == "dispatched":
+    elif args.phase == "dispatched":
         status = _load_json_text((root / "dispatch-status.json").read_text(encoding="utf-8"))
         text = "\n".join(
             [
@@ -399,11 +439,12 @@ def render(args: argparse.Namespace) -> int:
                 f"- Route: `{status['route']}`",
                 f"- Target repository: `{status['repository']}`",
                 f"- Child Issue: {status['issue_url']}",
-                "- Control mode: `governance issue gateway; child repository retains execution authority`",
+                f"- Idempotent child reuse: `{str(bool(status.get('child_issue_reused'))).lower()}`",
+                "- Control mode: `one-step governance Issue submission`",
                 "- Center-to-center communication: `none`",
             ]
         )
-    elif phase == "final":
+    elif args.phase == "final":
         status = _load_json_text((root / "final-status.json").read_text(encoding="utf-8"))
         excerpt = str(status.get("terminal_comment_excerpt") or "")
         text = "\n".join(
@@ -414,7 +455,7 @@ def render(args: argparse.Namespace) -> int:
                 f"- Route: `{status['route']}`",
                 f"- Child status: `{status['final_status']}`",
                 f"- Child Issue: {status['issue_url']}",
-                "- Authoritative result: `the trusted github-actions[bot] terminal comment and child Artifact`",
+                "- Authoritative result: `trusted github-actions[bot] terminal comment and child Artifact`",
                 "",
                 "<details><summary>Trusted terminal excerpt</summary>",
                 "",
@@ -424,7 +465,7 @@ def render(args: argparse.Namespace) -> int:
             ]
         )
     else:
-        raise ValueError(f"unsupported phase: {phase}")
+        raise ValueError(f"unsupported phase: {args.phase}")
     Path(args.output).write_text(text + "\n", encoding="utf-8")
     return 0
 
@@ -448,7 +489,9 @@ def parser() -> argparse.ArgumentParser:
     poll_parser.set_defaults(func=poll)
 
     render_parser = sub.add_parser("render")
-    render_parser.add_argument("--phase", choices=["rejected", "dispatched", "final"], required=True)
+    render_parser.add_argument(
+        "--phase", choices=["rejected", "dispatched", "final"], required=True
+    )
     render_parser.add_argument("--output-dir", default="control-artifacts")
     render_parser.add_argument("--output", required=True)
     render_parser.set_defaults(func=render)
