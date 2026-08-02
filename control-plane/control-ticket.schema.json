@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/a15280020511/decision-system-governance/control-plane/control-ticket.schema.json",
+  "title": "Governance Control Ticket",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "route",
+    "ticket"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "governance-control-ticket-v1"
+    },
+    "task_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$"
+    },
+    "route": {
+      "enum": [
+        "intelligence",
+        "compute",
+        "expert"
+      ]
+    },
+    "ticket": {
+      "type": "object"
+    },
+    "notify": {
+      "type": "boolean",
+      "default": true
+    },
+    "wait_seconds": {
+      "type": "integer",
+      "minimum": 60,
+      "maximum": 2700,
+      "default": 2400
+    }
+  }
+}

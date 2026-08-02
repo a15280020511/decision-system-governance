@@ -2,12 +2,32 @@
 
 ```text
 GPTs 总控使用台
-├── Evidence & Data Center
-├── Computation & Simulation Center
-└── Expert Assessment Center
+└── Decision System Governance（控制平面，不是业务中心）
+    ├── Evidence & Data Center
+    ├── Computation & Simulation Center
+    └── Expert Assessment Center
 ```
 
-治理仓库只保存合同、版本、恢复和安全边界，不参与业务运行。三个业务中心平行、并列、隔离，全部只与 GPTs 单线联系。GPTs 可按任务调用任意单中心、任意子集或串行 Pipeline，但不得伪造中心输出。
+治理仓库保存合同、版本、恢复、安全边界和控制入口。它可以代表 GPTs 创建目标中心的正式 Issue、轮询由 `github-actions[bot]` 发布的可信状态并集中通知，但不执行业务请求、不下载业务 Artifact、不调用模型，也不修改中心结果。
+
+三个业务中心平行、并列、隔离；中心之间不得直接通信。GPTs 可按任务调用任意单中心、任意子集或串行 Pipeline，但不得伪造中心输出。控制平面只传递明确票据与状态，不形成自动无限循环。
+
+## 权限分层
+
+```text
+GPT Action Token
+  └─ 仅治理仓库 Issues 读写
+
+治理仓库 GITHUB_TOKEN
+  └─ 仅本仓库内容读取、Issue 回执、Artifact
+
+CONTROL_PLANE_TOKEN
+  └─ 仅三个业务仓库 Issues 读写
+     不授予 Contents 写入，不持有业务 API/模型 Secret
+
+SERVERCHAN_SENDKEY
+  └─ 仅治理仓库最终摘要通知
+```
 
 ## 核心闭环
 

@@ -1,0 +1,148 @@
+openapi: 3.1.0
+info:
+  title: Decision System Governance Gateway
+  version: 1.0.0
+  description: >
+    This action is limited to the decision-system-governance repository.
+    It creates and monitors governance control Issues. The governance repository,
+    not the GPT action credential, dispatches to the three isolated centers.
+servers:
+  - url: https://api.github.com
+paths:
+  /repos/a15280020511/decision-system-governance/issues:
+    post:
+      operationId: createGovernanceIssue
+      summary: Create one governance control ticket
+      description: >
+        Create an Issue whose title starts with [control] and whose body is the
+        exact governance-control-ticket-v1 JSON object.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [title, body]
+              properties:
+                title:
+                  type: string
+                  pattern: '^\[control\]'
+                  maxLength: 256
+                body:
+                  type: string
+                  maxLength: 100000
+      responses:
+        '201':
+          description: Governance Issue created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Issue'
+  /repos/a15280020511/decision-system-governance/issues/{issue_number}:
+    get:
+      operationId: getGovernanceIssue
+      summary: Read one governance Issue
+      parameters:
+        - $ref: '#/components/parameters/IssueNumber'
+      responses:
+        '200':
+          description: Governance Issue
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Issue'
+  /repos/a15280020511/decision-system-governance/issues/{issue_number}/comments:
+    get:
+      operationId: listGovernanceIssueComments
+      summary: Read governance control receipts
+      parameters:
+        - $ref: '#/components/parameters/IssueNumber'
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 100
+      responses:
+        '200':
+          description: Governance Issue comments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Comment'
+    post:
+      operationId: commentGovernanceIssue
+      summary: Submit the explicit dispatch command
+      description: >
+        Post exactly /dispatch-control <task_id>. Do not post child-center
+        commands directly.
+      parameters:
+        - $ref: '#/components/parameters/IssueNumber'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [body]
+              properties:
+                body:
+                  type: string
+                  pattern: '^/dispatch-control [A-Za-z0-9][A-Za-z0-9._:-]{7,127}$'
+      responses:
+        '201':
+          description: Dispatch command posted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+components:
+  securitySchemes:
+    githubBearer:
+      type: http
+      scheme: bearer
+  parameters:
+    IssueNumber:
+      name: issue_number
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+  schemas:
+    Issue:
+      type: object
+      properties:
+        number:
+          type: integer
+        title:
+          type: string
+        body:
+          type: string
+        state:
+          type: string
+        html_url:
+          type: string
+        comments:
+          type: integer
+    Comment:
+      type: object
+      properties:
+        id:
+          type: integer
+        body:
+          type: string
+        html_url:
+          type: string
+        user:
+          type: object
+          properties:
+            login:
+              type: string
+security:
+  - githubBearer: []
