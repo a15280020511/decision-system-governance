@@ -2,16 +2,17 @@
 
 ## 最终接口
 
-GPTs 与治理仓库之间采用“一次提交、自动派发、状态查询”的固定接口：
+GPTs 与治理仓库之间采用“提交一次、查询同一个 Issue”的固定接口：
 
 ```text
 GPTs
-  ├─ submitDecisionTask          创建一次 [control] Issue
-  ├─ getDecisionTaskStatus      查询状态
-  └─ getDecisionTaskReceipts    仅在需要详细回执时读取
+  ├─ submitDecisionTask       创建一次 [control] Issue
+  └─ getDecisionTaskStatus   查询状态、结果摘要和 Artifact 信息
 ```
 
-不再需要 `/dispatch-control` 评论，也不需要 GPT 生成 `task_id`。治理仓库根据新 Issue 编号自动生成唯一任务 ID，并把任务送入对应中心的正式入口。
+GPTs 不读取评论，不访问三个业务仓库，不发送 `/dispatch-control`，也不生成 `task_id`。治理仓库根据新 Issue 编号自动生成唯一任务 ID，并负责票据验证、路由、派发、监控、失败处理、结果汇总、状态写回和自动关闭。
+
+评论仍保留为人工审计证据，但不暴露为 GPT Action。
 
 ## 最小连接配置
 
@@ -23,7 +24,7 @@ GPTs
 4. 填入只授权 `decision-system-governance` 仓库、`Issues: Read and write` 的 fine-grained PAT。
 5. 在 Preview 中执行一次最小计算票据。
 
-GPT 端只有一个写操作和两个读操作。GPT Action Token 无权访问三个业务仓库。
+GPT 端只有一个写操作和一个读操作。GPT Action Token 无权访问三个业务仓库。
 
 治理仓库仅需：
 
@@ -50,7 +51,7 @@ CONTROL_PLANE_TOKEN
   "ticket": {
     "operation": "descriptive_statistics",
     "inputs": {
-      "values": [1, 2, 3]
+      "data": [1, 2, 3]
     }
   }
 }
@@ -66,38 +67,49 @@ CONTROL_PLANE_TOKEN
 
 ## 状态读取
 
-`getDecisionTaskStatus` 返回治理 Issue：
+GPT 只调用 `getDecisionTaskStatus`。
 
 ```text
 state=open
 ```
 
-表示排队或运行。
+表示排队或运行。此时 Issue 正文末尾包含治理仓库写入的 `CONTROL_DISPATCHED` 状态、任务 ID、路由和子 Issue。
 
 ```text
 state=closed
 state_reason=completed
 ```
 
-表示成功。
+表示成功。Issue 正文末尾包含 `CONTROL_COMPLETED`、子中心终态、子 Issue、可信终态摘录、Artifact ID、digest 和公开结果摘要。
 
 ```text
 state=closed
 state_reason=not_planned
 ```
 
-表示拒绝、失败或超时。
+表示拒绝、失败或超时。Issue 正文末尾包含治理仓库集中写入的失败类型和原因。
 
-需要子 Issue、终态正文或错误原因时，再调用 `getDecisionTaskReceipts`。
+状态区由以下标记包围：
+
+```text
+<!-- governance-status:start -->
+...
+<!-- governance-status:end -->
+```
+
+GPT 不需要读取评论或理解子仓库回执格式。
 
 ## 稳定性机制
 
+- GPT 只连接一个仓库、一个 OpenAPI、一个 Token；
+- GPT 只有一个写操作和一个读操作；
 - 仅 `issues.opened` 触发一次；
 - 任务 ID 从治理 Issue 编号确定性生成；
 - 子 Issue 创建前检查同名任务，工作流重跑不会重复派发；
 - 专家团正式命令在发送前检查是否已存在；
 - 只信任目标仓库 `github-actions[bot]` 的终态；
 - 监控连续错误会形成 `CONTROL_MONITOR_ERROR`，不会伪报成功；
+- 状态和结果统一写回治理 Issue 正文；
 - 成功自动关闭为 `completed`；
 - 拒绝、失败或超时自动关闭为 `not_planned`；
 - 三个中心仍互相隔离，治理仓库不下载或修改业务 Artifact。

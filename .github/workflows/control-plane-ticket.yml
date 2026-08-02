@@ -51,11 +51,28 @@ jobs:
             --phase rejected \
             --output-dir control-artifacts \
             --output governance-comment.md
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
+          request = str(event.get("issue", {}).get("body") or "").rstrip()
+          receipt = Path("governance-comment.md").read_text(encoding="utf-8").strip()
+          body = (
+              request
+              + "\n\n---\n\n<!-- governance-status:start -->\n"
+              + receipt
+              + "\n<!-- governance-status:end -->\n"
+          )
+          Path("governance-issue-body.md").write_text(body, encoding="utf-8")
+          PY
           gh api --method POST \
             "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}/comments" \
             -F body=@governance-comment.md
           gh api --method PATCH \
             "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}" \
+            -F body=@governance-issue-body.md \
             -f state=closed \
             -f state_reason=not_planned
 
@@ -85,11 +102,28 @@ jobs:
           - Child center result: `not created or not confirmed`
           - Action: inspect this workflow run; no business success is claimed.
           EOF
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
+          request = str(event.get("issue", {}).get("body") or "").rstrip()
+          receipt = Path("governance-comment.md").read_text(encoding="utf-8").strip()
+          body = (
+              request
+              + "\n\n---\n\n<!-- governance-status:start -->\n"
+              + receipt
+              + "\n<!-- governance-status:end -->\n"
+          )
+          Path("governance-issue-body.md").write_text(body, encoding="utf-8")
+          PY
           gh api --method POST \
             "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}/comments" \
             -F body=@governance-comment.md
           gh api --method PATCH \
             "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}" \
+            -F body=@governance-issue-body.md \
             -f state=closed \
             -f state_reason=not_planned
 
@@ -102,9 +136,28 @@ jobs:
             --phase dispatched \
             --output-dir control-artifacts \
             --output governance-comment.md
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
+          request = str(event.get("issue", {}).get("body") or "").rstrip()
+          receipt = Path("governance-comment.md").read_text(encoding="utf-8").strip()
+          body = (
+              request
+              + "\n\n---\n\n<!-- governance-status:start -->\n"
+              + receipt
+              + "\n<!-- governance-status:end -->\n"
+          )
+          Path("governance-issue-body.md").write_text(body, encoding="utf-8")
+          PY
           gh api --method POST \
             "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}/comments" \
             -F body=@governance-comment.md
+          gh api --method PATCH \
+            "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}" \
+            -F body=@governance-issue-body.md
 
       - name: Monitor trusted child terminal status
         id: monitor
@@ -126,6 +179,22 @@ jobs:
             --phase final \
             --output-dir control-artifacts \
             --output governance-comment.md
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
+          request = str(event.get("issue", {}).get("body") or "").rstrip()
+          receipt = Path("governance-comment.md").read_text(encoding="utf-8").strip()
+          body = (
+              request
+              + "\n\n---\n\n<!-- governance-status:start -->\n"
+              + receipt
+              + "\n<!-- governance-status:end -->\n"
+          )
+          Path("governance-issue-body.md").write_text(body, encoding="utf-8")
+          PY
           gh api --method POST \
             "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}/comments" \
             -F body=@governance-comment.md
@@ -136,6 +205,7 @@ jobs:
           fi
           gh api --method PATCH \
             "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}" \
+            -F body=@governance-issue-body.md \
             -f state=closed \
             -f state_reason="$reason"
 
