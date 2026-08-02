@@ -1,11 +1,11 @@
 {
   "schema_version": "interface-version-matrix-v1",
-  "governance_version": "3.5.1",
+  "governance_version": "3.5.2",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "control_plane": {
     "schema_version": "governance-control-ticket-v3",
-    "gpt_action_openapi_version": "2.0.0",
+    "gpt_action_openapi_version": "2.0.1",
     "submission_mode": "single_issue_create",
     "task_id_mode": "generated_from_governance_issue_number",
     "status_mode": "issue_state_and_state_reason",

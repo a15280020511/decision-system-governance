@@ -64,6 +64,7 @@ jobs:
               "operationId: getDecisionTaskStatus",
               "operationId: getDecisionTaskReceipts",
               "governance-control-ticket-v3",
+              '"inputs":{"data":[1,2,3]}',
           )
           missing = [item for item in required if item not in openapi]
           if missing:
@@ -74,10 +75,11 @@ jobs:
               "issue_comment:",
               "governance-control-ticket-v1",
               "governance-control-ticket-v2",
+              '"inputs":{"values":',
           )
           found = [item for item in forbidden if item in openapi or item in workflow]
           if found:
-              raise SystemExit(f"legacy two-step interface remains: {found}")
+              raise SystemExit(f"legacy or invalid GPT interface content remains: {found}")
           if workflow.count("\n  issues:\n") != 1 or "types: [opened]" not in workflow:
               raise SystemExit("control workflow must trigger exactly on Issue opened")
           if openapi.count("operationId:") != 3:
