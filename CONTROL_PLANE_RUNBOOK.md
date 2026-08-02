@@ -2,7 +2,7 @@
 
 ## 结论
 
-`decision-system-governance` 现在承担控制平面，不承担业务计算、数据请求或专家研判。GPTs 只向治理仓库提交控制票据；治理仓库使用受限凭证，把原始业务票据送入对应中心已有的正式 Issue 入口，并轮询受信任的最终回执。
+`decision-system-governance` 承担控制平面，不承担业务计算、数据请求、专家研判或外部通知。GPTs 只向治理仓库提交控制票据；治理仓库使用受限凭证，把原始业务票据送入对应中心已有的正式 Issue 入口，并轮询受信任的最终回执。
 
 ```text
 Custom GPT
@@ -23,9 +23,8 @@ Custom GPT
 | Secret | 权限与用途 |
 |---|---|
 | `CONTROL_PLANE_TOKEN` | 仓库所有者签发的 fine-grained PAT；仅授权三个业务仓库；Issues 读写。可选增加 Actions 只读。不得授权 Contents 写入。 |
-| `SERVERCHAN_SENDKEY` | Server酱 SendKey；只用于最终状态或拒绝摘要通知。 |
 
-不要把 SendKey、PAT、业务 API Key、模型 Key 写进 Issue、代码、日志或 Artifact。
+不要把 PAT、业务 API Key、模型 Key 或任何其他凭证写进 Issue、代码、日志或 Artifact。
 
 GPT Action 自己还需要一个独立的 fine-grained PAT，权限仅限治理仓库 Issues 读写。该 Token 填在 GPT Action 的 Bearer Authentication，不放入仓库。
 
@@ -49,10 +48,9 @@ GPT Action Token 不应能访问三个业务仓库。跨仓库权限只存在于
 
 ```json
 {
-  "schema_version": "governance-control-ticket-v1",
+  "schema_version": "governance-control-ticket-v2",
   "task_id": "compute-20260802-001",
   "route": "compute",
-  "notify": true,
   "wait_seconds": 2400,
   "ticket": {
     "task_id": "compute-20260802-001",
@@ -94,22 +92,40 @@ GPT Action Token 不应能访问三个业务仓库。跨仓库权限只存在于
 
 治理层不会把 Workflow success 当成业务成功，也不会下载或修改三个中心的业务 Artifact。完整业务结果仍以子中心正式评论、Manifest 和 Artifact 为准。
 
-## Server酱通知策略
+## Server酱安装状态
 
-每个控制任务最多推送一条最终摘要；票据在进入子中心前被拒绝时推送一条拒绝摘要。不对每个步骤推送，避免免费额度被噪声耗尽。
+Server酱仅登记在：
 
-通知失败不会改变业务任务的审计结论；通知步骤独立 `continue-on-error`。业务失败也不会被通知成功掩盖。
+```text
+integrations/serverchan/integration.json
+```
+
+当前固定状态：
+
+```text
+installation_status：installed
+activation_status：disabled
+implementation_status：not_designed
+```
+
+当前没有：
+
+- 发送代码或运行入口；
+- `SERVERCHAN_SENDKEY` Secret；
+- 网络端点；
+- 工作流调用；
+- 消息格式；
+- 触发、过滤、重试或降噪规则。
+
+后续由用户单独设计后，再通过独立 PR 增加功能。控制平面当前不会向任何外部通知服务发送信息。
 
 ## 验收顺序
 
-1. 合并本控制平面 PR。
-2. 添加 `CONTROL_PLANE_TOKEN`。
-3. 添加 `SERVERCHAN_SENDKEY`。
-4. 在 GPT 中导入 OpenAPI Action。
-5. 先提交一个最小计算票据，确认：
+1. 添加 `CONTROL_PLANE_TOKEN`。
+2. 在 GPT 中导入 OpenAPI Action。
+3. 先提交一个最小计算票据，确认：
    - GPT Action 只能写治理仓库；
    - 治理仓库创建计算中心 Issue；
    - 计算中心 actor 仍为仓库所有者并正常触发；
-   - 治理 Issue 收到 `CONTROL_COMPLETED`；
-   - 微信收到一条 Server酱摘要。
-6. 再分别做情报中心与专家团最小票据验收。
+   - 治理 Issue 收到 `CONTROL_COMPLETED`。
+4. 再分别做情报中心与专家团最小票据验收。
