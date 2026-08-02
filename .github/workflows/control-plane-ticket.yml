@@ -56,20 +56,6 @@ jobs:
             "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}/comments" \
             -F body=@governance-comment.md
 
-      - name: Notify rejected governance ticket
-        if: steps.prepare.outputs.accepted != 'true' && steps.prepare.outputs.notify != 'false'
-        continue-on-error: true
-        env:
-          SERVERCHAN_SENDKEY: ${{ secrets.SERVERCHAN_SENDKEY }}
-        run: |
-          python control-plane/control_plane.py render \
-            --phase rejected \
-            --output-dir control-artifacts \
-            --output governance-notification.md
-          python control-plane/serverchan_notify.py \
-            --title "三中心控制票据被拒绝" \
-            --body-file governance-notification.md
-
       - name: Fail closed on invalid governance ticket
         if: steps.prepare.outputs.accepted != 'true'
         run: exit 1
@@ -116,23 +102,6 @@ jobs:
           gh api --method POST \
             "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}/comments" \
             -F body=@governance-comment.md
-
-      - name: Send one ServerChan result summary
-        if: >-
-          always() &&
-          steps.dispatch.outcome == 'success' &&
-          steps.prepare.outputs.notify != 'false'
-        continue-on-error: true
-        env:
-          SERVERCHAN_SENDKEY: ${{ secrets.SERVERCHAN_SENDKEY }}
-        run: |
-          python control-plane/control_plane.py render \
-            --phase final \
-            --output-dir control-artifacts \
-            --output governance-notification.md
-          python control-plane/serverchan_notify.py \
-            --title "三中心任务 ${{ steps.monitor.outputs.final_status || '状态异常' }}" \
-            --body-file governance-notification.md
 
       - name: Upload governance control evidence
         if: always()
