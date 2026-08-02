@@ -1,23 +1,29 @@
 {
   "schema_version": "repository-map-v1",
   "governance_repository": "a15280020511/decision-system-governance",
+  "governance_role": "gpts-command-and-status-gateway",
   "business_repositories": [
     {
       "id": "evidence-data-center",
       "repository": "a15280020511/evidence-data-center",
-      "runtime_network": "allowlisted-data-sources"
+      "runtime_network": "allowlisted-data-sources",
+      "formal_issue_prefix": "[api]"
     },
     {
       "id": "compute-simulation-center",
       "repository": "a15280020511/compute-simulation-center",
-      "runtime_network": "deny-numeric; allowlisted-literature-separate-workflow"
+      "runtime_network": "deny-numeric; allowlisted-literature-separate-workflow",
+      "formal_issue_prefix": "[compute]"
     },
     {
       "id": "expert-assessment-center",
       "repository": "a15280020511/expert-assessment-center",
-      "runtime_network": "allowlisted-model-provider"
+      "runtime_network": "allowlisted-model-provider",
+      "formal_issue_prefix": "[execution]"
     }
   ],
-  "sole_relay": "GPTs Orchestration Console",
-  "direct_center_contact_allowed": false
+  "sole_relay": "GPTs Orchestration Console through Decision System Governance",
+  "direct_center_contact_allowed": false,
+  "governance_may_create_formal_child_issues": true,
+  "governance_may_download_business_artifacts": false
 }
