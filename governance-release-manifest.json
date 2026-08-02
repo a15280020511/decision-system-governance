@@ -1,11 +1,21 @@
 {
   "schema_version": "governance-release-manifest-v1",
-  "governance_version": "3.2.0",
+  "governance_version": "3.3.0",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
-  "file_count": 21,
-  "total_bytes": 116341,
+  "file_count": 30,
+  "total_bytes": 161673,
   "files": [
+    {
+      "path": ".github/workflows/control-plane-ticket.yml",
+      "size_bytes": 5419,
+      "sha256": "93e92da7cba8130e7b50881978f6a642ee14a856ea4ec72fedd193aa2f5cfed0"
+    },
+    {
+      "path": ".github/workflows/control-plane-validate.yml",
+      "size_bytes": 1375,
+      "sha256": "abb8a8f6adaa0ddb6fbecf8ac2e0efcfe987197a3d3d956f6bbf14eb3c54b05b"
+    },
     {
       "path": ".github/workflows/governance-validate.yml",
       "size_bytes": 4021,
@@ -13,13 +23,18 @@
     },
     {
       "path": "ARCHITECTURE.md",
-      "size_bytes": 1149,
-      "sha256": "b4a94a957bf960c027f6f7a96f15fda1c6f25c9a8795b82b17ea009b1a4c2d34"
+      "size_bytes": 1898,
+      "sha256": "c33964575052c75a373dc45d2545ba5567b184003ef779f5b2377d12bbfe2418"
     },
     {
       "path": "CAPABILITY_AUTHORITY_POLICY.md",
       "size_bytes": 323,
       "sha256": "bfb85cb1213555036815ef287bc0314d7bec48a5283b568b4b1d0bb9274929bf"
+    },
+    {
+      "path": "CONTROL_PLANE_RUNBOOK.md",
+      "size_bytes": 4588,
+      "sha256": "e01481b6b009a5f85f9853e779429ec837895cf046fa370d8cd853a8522f1ea5"
     },
     {
       "path": "GLOBAL_RECOVERY_CHECKLIST.md",
@@ -33,8 +48,8 @@
     },
     {
       "path": "INTERFACE_VERSION_MATRIX.json",
-      "size_bytes": 799,
-      "sha256": "7045a67dbbf8a75b310e074ee8100ad860e9a1c0c731b0efeb6dca4a6dc1ca4b"
+      "size_bytes": 1452,
+      "sha256": "914960a209115572926ed65460b436c08b1858c2a88c2ff286b7c34a085aae76"
     },
     {
       "path": "MASTER_OPERATIONS_RUNBOOK.md",
@@ -48,8 +63,8 @@
     },
     {
       "path": "README.md",
-      "size_bytes": 763,
-      "sha256": "936726502671e7f6caa7c21f6e18e5ff8ef6f3b3d25240469f85495004d326ef"
+      "size_bytes": 1224,
+      "sha256": "f185b58338804014675d3291e8c65026a8ceaaee2725d92344d1865f6d260c9a"
     },
     {
       "path": "RELEASE_CHECKLIST.md",
@@ -58,13 +73,13 @@
     },
     {
       "path": "REPOSITORY_MAP.json",
-      "size_bytes": 759,
-      "sha256": "822ca250bddc165ebded520cb0aea35e976f066509a836d2d9ea1d5f2c1601ef"
+      "size_bytes": 1082,
+      "sha256": "36f7247d9dcf3e48b5d2a737a8a8f9173d203ebc3a5042112106d6acb550ed9c"
     },
     {
       "path": "SECURITY_BOUNDARIES.md",
-      "size_bytes": 415,
-      "sha256": "8d7c6df4f0bfa0f88e1cfe988d4d6b2821b008e06be967b729bf14e64cc8a9ab"
+      "size_bytes": 1062,
+      "sha256": "7064eaa51394f4dec4e625cf8f4e0e68c1cd5ab7402f80769f4ff614631c5602"
     },
     {
       "path": "SYSTEMS_COMPUTATION_MATRIX_POLICY.md",
@@ -73,8 +88,8 @@
     },
     {
       "path": "THREE_CENTER_CONTRACT.md",
-      "size_bytes": 599,
-      "sha256": "abf47f5d065de03b9004c778739233c7d9d3f6b955f05654d3138780ecb1b398"
+      "size_bytes": 1142,
+      "sha256": "ab6797d8ad67652b65e01abd47c5a610fbdccd8fc497a27c93c73e2b23b6d4af"
     },
     {
       "path": "contracts/api-catalog.snapshot.json",
@@ -83,8 +98,8 @@
     },
     {
       "path": "contracts/architecture/three-center-isolation-contract.json",
-      "size_bytes": 3024,
-      "sha256": "0245b41eb6e37ec91f28a1ca124f19d449a03b98097b484a0c3cba073fe49677"
+      "size_bytes": 3742,
+      "sha256": "232d1df70d4a48139a0cc3156cbae8e12b8fb2ab2b46b84f2a3b75bde8bc59cc"
     },
     {
       "path": "contracts/compute-capabilities.snapshot.json",
@@ -98,8 +113,33 @@
     },
     {
       "path": "contracts/gpts-orchestration-policy.json",
-      "size_bytes": 2704,
-      "sha256": "12e161ff5f5522daf83dd915bcc808cf85e8c23538a215b08ee127e5c0e0f56d"
+      "size_bytes": 3445,
+      "sha256": "baa3590b88b6b892f6d22fa6b35c3f4a7e31a0c1b319556eb198e579b0f59d05"
+    },
+    {
+      "path": "control-plane/control-ticket.schema.json",
+      "size_bytes": 897,
+      "sha256": "df89e754d3caf57a9b4e47c403228e23202d58eddb9a9935d6a2da2c99fb7015"
+    },
+    {
+      "path": "control-plane/control_plane.py",
+      "size_bytes": 16590,
+      "sha256": "498d2da672c61ba9b869a4ce15f4fd3f83458225bf6d77e3c9d6b2888c19a65e"
+    },
+    {
+      "path": "control-plane/serverchan_notify.py",
+      "size_bytes": 2136,
+      "sha256": "b865072e88128095fa222d3f51a3c1d6bfabd1b4b380d8ca24e1889bb0ca275d"
+    },
+    {
+      "path": "gpts-action/openapi.yaml",
+      "size_bytes": 4159,
+      "sha256": "61eed252c4d47a9f58446f2afb8dc7eba2a76baffdece30060439ad364de3907"
+    },
+    {
+      "path": "gpts-knowledge/GPTS_CONTROL_PLANE.md",
+      "size_bytes": 1006,
+      "sha256": "4210138fe86eccc4d9520da657cde36fa261e6f1cf604b9efac35952e121a9c0"
     },
     {
       "path": "gpts-knowledge/GPTS_KNOWLEDGE_MASTER.md",
@@ -110,6 +150,11 @@
       "path": "gpts-knowledge/KNOWLEDGE_UPLOAD_MANIFEST.md",
       "size_bytes": 3846,
       "sha256": "8aeca2f3007bfffb0d6d42549f4f5e6a835b6399c6d30334f4e37fd9beefe6fd"
+    },
+    {
+      "path": "tests/test_control_plane.py",
+      "size_bytes": 4327,
+      "sha256": "4dad62eac7b1df647428898e600879033e8c1641985c742f6b797a845ae6dcfe"
     }
   ]
 }
