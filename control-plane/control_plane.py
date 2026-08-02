@@ -43,6 +43,7 @@ SECRET_KEY_RE = re.compile(
     r"(?:^|_)(?:secret|token|password|passwd|private_key|api_key|sendkey|sckey)(?:$|_)",
     re.IGNORECASE,
 )
+LEADING_HTML_COMMENT_RE = re.compile(r"\A(?:\s*<!--[\s\S]*?-->\s*)+")
 MAX_BODY_CHARS = 100_000
 TRUSTED_COMMENT_AUTHOR = "github-actions[bot]"
 MAX_ISSUE_SCAN_PAGES = 5
@@ -331,6 +332,11 @@ def dispatch(args: argparse.Namespace) -> int:
     return 0
 
 
+def _normalized_terminal_body(body: str) -> str:
+    """Remove only leading hidden GitHub status markers before matching headings."""
+    return LEADING_HTML_COMMENT_RE.sub("", body).lstrip()
+
+
 def _trusted_terminal(
     rows: Any,
     *,
@@ -345,13 +351,14 @@ def _trusted_terminal(
         user = row.get("user") if isinstance(row.get("user"), Mapping) else {}
         if str(user.get("login") or "") != TRUSTED_COMMENT_AUTHOR:
             continue
-        body = str(row.get("body") or "").strip()
+        raw_body = str(row.get("body") or "").strip()
+        match_body = _normalized_terminal_body(raw_body)
         for prefix in config["success"]:
-            if body.startswith(prefix):
-                return prefix.removeprefix("## ").strip(), body, True
+            if match_body.startswith(prefix):
+                return prefix.removeprefix("## ").strip(), raw_body, True
         for prefix in config["failure"]:
-            if body.startswith(prefix):
-                return prefix.removeprefix("## ").strip(), body, False
+            if match_body.startswith(prefix):
+                return prefix.removeprefix("## ").strip(), raw_body, False
     return None
 
 
