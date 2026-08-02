@@ -83,6 +83,7 @@ jobs:
               )
 
           total_bytes = 0
+          digest_mismatches = []
           for relative in actual_paths:
               path = Path(relative)
               data = path.read_bytes()
@@ -90,22 +91,27 @@ jobs:
               digest = hashlib.sha256(data).hexdigest()
               row = listed[relative]
               if row.get("size_bytes") != size or row.get("sha256") != digest:
-                  raise SystemExit(
-                      f"release manifest digest mismatch: {relative} "
-                      f"size={size} sha256={digest}"
+                  digest_mismatches.append(
+                      {
+                          "path": relative,
+                          "size_bytes": size,
+                          "sha256": digest,
+                      }
                   )
               total_bytes += size
 
-          if manifest.get("file_count") != len(actual_paths):
-              raise SystemExit("release manifest file_count mismatch")
-          if manifest.get("total_bytes") != total_bytes:
-              raise SystemExit(
-                  f"release manifest total_bytes mismatch: "
-                  f"declared={manifest.get('total_bytes')} actual={total_bytes}"
-              )
-          print(json.dumps({
-              "status": "PASS",
+          summary = {
               "file_count": len(actual_paths),
               "total_bytes": total_bytes,
-          }))
+              "digest_mismatches": digest_mismatches,
+          }
+          if manifest.get("file_count") != len(actual_paths):
+              summary["declared_file_count"] = manifest.get("file_count")
+          if manifest.get("total_bytes") != total_bytes:
+              summary["declared_total_bytes"] = manifest.get("total_bytes")
+          if digest_mismatches or "declared_file_count" in summary or "declared_total_bytes" in summary:
+              print(json.dumps({"status": "FAIL", **summary}, indent=2))
+              raise SystemExit("release manifest verification failed")
+
+          print(json.dumps({"status": "PASS", **summary}))
           PY
