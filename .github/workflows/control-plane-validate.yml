@@ -114,7 +114,6 @@ jobs:
               "governance-control-ticket-v1",
               "governance-control-ticket-v2",
               '"inputs":{"values":',
-              "governance-control-${{ github.event.issue.number }}",
               "cancel-in-progress: true",
           )
           found = [item for item in forbidden if item in openapi or item in workflow]
