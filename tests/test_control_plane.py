@@ -65,7 +65,7 @@ class PrepareTests(unittest.TestCase):
                 "route": "compute",
                 "ticket": {
                     "operation": "descriptive_statistics",
-                    "inputs": {"values": [1, 2, 3]},
+                    "inputs": {"data": [1, 2, 3]},
                 },
             },
             issue_number=42,
@@ -143,6 +143,26 @@ class TerminalTests(unittest.TestCase):
         heading, _, success = MODULE._trusted_terminal(rows, route="expert")
         self.assertEqual(heading, "EXECUTION_FAILED")
         self.assertFalse(success)
+
+    def test_accepts_terminal_after_hidden_status_marker(self) -> None:
+        body = (
+            "<!-- compute-status-run:30740830848 -->\n"
+            "## COMPUTE_COMPLETED\n\n- Task ID: `gov-13-compute`"
+        )
+        rows = [{"user": {"login": "github-actions[bot]"}, "body": body}]
+        heading, excerpt, success = MODULE._trusted_terminal(rows, route="compute")
+        self.assertEqual(heading, "COMPUTE_COMPLETED")
+        self.assertTrue(success)
+        self.assertEqual(excerpt, body)
+
+    def test_does_not_accept_arbitrary_text_before_terminal_heading(self) -> None:
+        rows = [
+            {
+                "user": {"login": "github-actions[bot]"},
+                "body": "untrusted preface\n## COMPUTE_COMPLETED",
+            }
+        ]
+        self.assertIsNone(MODULE._trusted_terminal(rows, route="compute"))
 
     def test_generated_task_id_is_deterministic(self) -> None:
         self.assertEqual(
