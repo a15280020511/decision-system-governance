@@ -1,20 +1,20 @@
 {
   "schema_version": "governance-release-manifest-v1",
-  "governance_version": "3.3.0",
+  "governance_version": "3.4.0",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 30,
-  "total_bytes": 161681,
+  "total_bytes": 161570,
   "files": [
     {
       "path": ".github/workflows/control-plane-ticket.yml",
-      "size_bytes": 5423,
-      "sha256": "033cb0b06a714103cf1b6bb5795664079019c988603597eaea921404e57e1eaa"
+      "size_bytes": 4120,
+      "sha256": "95f89fe7601be3b37aa0d72a2e1c61d7c38598b4205c776eecc573323122cf53"
     },
     {
       "path": ".github/workflows/control-plane-validate.yml",
-      "size_bytes": 1379,
-      "sha256": "b2b51ba4fb03ae2ae4c2ebf90a3e80a1b835193e6b97376e0cc9f9ed3c7803a4"
+      "size_bytes": 2234,
+      "sha256": "96d1b2455f1b63003da1973f340288d015a70bbf519d3d5d06c0ac9e13b3b271"
     },
     {
       "path": ".github/workflows/governance-validate.yml",
@@ -23,8 +23,8 @@
     },
     {
       "path": "ARCHITECTURE.md",
-      "size_bytes": 1898,
-      "sha256": "c33964575052c75a373dc45d2545ba5567b184003ef779f5b2377d12bbfe2418"
+      "size_bytes": 2015,
+      "sha256": "91e8eea0cb4d9c487d4490dc7cb05f80a490a8669c1e498d2b59691c3b5ee414"
     },
     {
       "path": "CAPABILITY_AUTHORITY_POLICY.md",
@@ -33,8 +33,8 @@
     },
     {
       "path": "CONTROL_PLANE_RUNBOOK.md",
-      "size_bytes": 4588,
-      "sha256": "e01481b6b009a5f85f9853e779429ec837895cf046fa370d8cd853a8522f1ea5"
+      "size_bytes": 4600,
+      "sha256": "8785060bfca140c799ae2533819b6351a742aa3b35d8ab33201aaf6e166a3b0a"
     },
     {
       "path": "GLOBAL_RECOVERY_CHECKLIST.md",
@@ -48,8 +48,8 @@
     },
     {
       "path": "INTERFACE_VERSION_MATRIX.json",
-      "size_bytes": 1452,
-      "sha256": "914960a209115572926ed65460b436c08b1858c2a88c2ff286b7c34a085aae76"
+      "size_bytes": 1705,
+      "sha256": "a5aadd447640fa7bfa17aa960148710d8ea88e7bf8e6946ab7f4c4900a535263"
     },
     {
       "path": "MASTER_OPERATIONS_RUNBOOK.md",
@@ -63,8 +63,8 @@
     },
     {
       "path": "README.md",
-      "size_bytes": 1224,
-      "sha256": "f185b58338804014675d3291e8c65026a8ceaaee2725d92344d1865f6d260c9a"
+      "size_bytes": 1440,
+      "sha256": "5806c80f6158d0f78e2b2ddfff21b06d79ed241dfef4f768710f073bbf19b974"
     },
     {
       "path": "RELEASE_CHECKLIST.md",
@@ -78,8 +78,8 @@
     },
     {
       "path": "SECURITY_BOUNDARIES.md",
-      "size_bytes": 1062,
-      "sha256": "7064eaa51394f4dec4e625cf8f4e0e68c1cd5ab7402f80769f4ff614631c5602"
+      "size_bytes": 1093,
+      "sha256": "e0024b62f8c57747526f5f9751b901e99384a45851b1dd5aeac1ba32996b9b5f"
     },
     {
       "path": "SYSTEMS_COMPUTATION_MATRIX_POLICY.md",
@@ -88,8 +88,8 @@
     },
     {
       "path": "THREE_CENTER_CONTRACT.md",
-      "size_bytes": 1142,
-      "sha256": "ab6797d8ad67652b65e01abd47c5a610fbdccd8fc497a27c93c73e2b23b6d4af"
+      "size_bytes": 1320,
+      "sha256": "13d23443ec3753177bf3671c874cb3dc4f2dcbbd034fc5aaeb0edfa198e38eee"
     },
     {
       "path": "contracts/api-catalog.snapshot.json",
@@ -98,8 +98,8 @@
     },
     {
       "path": "contracts/architecture/three-center-isolation-contract.json",
-      "size_bytes": 3742,
-      "sha256": "232d1df70d4a48139a0cc3156cbae8e12b8fb2ab2b46b84f2a3b75bde8bc59cc"
+      "size_bytes": 4144,
+      "sha256": "d42824cf69f5c27de623cd625cd823dc24757dc14a5efcc48a960f5f36fa1783"
     },
     {
       "path": "contracts/compute-capabilities.snapshot.json",
@@ -113,23 +113,18 @@
     },
     {
       "path": "contracts/gpts-orchestration-policy.json",
-      "size_bytes": 3445,
-      "sha256": "baa3590b88b6b892f6d22fa6b35c3f4a7e31a0c1b319556eb198e579b0f59d05"
+      "size_bytes": 3713,
+      "sha256": "46d9b0a7aae73049eba8d49ce77fe773b9d43df0b7558d21f40ee91e217a823e"
     },
     {
       "path": "control-plane/control-ticket.schema.json",
-      "size_bytes": 897,
-      "sha256": "df89e754d3caf57a9b4e47c403228e23202d58eddb9a9935d6a2da2c99fb7015"
+      "size_bytes": 827,
+      "sha256": "95f1b59f70d3394f2311810f3f896cb12961255afb7a34926879ed841d5553da"
     },
     {
       "path": "control-plane/control_plane.py",
-      "size_bytes": 16590,
-      "sha256": "498d2da672c61ba9b869a4ce15f4fd3f83458225bf6d77e3c9d6b2888c19a65e"
-    },
-    {
-      "path": "control-plane/serverchan_notify.py",
-      "size_bytes": 2136,
-      "sha256": "b865072e88128095fa222d3f51a3c1d6bfabd1b4b380d8ca24e1889bb0ca275d"
+      "size_bytes": 16376,
+      "sha256": "e91129b89ed14da65bcd4a3f67c03eabf2a7335479e35f2f3fe651230e540707"
     },
     {
       "path": "gpts-action/openapi.yaml",
@@ -152,9 +147,14 @@
       "sha256": "8aeca2f3007bfffb0d6d42549f4f5e6a835b6399c6d30334f4e37fd9beefe6fd"
     },
     {
+      "path": "integrations/serverchan/integration.json",
+      "size_bytes": 576,
+      "sha256": "3577e793d07643db7dc2066d24118e1e5986513e3ec6b7718f317d88886b1903"
+    },
+    {
       "path": "tests/test_control_plane.py",
-      "size_bytes": 4327,
-      "sha256": "4dad62eac7b1df647428898e600879033e8c1641985c742f6b797a845ae6dcfe"
+      "size_bytes": 5031,
+      "sha256": "a95f64540181a993b62b731774353c600cafe44fee4011d90ef8f42b0697d159"
     }
   ]
 }
