@@ -12,7 +12,7 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "governance-control-ticket-v1"
+      "const": "governance-control-ticket-v2"
     },
     "task_id": {
       "type": "string",
@@ -27,10 +27,6 @@
     },
     "ticket": {
       "type": "object"
-    },
-    "notify": {
-      "type": "boolean",
-      "default": true
     },
     "wait_seconds": {
       "type": "integer",
