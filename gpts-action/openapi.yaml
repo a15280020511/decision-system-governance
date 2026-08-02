@@ -1,25 +1,28 @@
 openapi: 3.1.0
 info:
   title: Decision System Governance Gateway
-  version: 3.0.0
+  version: 3.1.0
   description: >
     Minimal two-operation GPT interface for the three isolated decision centers.
-    GPT submits exactly one governance Issue and reads that same Issue for all
-    running and terminal status. Governance performs validation, task-ID
-    assignment, routing, dispatch, monitoring, failure handling, result
-    summarization, Issue-body updates, closure, and evidence recording.
+    Submission is asynchronous. Governance keeps one global execution slot,
+    processes owned [control] Issues in FIFO order, rejects normalized duplicate
+    tasks, performs bounded recovery, and writes all status and results back to
+    the same governance Issue.
 servers:
   - url: https://api.github.com
 paths:
   /repos/a15280020511/decision-system-governance/issues:
     post:
       operationId: submitDecisionTask
-      summary: Submit one decision-system task
+      summary: Submit one asynchronous decision-system task
       description: >
         Create exactly one governance Issue. Set title to [control]. Put one
-        governance-control-ticket-v3 JSON object in body. Do not include task_id;
-        governance generates it from the new Issue number. No second comment,
-        dispatch command, child-repository access, or receipt operation is required.
+        governance-control-ticket-v3 JSON object in body. Do not include task_id.
+        Save the returned Issue number and never retry by creating a second Issue.
+        Governance derives a canonical request fingerprint from route and ticket;
+        an identical earlier request is closed with state_reason=duplicate.
+        Valid distinct requests wait in FIFO order while the single execution
+        slot is occupied.
       requestBody:
         required: true
         content:
@@ -42,7 +45,7 @@ paths:
                     - '{"schema_version":"governance-control-ticket-v3","route":"compute","ticket":{"operation":"descriptive_statistics","inputs":{"data":[1,2,3]}}}'
       responses:
         '201':
-          description: Task accepted by GitHub for governance processing
+          description: Issue created; task is queued asynchronously
           content:
             application/json:
               schema:
@@ -50,15 +53,15 @@ paths:
   /repos/a15280020511/decision-system-governance/issues/{issue_number}:
     get:
       operationId: getDecisionTaskStatus
-      summary: Read status and centralized result from one Issue
+      summary: Read queue, execution, and terminal status
       description: >
-        Poll this operation only. state=open means queued or running. The body
-        contains the latest centralized CONTROL_DISPATCHED receipt. state=closed
-        with state_reason=completed means success and the body contains the final
-        CONTROL_COMPLETED receipt, child status, child Issue, trusted terminal
-        excerpt, Artifact metadata, and any published result summary.
-        state=closed with state_reason=not_planned means rejected, failed, or
-        timed out and the body contains the centralized failure reason.
+        Poll only this operation. state=open without a governance status block
+        means queued. CONTROL_RUNNING or CONTROL_DISPATCHED means the one global
+        slot is executing this task. state=closed with state_reason=completed
+        means success. state=closed with state_reason=duplicate means the same
+        normalized route and ticket were submitted earlier; the body identifies
+        the original Issue. state=closed with state_reason=not_planned means
+        rejection, failure, timeout, or bounded-retry exhaustion.
       parameters:
         - $ref: '#/components/parameters/IssueNumber'
       responses:
@@ -92,8 +95,8 @@ components:
         body:
           type: string
           description: >
-            Original governance ticket followed by a governance-owned status
-            section delimited by governance-status markers.
+            Original immutable request followed by an optional governance-owned
+            status section delimited by governance-status markers.
         state:
           type: string
           enum: [open, closed]
@@ -101,7 +104,7 @@ components:
           type:
             - string
             - 'null'
-          enum: [completed, not_planned, reopened, null]
+          enum: [completed, not_planned, duplicate, reopened, null]
         html_url:
           type: string
         comments:
