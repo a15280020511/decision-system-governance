@@ -1,21 +1,24 @@
 openapi: 3.1.0
 info:
   title: Decision System Governance Gateway
-  version: 1.0.0
+  version: 2.0.0
   description: >
-    This action is limited to the decision-system-governance repository.
-    It creates and monitors governance control Issues. The governance repository,
-    not the GPT action credential, dispatches to the three isolated centers.
+    One-step GPT interface for the three isolated decision centers.
+    Submit exactly one governance Issue. The governance workflow automatically
+    validates, assigns the task ID, dispatches, monitors, closes the Issue, and
+    records the result.
 servers:
   - url: https://api.github.com
 paths:
   /repos/a15280020511/decision-system-governance/issues:
     post:
-      operationId: createGovernanceIssue
-      summary: Create one governance control ticket
+      operationId: submitDecisionTask
+      summary: Submit one decision-system task
       description: >
-        Create an Issue whose title starts with [control] and whose body is the
-        exact governance-control-ticket-v1 JSON object.
+        Create exactly one governance Issue. Set title to [control]. Put one
+        governance-control-ticket-v3 JSON object in body. Do not include task_id;
+        governance generates it from the new Issue number. No second comment or
+        dispatch command is required.
       requestBody:
         required: true
         content:
@@ -27,35 +30,46 @@ paths:
               properties:
                 title:
                   type: string
-                  pattern: '^\[control\]'
-                  maxLength: 256
+                  const: '[control]'
                 body:
                   type: string
                   maxLength: 100000
+                  description: >
+                    JSON string with schema_version, route, ticket, and optional
+                    wait_seconds. The nested ticket must omit task_id.
+                  examples:
+                    - '{"schema_version":"governance-control-ticket-v3","route":"compute","ticket":{"operation":"descriptive_statistics","inputs":{"values":[1,2,3]}}}'
       responses:
         '201':
-          description: Governance Issue created
+          description: Task accepted by GitHub for governance processing
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Issue'
   /repos/a15280020511/decision-system-governance/issues/{issue_number}:
     get:
-      operationId: getGovernanceIssue
-      summary: Read one governance Issue
+      operationId: getDecisionTaskStatus
+      summary: Read the current task status
+      description: >
+        Poll this operation. state=open means queued or running.
+        state=closed with state_reason=completed means success.
+        state=closed with state_reason=not_planned means rejected, failed, or timed out.
       parameters:
         - $ref: '#/components/parameters/IssueNumber'
       responses:
         '200':
-          description: Governance Issue
+          description: Governance task status
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Issue'
   /repos/a15280020511/decision-system-governance/issues/{issue_number}/comments:
     get:
-      operationId: listGovernanceIssueComments
-      summary: Read governance control receipts
+      operationId: getDecisionTaskReceipts
+      summary: Read detailed governance receipts
+      description: >
+        Use only when detailed dispatch or terminal evidence is needed.
+        Normal status polling should use getDecisionTaskStatus.
       parameters:
         - $ref: '#/components/parameters/IssueNumber'
         - name: per_page
@@ -67,40 +81,13 @@ paths:
             default: 100
       responses:
         '200':
-          description: Governance Issue comments
+          description: Governance receipts
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/Comment'
-    post:
-      operationId: commentGovernanceIssue
-      summary: Submit the explicit dispatch command
-      description: >
-        Post exactly /dispatch-control <task_id>. Do not post child-center
-        commands directly.
-      parameters:
-        - $ref: '#/components/parameters/IssueNumber'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              required: [body]
-              properties:
-                body:
-                  type: string
-                  pattern: '^/dispatch-control [A-Za-z0-9][A-Za-z0-9._:-]{7,127}$'
-      responses:
-        '201':
-          description: Dispatch command posted
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Comment'
 components:
   securitySchemes:
     githubBearer:
@@ -126,6 +113,12 @@ components:
           type: string
         state:
           type: string
+          enum: [open, closed]
+        state_reason:
+          type:
+            - string
+            - 'null'
+          enum: [completed, not_planned, reopened, null]
         html_url:
           type: string
         comments:
