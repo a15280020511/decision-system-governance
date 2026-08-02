@@ -1,10 +1,10 @@
 {
   "schema_version": "governance-release-manifest-v1",
-  "governance_version": "3.5.0",
+  "governance_version": "3.5.1",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 30,
-  "total_bytes": 164958,
+  "total_bytes": 166223,
   "files": [
     {
       "path": ".github/workflows/control-plane-ticket.yml",
@@ -48,8 +48,8 @@
     },
     {
       "path": "INTERFACE_VERSION_MATRIX.json",
-      "size_bytes": 1986,
-      "sha256": "f61e5dd7ba99631bdf3a664f259741ca111327bae59150c7a6538a0958c40242"
+      "size_bytes": 2061,
+      "sha256": "61918b28d0299173a4d874dea77657066322f728f13abc14067c84f63e39fc34"
     },
     {
       "path": "MASTER_OPERATIONS_RUNBOOK.md",
@@ -123,8 +123,8 @@
     },
     {
       "path": "control-plane/control_plane.py",
-      "size_bytes": 17746,
-      "sha256": "81503db658a2bfdab70cc3384da9df13884b898bf9bbdf7f48cc03c4544aff51"
+      "size_bytes": 18091,
+      "sha256": "5632a087700a8c186576748fe58ce3981811471c0b54bb8bfeae913a26512f12"
     },
     {
       "path": "gpts-action/openapi.yaml",
@@ -153,8 +153,8 @@
     },
     {
       "path": "tests/test_control_plane.py",
-      "size_bytes": 5308,
-      "sha256": "98940932fdc1c8a207a90080facde9272df82f28543f0f92a08d0eb8cda589ae"
+      "size_bytes": 6153,
+      "sha256": "79864b99b642f5931f290a4af73545a16548cbf2514439bcc223c6a2210bd9a7"
     }
   ]
 }
