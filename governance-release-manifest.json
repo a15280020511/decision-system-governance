@@ -4,7 +4,7 @@
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 30,
-  "total_bytes": 166223,
+  "total_bytes": 166315,
   "files": [
     {
       "path": ".github/workflows/control-plane-ticket.yml",
@@ -49,7 +49,7 @@
     {
       "path": "INTERFACE_VERSION_MATRIX.json",
       "size_bytes": 2061,
-      "sha256": "61918b28d0299173a4d874dea77657066322f728f13abc14067c84f63e39fc34"
+      "sha256": "619777461b61b8179af2d1f596ce95cba0d6eefb9501d62073c5b9008ec89df7"
     },
     {
       "path": "MASTER_OPERATIONS_RUNBOOK.md",
@@ -128,8 +128,8 @@
     },
     {
       "path": "gpts-action/openapi.yaml",
-      "size_bytes": 4375,
-      "sha256": "d9e673bfc34fffabb333c6ee9e14cbc68d6aaade14a4c52d61f812daacc6422c"
+      "size_bytes": 4373,
+      "sha256": "ffc815566c7d4f848e709909eb8bba3f8b28671dd1bbfa321f29434ae5bb0263"
     },
     {
       "path": "gpts-knowledge/GPTS_CONTROL_PLANE.md",
