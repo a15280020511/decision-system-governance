@@ -1,10 +1,10 @@
 {
   "schema_version": "interface-version-matrix-v1",
-  "governance_version": "3.3.0",
+  "governance_version": "3.4.0",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "control_plane": {
-    "schema_version": "governance-control-ticket-v1",
+    "schema_version": "governance-control-ticket-v2",
     "gpt_action_openapi_version": "1.0.0",
     "routes": {
       "intelligence": {
@@ -20,6 +20,14 @@
         "formal_issue_prefix": "[execution]",
         "formal_comment_command": "/run-expert-team <task_id>"
       }
+    }
+  },
+  "integrations": {
+    "serverchan": {
+      "installation_manifest": "integrations/serverchan/integration.json",
+      "installation_status": "installed",
+      "activation_status": "disabled",
+      "implementation_status": "not_designed"
     }
   },
   "centers": {

@@ -45,7 +45,7 @@ class PrepareTests(unittest.TestCase):
         task_id = "compute-20260802-001"
         status = self.run_prepare(
             {
-                "schema_version": "governance-control-ticket-v1",
+                "schema_version": "governance-control-ticket-v2",
                 "task_id": task_id,
                 "route": "compute",
                 "ticket": {
@@ -66,7 +66,7 @@ class PrepareTests(unittest.TestCase):
         task_id = "api-20260802-001"
         status = self.run_prepare(
             {
-                "schema_version": "governance-control-ticket-v1",
+                "schema_version": "governance-control-ticket-v2",
                 "task_id": task_id,
                 "route": "intelligence",
                 "ticket": {
@@ -82,7 +82,7 @@ class PrepareTests(unittest.TestCase):
     def test_rejects_command_ticket_mismatch(self) -> None:
         status = self.run_prepare(
             {
-                "schema_version": "governance-control-ticket-v1",
+                "schema_version": "governance-control-ticket-v2",
                 "task_id": "expert-20260802-001",
                 "route": "expert",
                 "ticket": {
@@ -100,6 +100,25 @@ class PrepareTests(unittest.TestCase):
         )
         self.assertFalse(status["accepted"])
         self.assertIn("exactly match", status["reason"])
+
+    def test_rejects_removed_notify_field(self) -> None:
+        task_id = "compute-20260802-002"
+        status = self.run_prepare(
+            {
+                "schema_version": "governance-control-ticket-v2",
+                "task_id": task_id,
+                "route": "compute",
+                "notify": True,
+                "ticket": {
+                    "task_id": task_id,
+                    "operation": "descriptive_statistics",
+                    "inputs": {"values": [1, 2, 3]},
+                },
+            },
+            f"/dispatch-control {task_id}",
+        )
+        self.assertFalse(status["accepted"])
+        self.assertIn("unknown control ticket fields", status["reason"])
 
 
 class TerminalTests(unittest.TestCase):

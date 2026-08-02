@@ -144,15 +144,14 @@ def prepare(args: argparse.Namespace) -> int:
         "task_id",
         "route",
         "ticket",
-        "notify",
         "wait_seconds",
     }
     unexpected = sorted(set(packet) - allowed)
     if unexpected:
         errors.append(f"unknown control ticket fields: {unexpected}")
 
-    if packet.get("schema_version") != "governance-control-ticket-v1":
-        errors.append("schema_version must be governance-control-ticket-v1")
+    if packet.get("schema_version") != "governance-control-ticket-v2":
+        errors.append("schema_version must be governance-control-ticket-v2")
 
     task_id = packet.get("task_id")
     if not isinstance(task_id, str) or TASK_ID_RE.fullmatch(task_id) is None:
@@ -178,11 +177,6 @@ def prepare(args: argparse.Namespace) -> int:
     if forbidden_path:
         errors.append(f"secret-bearing field is forbidden in issue content: {forbidden_path}")
 
-    notify = packet.get("notify", True)
-    if not isinstance(notify, bool):
-        errors.append("notify must be boolean")
-        notify = True
-
     wait_seconds = packet.get("wait_seconds", 2400)
     if (
         not isinstance(wait_seconds, int)
@@ -200,7 +194,6 @@ def prepare(args: argparse.Namespace) -> int:
         "actor": actor,
         "task_id": task_id,
         "route": route,
-        "notify": notify,
         "wait_seconds": wait_seconds,
         "target_repository": route_config.get("repository", ""),
         "child_issue_title": (
@@ -220,7 +213,6 @@ def prepare(args: argparse.Namespace) -> int:
             "reason",
             "task_id",
             "route",
-            "notify",
             "wait_seconds",
             "target_repository",
             "child_issue_title",
