@@ -1,0 +1,14 @@
+{
+  "schema_version": "external-integration-installation-v1",
+  "id": "serverchan",
+  "display_name": "Server酱",
+  "installation_status": "installed",
+  "activation_status": "disabled",
+  "implementation_status": "not_designed",
+  "design_owner": "user",
+  "runtime_entrypoints": [],
+  "required_secrets": [],
+  "network_endpoints": [],
+  "workflow_hooks": [],
+  "policy": "The integration is reserved in the governance repository only. No behavior, endpoint, credential, payload, trigger, retry, filtering, or notification rule is implemented until the user designs it."
+}
