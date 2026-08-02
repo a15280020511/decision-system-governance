@@ -1,6 +1,6 @@
 {
   "schema_version": "governance-release-manifest-v1",
-  "governance_version": "3.5.0",
+  "governance_version": "3.5.1",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 30,
@@ -48,8 +48,8 @@
     },
     {
       "path": "INTERFACE_VERSION_MATRIX.json",
-      "size_bytes": 1986,
-      "sha256": "f61e5dd7ba99631bdf3a664f259741ca111327bae59150c7a6538a0958c40242"
+      "size_bytes": 2061,
+      "sha256": "61918b28d0299173a4d874dea77657066322f728f13abc14067c84f63e39fc34"
     },
     {
       "path": "MASTER_OPERATIONS_RUNBOOK.md",
