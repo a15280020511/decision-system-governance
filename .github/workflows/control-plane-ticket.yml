@@ -3,25 +3,24 @@ name: Governance Control Plane
 on:
   issues:
     types: [opened]
+  workflow_dispatch:
+  schedule:
+    - cron: "*/15 * * * *"
 
 permissions:
   contents: read
   issues: write
-  actions: read
+  actions: write
 
 concurrency:
-  group: governance-control-${{ github.event.issue.number }}
+  group: governance-control-global-worker
   cancel-in-progress: false
 
 jobs:
-  dispatch-and-monitor:
-    if: >-
-      github.actor == github.repository_owner &&
-      github.event.issue.title == '[control]'
+  serial-worker:
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     env:
-      GOVERNANCE_ISSUE_NUMBER: ${{ github.event.issue.number }}
       GOVERNANCE_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       - name: Checkout governance control plane
@@ -34,39 +33,60 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Parse and validate governance ticket
-        id: prepare
-        continue-on-error: true
+      - name: Select oldest queued governance task
+        id: select
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          python control-plane/control_plane.py prepare \
-            --event-path "$GITHUB_EVENT_PATH" \
+          python control-plane/control_plane.py select \
+            --repository "$GITHUB_REPOSITORY" \
             --output-dir control-artifacts
 
-      - name: Publish rejected governance ticket
-        if: steps.prepare.outputs.accepted != 'true'
+      - name: Report empty queue
+        if: steps.select.outputs.has_task != 'true'
+        run: echo "No owned open [control] Issue is waiting."
+
+      - name: Reject duplicate submission
+        if: steps.select.outputs.has_task == 'true' && steps.select.outputs.duplicate == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOVERNANCE_ISSUE_NUMBER: ${{ steps.select.outputs.issue_number }}
         run: |
           python control-plane/control_plane.py render \
-            --phase rejected \
+            --phase duplicate \
             --output-dir control-artifacts \
             --output governance-comment.md
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
+          python control-plane/control_plane.py compose \
+            --request control-artifacts/selected-request.md \
+            --receipt governance-comment.md \
+            --output governance-issue-body.md
+          gh api --method POST \
+            "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}/comments" \
+            -F body=@governance-comment.md
+          gh api --method PATCH \
+            "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}" \
+            -F body=@governance-issue-body.md \
+            -f state=closed \
+            -f state_reason=duplicate
+          touch control-artifacts/task-handled
 
-          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
-          request = str(event.get("issue", {}).get("body") or "").rstrip()
-          receipt = Path("governance-comment.md").read_text(encoding="utf-8").strip()
-          body = (
-              request
-              + "\n\n---\n\n<!-- governance-status:start -->\n"
-              + receipt
-              + "\n<!-- governance-status:end -->\n"
-          )
-          Path("governance-issue-body.md").write_text(body, encoding="utf-8")
-          PY
+      - name: Close bounded-retry exhaustion
+        if: >-
+          steps.select.outputs.has_task == 'true' &&
+          steps.select.outputs.duplicate != 'true' &&
+          steps.select.outputs.retry_exhausted == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOVERNANCE_ISSUE_NUMBER: ${{ steps.select.outputs.issue_number }}
+        run: |
+          python control-plane/control_plane.py render \
+            --phase exhausted \
+            --output-dir control-artifacts \
+            --output governance-comment.md
+          python control-plane/control_plane.py compose \
+            --request control-artifacts/selected-request.md \
+            --receipt governance-comment.md \
+            --output governance-issue-body.md
           gh api --method POST \
             "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}/comments" \
             -F body=@governance-comment.md
@@ -75,10 +95,68 @@ jobs:
             -F body=@governance-issue-body.md \
             -f state=closed \
             -f state_reason=not_planned
+          touch control-artifacts/task-handled
 
-      - name: Fail closed on invalid governance ticket
-        if: steps.prepare.outputs.accepted != 'true'
-        run: exit 1
+      - name: Parse and validate selected ticket
+        id: prepare
+        if: >-
+          steps.select.outputs.has_task == 'true' &&
+          steps.select.outputs.duplicate != 'true' &&
+          steps.select.outputs.retry_exhausted != 'true'
+        continue-on-error: true
+        run: |
+          python control-plane/control_plane.py prepare \
+            --event-path control-artifacts/selected-event.json \
+            --output-dir control-artifacts
+
+      - name: Publish rejected governance ticket
+        if: >-
+          steps.select.outputs.has_task == 'true' &&
+          steps.select.outputs.duplicate != 'true' &&
+          steps.select.outputs.retry_exhausted != 'true' &&
+          steps.prepare.outputs.accepted != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOVERNANCE_ISSUE_NUMBER: ${{ steps.select.outputs.issue_number }}
+        run: |
+          python control-plane/control_plane.py render \
+            --phase rejected \
+            --output-dir control-artifacts \
+            --output governance-comment.md
+          python control-plane/control_plane.py compose \
+            --request control-artifacts/selected-request.md \
+            --receipt governance-comment.md \
+            --output governance-issue-body.md
+          gh api --method POST \
+            "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}/comments" \
+            -F body=@governance-comment.md
+          gh api --method PATCH \
+            "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}" \
+            -F body=@governance-issue-body.md \
+            -f state=closed \
+            -f state_reason=not_planned
+          touch control-artifacts/task-handled
+
+      - name: Publish global-slot running receipt
+        if: steps.prepare.outputs.accepted == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOVERNANCE_ISSUE_NUMBER: ${{ steps.select.outputs.issue_number }}
+        run: |
+          python control-plane/control_plane.py render \
+            --phase running \
+            --output-dir control-artifacts \
+            --output governance-comment.md
+          python control-plane/control_plane.py compose \
+            --request control-artifacts/selected-request.md \
+            --receipt governance-comment.md \
+            --output governance-issue-body.md
+          gh api --method POST \
+            "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}/comments" \
+            -F body=@governance-comment.md
+          gh api --method PATCH \
+            "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}" \
+            -F body=@governance-issue-body.md
 
       - name: Dispatch through the child repository formal Issue entry
         id: dispatch
@@ -94,6 +172,7 @@ jobs:
         if: steps.prepare.outputs.accepted == 'true' && steps.dispatch.outcome != 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOVERNANCE_ISSUE_NUMBER: ${{ steps.select.outputs.issue_number }}
         run: |
           cat > governance-comment.md <<'EOF'
           ## CONTROL_FAILED
@@ -102,22 +181,10 @@ jobs:
           - Child center result: `not created or not confirmed`
           - Action: inspect this workflow run; no business success is claimed.
           EOF
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
-          request = str(event.get("issue", {}).get("body") or "").rstrip()
-          receipt = Path("governance-comment.md").read_text(encoding="utf-8").strip()
-          body = (
-              request
-              + "\n\n---\n\n<!-- governance-status:start -->\n"
-              + receipt
-              + "\n<!-- governance-status:end -->\n"
-          )
-          Path("governance-issue-body.md").write_text(body, encoding="utf-8")
-          PY
+          python control-plane/control_plane.py compose \
+            --request control-artifacts/selected-request.md \
+            --receipt governance-comment.md \
+            --output governance-issue-body.md
           gh api --method POST \
             "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}/comments" \
             -F body=@governance-comment.md
@@ -126,32 +193,22 @@ jobs:
             -F body=@governance-issue-body.md \
             -f state=closed \
             -f state_reason=not_planned
+          touch control-artifacts/task-handled
 
       - name: Publish child dispatch receipt
         if: steps.dispatch.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOVERNANCE_ISSUE_NUMBER: ${{ steps.select.outputs.issue_number }}
         run: |
           python control-plane/control_plane.py render \
             --phase dispatched \
             --output-dir control-artifacts \
             --output governance-comment.md
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
-          request = str(event.get("issue", {}).get("body") or "").rstrip()
-          receipt = Path("governance-comment.md").read_text(encoding="utf-8").strip()
-          body = (
-              request
-              + "\n\n---\n\n<!-- governance-status:start -->\n"
-              + receipt
-              + "\n<!-- governance-status:end -->\n"
-          )
-          Path("governance-issue-body.md").write_text(body, encoding="utf-8")
-          PY
+          python control-plane/control_plane.py compose \
+            --request control-artifacts/selected-request.md \
+            --receipt governance-comment.md \
+            --output governance-issue-body.md
           gh api --method POST \
             "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}/comments" \
             -F body=@governance-comment.md
@@ -174,27 +231,16 @@ jobs:
         if: always() && steps.dispatch.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOVERNANCE_ISSUE_NUMBER: ${{ steps.select.outputs.issue_number }}
         run: |
           python control-plane/control_plane.py render \
             --phase final \
             --output-dir control-artifacts \
             --output governance-comment.md
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
-          request = str(event.get("issue", {}).get("body") or "").rstrip()
-          receipt = Path("governance-comment.md").read_text(encoding="utf-8").strip()
-          body = (
-              request
-              + "\n\n---\n\n<!-- governance-status:start -->\n"
-              + receipt
-              + "\n<!-- governance-status:end -->\n"
-          )
-          Path("governance-issue-body.md").write_text(body, encoding="utf-8")
-          PY
+          python control-plane/control_plane.py compose \
+            --request control-artifacts/selected-request.md \
+            --receipt governance-comment.md \
+            --output governance-issue-body.md
           gh api --method POST \
             "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}/comments" \
             -F body=@governance-comment.md
@@ -208,21 +254,55 @@ jobs:
             -F body=@governance-issue-body.md \
             -f state=closed \
             -f state_reason="$reason"
+          touch control-artifacts/task-handled
 
       - name: Upload governance control evidence
-        if: always()
+        if: always() && steps.select.outputs.has_task == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: governance-control-${{ github.event.issue.number }}-${{ github.run_id }}
+          name: governance-control-${{ steps.select.outputs.issue_number }}-${{ github.run_id }}
           path: control-artifacts/
           if-no-files-found: warn
           retention-days: 30
 
-      - name: Enforce child result
-        if: >-
-          steps.prepare.outputs.accepted == 'true' &&
-          (
-            steps.dispatch.outcome != 'success' ||
-            steps.monitor.outputs.success != 'true'
-          )
-        run: exit 1
+      - name: Check remaining queue
+        id: remaining
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -f control-artifacts/task-handled ]; then
+            python control-plane/control_plane.py pending \
+              --repository "$GITHUB_REPOSITORY"
+          else
+            echo "has_more=false" >> "$GITHUB_OUTPUT"
+            echo "pending_count=unknown" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Wake next FIFO worker
+        if: always() && steps.remaining.outputs.has_more == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run control-plane-ticket.yml --ref main
+
+      - name: Enforce selected task result
+        if: always()
+        run: |
+          if [ "${{ steps.select.outputs.has_task }}" != "true" ]; then
+            exit 0
+          fi
+          if [ "${{ steps.select.outputs.duplicate }}" = "true" ]; then
+            exit 0
+          fi
+          if [ "${{ steps.select.outputs.retry_exhausted }}" = "true" ]; then
+            exit 1
+          fi
+          if [ "${{ steps.prepare.outputs.accepted }}" != "true" ]; then
+            exit 1
+          fi
+          if [ "${{ steps.dispatch.outcome }}" != "success" ]; then
+            exit 1
+          fi
+          if [ "${{ steps.monitor.outputs.success }}" != "true" ]; then
+            exit 1
+          fi
