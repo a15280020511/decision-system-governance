@@ -1,6 +1,6 @@
 {
   "schema_version": "governance-release-manifest-v1",
-  "governance_version": "3.5.2",
+  "governance_version": "3.6.0",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 30,
@@ -8,8 +8,8 @@
   "files": [
     {
       "path": ".github/workflows/control-plane-ticket.yml",
-      "size_bytes": 5665,
-      "sha256": "5232dcb0619610b2676422b330d5af868683c67b70ab9a6bc908d1072a4f123a"
+      "size_bytes": 8550,
+      "sha256": "667a984be5cb7f3f612073e867c39f930765e411a58eda7479f0058505ff8478"
     },
     {
       "path": ".github/workflows/control-plane-validate.yml",
