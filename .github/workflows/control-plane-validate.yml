@@ -20,9 +20,30 @@ jobs:
         with:
           python-version: "3.12"
       - name: Compile control plane
-        run: python -m py_compile control-plane/control_plane.py control-plane/serverchan_notify.py
+        run: python -m py_compile control-plane/control_plane.py
       - name: Run deterministic control-plane tests
         run: python -m unittest discover -s tests -p 'test_control_plane.py' -v
+      - name: Validate disabled ServerChan installation
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("integrations/serverchan/integration.json")
+          data = json.loads(path.read_text(encoding="utf-8"))
+          expected = {
+              "id": "serverchan",
+              "installation_status": "installed",
+              "activation_status": "disabled",
+              "implementation_status": "not_designed",
+          }
+          for key, value in expected.items():
+              if data.get(key) != value:
+                  raise SystemExit(f"ServerChan installation field mismatch: {key}")
+          for key in ("runtime_entrypoints", "required_secrets", "network_endpoints"):
+              if data.get(key) != []:
+                  raise SystemExit(f"ServerChan must have no active {key}")
+          PY
       - name: Validate GPT Action OpenAPI
         run: |
           python - <<'PY'
