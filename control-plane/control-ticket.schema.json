@@ -6,17 +6,12 @@
   "additionalProperties": false,
   "required": [
     "schema_version",
-    "task_id",
     "route",
     "ticket"
   ],
   "properties": {
     "schema_version": {
-      "const": "governance-control-ticket-v2"
-    },
-    "task_id": {
-      "type": "string",
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$"
+      "const": "governance-control-ticket-v3"
     },
     "route": {
       "enum": [
@@ -26,7 +21,8 @@
       ]
     },
     "ticket": {
-      "type": "object"
+      "type": "object",
+      "description": "Exact child-center ticket without task_id; governance injects a deterministic task_id."
     },
     "wait_seconds": {
       "type": "integer",

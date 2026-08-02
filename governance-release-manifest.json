@@ -1,20 +1,20 @@
 {
   "schema_version": "governance-release-manifest-v1",
-  "governance_version": "3.4.0",
+  "governance_version": "3.5.0",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 30,
-  "total_bytes": 161570,
+  "total_bytes": 164958,
   "files": [
     {
       "path": ".github/workflows/control-plane-ticket.yml",
-      "size_bytes": 4120,
-      "sha256": "95f89fe7601be3b37aa0d72a2e1c61d7c38598b4205c776eecc573323122cf53"
+      "size_bytes": 5665,
+      "sha256": "5232dcb0619610b2676422b330d5af868683c67b70ab9a6bc908d1072a4f123a"
     },
     {
       "path": ".github/workflows/control-plane-validate.yml",
-      "size_bytes": 2234,
-      "sha256": "96d1b2455f1b63003da1973f340288d015a70bbf519d3d5d06c0ac9e13b3b271"
+      "size_bytes": 3442,
+      "sha256": "c92bf64a2466bdd3148f5e7b7af7f59ede995ba960e92c43dcff8025cccd6317"
     },
     {
       "path": ".github/workflows/governance-validate.yml",
@@ -33,8 +33,8 @@
     },
     {
       "path": "CONTROL_PLANE_RUNBOOK.md",
-      "size_bytes": 4600,
-      "sha256": "8785060bfca140c799ae2533819b6351a742aa3b35d8ab33201aaf6e166a3b0a"
+      "size_bytes": 2698,
+      "sha256": "2121a41f7cdd94564eddc200fbf6f8cc81064f2db19957cb0aa202b3c47c811a"
     },
     {
       "path": "GLOBAL_RECOVERY_CHECKLIST.md",
@@ -48,8 +48,8 @@
     },
     {
       "path": "INTERFACE_VERSION_MATRIX.json",
-      "size_bytes": 1705,
-      "sha256": "a5aadd447640fa7bfa17aa960148710d8ea88e7bf8e6946ab7f4c4900a535263"
+      "size_bytes": 1986,
+      "sha256": "f61e5dd7ba99631bdf3a664f259741ca111327bae59150c7a6538a0958c40242"
     },
     {
       "path": "MASTER_OPERATIONS_RUNBOOK.md",
@@ -113,28 +113,28 @@
     },
     {
       "path": "contracts/gpts-orchestration-policy.json",
-      "size_bytes": 3713,
-      "sha256": "46d9b0a7aae73049eba8d49ce77fe773b9d43df0b7558d21f40ee91e217a823e"
+      "size_bytes": 4085,
+      "sha256": "9bcf6e6783764675825b1d4b9ed54f1678f44d5faa61f5a0384fb40d63ec115c"
     },
     {
       "path": "control-plane/control-ticket.schema.json",
-      "size_bytes": 827,
-      "sha256": "95f1b59f70d3394f2311810f3f896cb12961255afb7a34926879ed841d5553da"
+      "size_bytes": 820,
+      "sha256": "11f0806fe2529a11c25c55cf1c3489049040411f9edd31d8600602f12429ed7e"
     },
     {
       "path": "control-plane/control_plane.py",
-      "size_bytes": 16376,
-      "sha256": "e91129b89ed14da65bcd4a3f67c03eabf2a7335479e35f2f3fe651230e540707"
+      "size_bytes": 17746,
+      "sha256": "81503db658a2bfdab70cc3384da9df13884b898bf9bbdf7f48cc03c4544aff51"
     },
     {
       "path": "gpts-action/openapi.yaml",
-      "size_bytes": 4159,
-      "sha256": "61eed252c4d47a9f58446f2afb8dc7eba2a76baffdece30060439ad364de3907"
+      "size_bytes": 4375,
+      "sha256": "d9e673bfc34fffabb333c6ee9e14cbc68d6aaade14a4c52d61f812daacc6422c"
     },
     {
       "path": "gpts-knowledge/GPTS_CONTROL_PLANE.md",
-      "size_bytes": 1006,
-      "sha256": "4210138fe86eccc4d9520da657cde36fa261e6f1cf604b9efac35952e121a9c0"
+      "size_bytes": 1034,
+      "sha256": "52937beef3a42daeafb45019c5b7008080403a5b32cdebc97fd699a1182ad8b3"
     },
     {
       "path": "gpts-knowledge/GPTS_KNOWLEDGE_MASTER.md",
@@ -153,8 +153,8 @@
     },
     {
       "path": "tests/test_control_plane.py",
-      "size_bytes": 5031,
-      "sha256": "a95f64540181a993b62b731774353c600cafe44fee4011d90ef8f42b0697d159"
+      "size_bytes": 5308,
+      "sha256": "98940932fdc1c8a207a90080facde9272df82f28543f0f92a08d0eb8cda589ae"
     }
   ]
 }

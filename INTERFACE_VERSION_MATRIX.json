@@ -1,11 +1,19 @@
 {
   "schema_version": "interface-version-matrix-v1",
-  "governance_version": "3.4.0",
+  "governance_version": "3.5.0",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "control_plane": {
-    "schema_version": "governance-control-ticket-v2",
-    "gpt_action_openapi_version": "1.0.0",
+    "schema_version": "governance-control-ticket-v3",
+    "gpt_action_openapi_version": "2.0.0",
+    "submission_mode": "single_issue_create",
+    "task_id_mode": "generated_from_governance_issue_number",
+    "status_mode": "issue_state_and_state_reason",
+    "gpt_operations": [
+      "submitDecisionTask",
+      "getDecisionTaskStatus",
+      "getDecisionTaskReceipts"
+    ],
     "routes": {
       "intelligence": {
         "repository": "a15280020511/evidence-data-center",

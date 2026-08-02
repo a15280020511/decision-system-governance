@@ -17,14 +17,28 @@
   "any_order_allowed_when_prerequisites_are_satisfied": true,
   "center_repetition_allowed": true,
   "control_plane": {
-    "issue_prefix": "[control]",
-    "command": "/dispatch-control <task_id>",
+    "issue_title": "[control]",
+    "submission_mode": "single_issue_create",
+    "task_id_mode": "generated_from_governance_issue_number",
     "schema": "control-plane/control-ticket.schema.json",
     "allowed_routes": [
       "intelligence",
       "compute",
       "expert"
     ],
+    "gpt_operations": [
+      "submitDecisionTask",
+      "getDecisionTaskStatus",
+      "getDecisionTaskReceipts"
+    ],
+    "success_state": {
+      "state": "closed",
+      "state_reason": "completed"
+    },
+    "failure_state": {
+      "state": "closed",
+      "state_reason": "not_planned"
+    },
     "business_execution_allowed": false,
     "business_artifact_download_allowed": false,
     "trusted_terminal_author": "github-actions[bot]",
@@ -68,7 +82,7 @@
     ]
   },
   "feedback_rules": [
-    "Every repeated center use requires a new task_id and stage_id.",
+    "Every repeated center use requires a new governance Issue and stage_id.",
     "Expert hypotheses cannot directly trigger compute; GPTs must restructure them and obtain user approval when material.",
     "Compute data gaps cannot directly trigger API; GPTs must choose connectors and create a new governance control ticket.",
     "API results do not automatically trigger compute or expert execution.",

@@ -1,8 +1,8 @@
 name: Governance Control Plane
 
 on:
-  issue_comment:
-    types: [created]
+  issues:
+    types: [opened]
 
 permissions:
   contents: read
@@ -17,8 +17,7 @@ jobs:
   dispatch-and-monitor:
     if: >-
       github.actor == github.repository_owner &&
-      startsWith(github.event.issue.title, '[control]') &&
-      startsWith(github.event.comment.body, '/dispatch-control ')
+      github.event.issue.title == '[control]'
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     env:
@@ -55,6 +54,10 @@ jobs:
           gh api --method POST \
             "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}/comments" \
             -F body=@governance-comment.md
+          gh api --method PATCH \
+            "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}" \
+            -f state=closed \
+            -f state_reason=not_planned
 
       - name: Fail closed on invalid governance ticket
         if: steps.prepare.outputs.accepted != 'true'
@@ -62,13 +65,36 @@ jobs:
 
       - name: Dispatch through the child repository formal Issue entry
         id: dispatch
+        if: steps.prepare.outputs.accepted == 'true'
+        continue-on-error: true
         env:
           CONTROL_PLANE_TOKEN: ${{ secrets.CONTROL_PLANE_TOKEN }}
         run: |
           python control-plane/control_plane.py dispatch \
             --output-dir control-artifacts
 
+      - name: Publish dispatch infrastructure failure
+        if: steps.prepare.outputs.accepted == 'true' && steps.dispatch.outcome != 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cat > governance-comment.md <<'EOF'
+          ## CONTROL_FAILED
+
+          - Failure class: `CONTROL_DISPATCH_ERROR`
+          - Child center result: `not created or not confirmed`
+          - Action: inspect this workflow run; no business success is claimed.
+          EOF
+          gh api --method POST \
+            "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}/comments" \
+            -F body=@governance-comment.md
+          gh api --method PATCH \
+            "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}" \
+            -f state=closed \
+            -f state_reason=not_planned
+
       - name: Publish child dispatch receipt
+        if: steps.dispatch.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -82,6 +108,7 @@ jobs:
 
       - name: Monitor trusted child terminal status
         id: monitor
+        if: steps.dispatch.outcome == 'success'
         continue-on-error: true
         env:
           CONTROL_PLANE_TOKEN: ${{ secrets.CONTROL_PLANE_TOKEN }}
@@ -102,6 +129,15 @@ jobs:
           gh api --method POST \
             "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}/comments" \
             -F body=@governance-comment.md
+          if [ "${{ steps.monitor.outputs.success }}" = "true" ]; then
+            reason=completed
+          else
+            reason=not_planned
+          fi
+          gh api --method PATCH \
+            "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}" \
+            -f state=closed \
+            -f state_reason="$reason"
 
       - name: Upload governance control evidence
         if: always()
@@ -114,6 +150,9 @@ jobs:
 
       - name: Enforce child result
         if: >-
-          steps.dispatch.outcome != 'success' ||
-          steps.monitor.outputs.success != 'true'
+          steps.prepare.outputs.accepted == 'true' &&
+          (
+            steps.dispatch.outcome != 'success' ||
+            steps.monitor.outputs.success != 'true'
+          )
         run: exit 1

@@ -29,8 +29,9 @@ jobs:
           import json
           from pathlib import Path
 
-          path = Path("integrations/serverchan/integration.json")
-          data = json.loads(path.read_text(encoding="utf-8"))
+          data = json.loads(
+              Path("integrations/serverchan/integration.json").read_text(encoding="utf-8")
+          )
           expected = {
               "id": "serverchan",
               "installation_status": "installed",
@@ -44,19 +45,44 @@ jobs:
               if data.get(key) != []:
                   raise SystemExit(f"ServerChan must have no active {key}")
           PY
-      - name: Validate GPT Action OpenAPI
+      - name: Validate one-step GPT Action contract
         run: |
           python - <<'PY'
+          import json
           from pathlib import Path
-          text = Path("gpts-action/openapi.yaml").read_text(encoding="utf-8")
+
+          openapi = Path("gpts-action/openapi.yaml").read_text(encoding="utf-8")
+          workflow = Path(".github/workflows/control-plane-ticket.yml").read_text(
+              encoding="utf-8"
+          )
+          schema = json.loads(
+              Path("control-plane/control-ticket.schema.json").read_text(encoding="utf-8")
+          )
           required = (
               "openapi: 3.1.0",
-              "operationId: createGovernanceIssue",
-              "operationId: commentGovernanceIssue",
-              "operationId: getGovernanceIssue",
-              "operationId: listGovernanceIssueComments",
+              "operationId: submitDecisionTask",
+              "operationId: getDecisionTaskStatus",
+              "operationId: getDecisionTaskReceipts",
+              "governance-control-ticket-v3",
           )
-          missing = [item for item in required if item not in text]
+          missing = [item for item in required if item not in openapi]
           if missing:
               raise SystemExit(f"OpenAPI required entries missing: {missing}")
+          forbidden = (
+              "commentGovernanceIssue",
+              "/dispatch-control",
+              "issue_comment:",
+              "governance-control-ticket-v1",
+              "governance-control-ticket-v2",
+          )
+          found = [item for item in forbidden if item in openapi or item in workflow]
+          if found:
+              raise SystemExit(f"legacy two-step interface remains: {found}")
+          if workflow.count("\n  issues:\n") != 1 or "types: [opened]" not in workflow:
+              raise SystemExit("control workflow must trigger exactly on Issue opened")
+          if openapi.count("operationId:") != 3:
+              raise SystemExit("GPT Action must expose exactly three operations")
+          version = schema["properties"]["schema_version"]["const"]
+          if version != "governance-control-ticket-v3":
+              raise SystemExit("control schema version mismatch")
           PY
