@@ -1,12 +1,13 @@
 openapi: 3.1.0
 info:
   title: Decision System Governance Gateway
-  version: 2.0.1
+  version: 3.0.0
   description: >
-    One-step GPT interface for the three isolated decision centers.
-    Submit exactly one governance Issue. The governance workflow automatically
-    validates, assigns the task ID, dispatches, monitors, closes the Issue, and
-    records the result.
+    Minimal two-operation GPT interface for the three isolated decision centers.
+    GPT submits exactly one governance Issue and reads that same Issue for all
+    running and terminal status. Governance performs validation, task-ID
+    assignment, routing, dispatch, monitoring, failure handling, result
+    summarization, Issue-body updates, closure, and evidence recording.
 servers:
   - url: https://api.github.com
 paths:
@@ -17,8 +18,8 @@ paths:
       description: >
         Create exactly one governance Issue. Set title to [control]. Put one
         governance-control-ticket-v3 JSON object in body. Do not include task_id;
-        governance generates it from the new Issue number. No second comment or
-        dispatch command is required.
+        governance generates it from the new Issue number. No second comment,
+        dispatch command, child-repository access, or receipt operation is required.
       requestBody:
         required: true
         content:
@@ -49,45 +50,24 @@ paths:
   /repos/a15280020511/decision-system-governance/issues/{issue_number}:
     get:
       operationId: getDecisionTaskStatus
-      summary: Read the current task status
+      summary: Read status and centralized result from one Issue
       description: >
-        Poll this operation. state=open means queued or running.
-        state=closed with state_reason=completed means success.
-        state=closed with state_reason=not_planned means rejected, failed, or timed out.
+        Poll this operation only. state=open means queued or running. The body
+        contains the latest centralized CONTROL_DISPATCHED receipt. state=closed
+        with state_reason=completed means success and the body contains the final
+        CONTROL_COMPLETED receipt, child status, child Issue, trusted terminal
+        excerpt, Artifact metadata, and any published result summary.
+        state=closed with state_reason=not_planned means rejected, failed, or
+        timed out and the body contains the centralized failure reason.
       parameters:
         - $ref: '#/components/parameters/IssueNumber'
       responses:
         '200':
-          description: Governance task status
+          description: Governance task status and centralized receipt
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Issue'
-  /repos/a15280020511/decision-system-governance/issues/{issue_number}/comments:
-    get:
-      operationId: getDecisionTaskReceipts
-      summary: Read detailed governance receipts
-      description: >
-        Use only when detailed dispatch or terminal evidence is needed.
-        Normal status polling should use getDecisionTaskStatus.
-      parameters:
-        - $ref: '#/components/parameters/IssueNumber'
-        - name: per_page
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 100
-      responses:
-        '200':
-          description: Governance receipts
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Comment'
 components:
   securitySchemes:
     githubBearer:
@@ -111,6 +91,9 @@ components:
           type: string
         body:
           type: string
+          description: >
+            Original governance ticket followed by a governance-owned status
+            section delimited by governance-status markers.
         state:
           type: string
           enum: [open, closed]
@@ -123,19 +106,5 @@ components:
           type: string
         comments:
           type: integer
-    Comment:
-      type: object
-      properties:
-        id:
-          type: integer
-        body:
-          type: string
-        html_url:
-          type: string
-        user:
-          type: object
-          properties:
-            login:
-              type: string
 security:
   - githubBearer: []
