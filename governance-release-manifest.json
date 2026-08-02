@@ -1,6 +1,6 @@
 {
   "schema_version": "governance-release-manifest-v1",
-  "governance_version": "3.5.1",
+  "governance_version": "3.5.2",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 30,
@@ -13,8 +13,8 @@
     },
     {
       "path": ".github/workflows/control-plane-validate.yml",
-      "size_bytes": 3442,
-      "sha256": "c92bf64a2466bdd3148f5e7b7af7f59ede995ba960e92c43dcff8025cccd6317"
+      "size_bytes": 3536,
+      "sha256": "e32faa1f4fa97eb92b456d970229699af61dc970ebd130a55153dec0afa2ee2b"
     },
     {
       "path": ".github/workflows/governance-validate.yml",
