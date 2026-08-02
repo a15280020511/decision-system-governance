@@ -1,19 +1,20 @@
 {
   "schema_version": "interface-version-matrix-v1",
-  "governance_version": "3.5.2",
+  "governance_version": "3.6.0",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "control_plane": {
     "schema_version": "governance-control-ticket-v3",
-    "gpt_action_openapi_version": "2.0.1",
+    "gpt_action_openapi_version": "3.0.0",
     "submission_mode": "single_issue_create",
     "task_id_mode": "generated_from_governance_issue_number",
-    "status_mode": "issue_state_and_state_reason",
+    "status_mode": "single_issue_state_reason_and_body_receipt",
+    "receipt_surface": "governance_issue_body",
+    "audit_comment_surface": "human_only_not_exposed_to_gpts",
     "terminal_comment_normalization": "leading_hidden_html_comments_only",
     "gpt_operations": [
       "submitDecisionTask",
-      "getDecisionTaskStatus",
-      "getDecisionTaskReceipts"
+      "getDecisionTaskStatus"
     ],
     "routes": {
       "intelligence": {
