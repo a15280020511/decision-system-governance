@@ -123,8 +123,8 @@
     },
     {
       "path": "control-plane/control_plane.py",
-      "size_bytes": 17746,
-      "sha256": "81503db658a2bfdab70cc3384da9df13884b898bf9bbdf7f48cc03c4544aff51"
+      "size_bytes": 18091,
+      "sha256": "5632a087700a8c186576748fe58ce3981811471c0b54bb8bfeae913a26512f12"
     },
     {
       "path": "gpts-action/openapi.yaml",
