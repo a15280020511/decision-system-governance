@@ -45,7 +45,7 @@ jobs:
               if data.get(key) != []:
                   raise SystemExit(f"ServerChan must have no active {key}")
           PY
-      - name: Validate minimal two-operation GPT Action contract
+      - name: Validate serial asynchronous queue contract
         run: |
           python - <<'PY'
           import json
@@ -55,21 +55,56 @@ jobs:
           workflow = Path(".github/workflows/control-plane-ticket.yml").read_text(
               encoding="utf-8"
           )
+          runtime = Path("control-plane/control_plane.py").read_text(encoding="utf-8")
           schema = json.loads(
               Path("control-plane/control-ticket.schema.json").read_text(encoding="utf-8")
           )
+
           required_openapi = (
               "openapi: 3.1.0",
-              "version: 3.0.0",
+              "version: 3.1.0",
               "operationId: submitDecisionTask",
               "operationId: getDecisionTaskStatus",
               "governance-control-ticket-v3",
               '"inputs":{"data":[1,2,3]}',
-              "governance-status markers",
+              "state_reason=duplicate",
+              "FIFO",
           )
           missing = [item for item in required_openapi if item not in openapi]
           if missing:
               raise SystemExit(f"OpenAPI required entries missing: {missing}")
+
+          required_workflow = (
+              "issues:",
+              "types: [opened]",
+              "workflow_dispatch:",
+              'cron: "*/15 * * * *"',
+              "actions: write",
+              "group: governance-control-global-worker",
+              "cancel-in-progress: false",
+              "control_plane.py select",
+              "control_plane.py pending",
+              "--phase duplicate",
+              "--phase running",
+              "-f state_reason=duplicate",
+              "gh workflow run control-plane-ticket.yml --ref main",
+          )
+          missing = [item for item in required_workflow if item not in workflow]
+          if missing:
+              raise SystemExit(f"serial queue workflow entries missing: {missing}")
+
+          required_runtime = (
+              "MAX_EXECUTION_ATTEMPTS = 3",
+              "def _request_fingerprint(",
+              "def _find_duplicate_issue(",
+              "def select(",
+              "def pending(",
+              'choices=["duplicate", "exhausted", "running", "rejected", "dispatched", "final"]',
+          )
+          missing = [item for item in required_runtime if item not in runtime]
+          if missing:
+              raise SystemExit(f"queue runtime entries missing: {missing}")
+
           forbidden = (
               "operationId: getDecisionTaskReceipts",
               "/issues/{issue_number}/comments:",
@@ -79,18 +114,19 @@ jobs:
               "governance-control-ticket-v1",
               "governance-control-ticket-v2",
               '"inputs":{"values":',
+              "governance-control-${{ github.event.issue.number }}",
+              "cancel-in-progress: true",
           )
           found = [item for item in forbidden if item in openapi or item in workflow]
           if found:
-              raise SystemExit(f"legacy or invalid GPT interface content remains: {found}")
-          if workflow.count("\n  issues:\n") != 1 or "types: [opened]" not in workflow:
-              raise SystemExit("control workflow must trigger exactly on Issue opened")
+              raise SystemExit(f"legacy or unsafe interface content remains: {found}")
+
           if openapi.count("operationId:") != 2:
               raise SystemExit("GPT Action must expose exactly two operations")
-          if workflow.count("<!-- governance-status:start -->") != 4:
-              raise SystemExit("all four governance outcomes must mirror status into the Issue body")
-          if workflow.count("-F body=@governance-issue-body.md") != 4:
-              raise SystemExit("all four governance outcomes must PATCH the Issue body")
+          if workflow.count("group: governance-control-global-worker") != 1:
+              raise SystemExit("governance must expose exactly one global execution slot")
+          if runtime.count("hashlib.sha256") != 1:
+              raise SystemExit("request identity must use one canonical SHA-256 path")
           version = schema["properties"]["schema_version"]["const"]
           if version != "governance-control-ticket-v3":
               raise SystemExit("control schema version mismatch")
