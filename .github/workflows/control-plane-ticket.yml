@@ -1,0 +1,150 @@
+name: Governance Control Plane
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+
+concurrency:
+  group: governance-control-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch-and-monitor:
+    if: >-
+      github.actor == github.repository_owner &&
+      startsWith(github.event.issue.title, '[control]') &&
+      startsWith(github.event.comment.body, '/dispatch-control ')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      GOVERNANCE_ISSUE_NUMBER: ${{ github.event.issue.number }}
+      GOVERNANCE_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Checkout governance control plane
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Parse and validate governance ticket
+        id: prepare
+        continue-on-error: true
+        run: |
+          python control-plane/control_plane.py prepare \
+            --event-path "$GITHUB_EVENT_PATH" \
+            --output-dir control-artifacts
+
+      - name: Publish rejected governance ticket
+        if: steps.prepare.outputs.accepted != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python control-plane/control_plane.py render \
+            --phase rejected \
+            --output-dir control-artifacts \
+            --output governance-comment.md
+          gh api --method POST \
+            "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}/comments" \
+            -F body=@governance-comment.md
+
+      - name: Notify rejected governance ticket
+        if: steps.prepare.outputs.accepted != 'true' && steps.prepare.outputs.notify != 'false'
+        continue-on-error: true
+        env:
+          SERVERCHAN_SENDKEY: ${{ secrets.SERVERCHAN_SENDKEY }}
+        run: |
+          python control-plane/control_plane.py render \
+            --phase rejected \
+            --output-dir control-artifacts \
+            --output governance-notification.md
+          python control-plane/serverchan_notify.py \
+            --title "三中心控制票据被拒绝" \
+            --body-file governance-notification.md
+
+      - name: Fail closed on invalid governance ticket
+        if: steps.prepare.outputs.accepted != 'true'
+        run: exit 1
+
+      - name: Dispatch through the child repository formal Issue entry
+        id: dispatch
+        env:
+          CONTROL_PLANE_TOKEN: ${{ secrets.CONTROL_PLANE_TOKEN }}
+        run: |
+          python control-plane/control_plane.py dispatch \
+            --output-dir control-artifacts
+
+      - name: Publish child dispatch receipt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python control-plane/control_plane.py render \
+            --phase dispatched \
+            --output-dir control-artifacts \
+            --output governance-comment.md
+          gh api --method POST \
+            "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}/comments" \
+            -F body=@governance-comment.md
+
+      - name: Monitor trusted child terminal status
+        id: monitor
+        continue-on-error: true
+        env:
+          CONTROL_PLANE_TOKEN: ${{ secrets.CONTROL_PLANE_TOKEN }}
+        run: |
+          python control-plane/control_plane.py poll \
+            --output-dir control-artifacts \
+            --wait-seconds "${{ steps.prepare.outputs.wait_seconds }}"
+
+      - name: Publish final centralized receipt
+        if: always() && steps.dispatch.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python control-plane/control_plane.py render \
+            --phase final \
+            --output-dir control-artifacts \
+            --output governance-comment.md
+          gh api --method POST \
+            "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}/comments" \
+            -F body=@governance-comment.md
+
+      - name: Send one ServerChan result summary
+        if: >-
+          always() &&
+          steps.dispatch.outcome == 'success' &&
+          steps.prepare.outputs.notify != 'false'
+        continue-on-error: true
+        env:
+          SERVERCHAN_SENDKEY: ${{ secrets.SERVERCHAN_SENDKEY }}
+        run: |
+          python control-plane/control_plane.py render \
+            --phase final \
+            --output-dir control-artifacts \
+            --output governance-notification.md
+          python control-plane/serverchan_notify.py \
+            --title "三中心任务 ${{ steps.monitor.outputs.final_status || '状态异常' }}" \
+            --body-file governance-notification.md
+
+      - name: Upload governance control evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: governance-control-${{ github.event.issue.number }}-${{ github.run_id }}
+          path: control-artifacts/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Enforce child result
+        if: >-
+          steps.dispatch.outcome != 'success' ||
+          steps.monitor.outputs.success != 'true'
+        run: exit 1
