@@ -1,5 +1,5 @@
 {
-  "schema_version": "three-center-isolation-contract-v4",
+  "schema_version": "three-center-isolation-contract-v5",
   "status": "production",
   "sole_relay": "gpts-through-governance-control-plane",
   "maintenance_actor": "ordinary-web-gpt-with-github-plugin",
@@ -110,5 +110,40 @@
     "complete_body_required": true,
     "artifact_metadata_alone_is_insufficient": true,
     "hash_verification_required": true
+  },
+  "compute_material_handoff": {
+    "contract_version": "compute-material-handoff-v1",
+    "packager_owner": "evidence-data-center",
+    "packager_repository": "a15280020511/evidence-data-center",
+    "packager_path": "api-center/huggingface/compute_material_packager.py",
+    "packager_execution": "owner-authorized Evidence Center GitHub Actions",
+    "authoritative_source_storage": "private Hugging Face Dataset managed by Evidence Center",
+    "output": "self-contained immutable GitHub Actions Artifact",
+    "gpts_responsibilities": [
+      "select verified source records",
+      "bind the selection to a task ID and canonical selection SHA256",
+      "retrieve the complete package bytes rather than metadata only",
+      "verify the Evidence Center receipt, manifest SHA256 and package SHA256",
+      "relay the complete package without modification",
+      "create a separate governance compute ticket"
+    ],
+    "compute_responsibilities": [
+      "receive complete package bytes through GPTs",
+      "run offline deep validation before numeric execution",
+      "recalculate manifest and payload SHA256 values",
+      "recalculate declared file sizes",
+      "verify validity dates, source review dates and license use scope",
+      "verify GPTs approval is PASS and bound to the same task and manifest",
+      "reject credentials, unsafe paths, symbolic links, undeclared files, archives and executable content"
+    ],
+    "prohibited": [
+      "Evidence Center dispatching or uploading directly to Compute Center",
+      "Compute Center downloading Evidence Center or Hugging Face artifacts",
+      "governance repository storing or downloading business package bytes",
+      "artifact ID, URL or digest being treated as package content",
+      "ticket-supplied executable code"
+    ],
+    "evidence_contract": "a15280020511/evidence-data-center:api-center/huggingface/compute-material-packaging/source-record.schema.json",
+    "compute_contract": "a15280020511/compute-simulation-center:compute-center/complete-material-package-contract.json"
   }
 }
