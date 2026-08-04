@@ -1,12 +1,14 @@
 {
-  "schema_version": "governance-resilience-matrix-v2",
+  "schema_version": "governance-resilience-matrix-v3",
   "updated_at": "2026-08-05",
-  "overall_status": "P0_CORE_LIVE_ACCEPTED_RECONCILIATION_HARDENING_PENDING",
+  "overall_status": "P0_LIVE_ACCEPTED_P1_MERGED_WITH_GPT_SCHEMA_OPERATIONAL_BOUNDARY",
+  "governance_release": "4.2.1",
   "status_legend": {
-    "IMPLEMENTED": "Production code exists.",
+    "IMPLEMENTED": "Production code exists on governance main.",
     "DETERMINISTIC_TESTED": "Repository-local deterministic tests pass without paid model calls.",
-    "LIVE_ACCEPTED": "Merged production path has passed a real Issue/Actions acceptance test.",
-    "OPERATIONAL": "Depends on GitHub or a manual platform operation and cannot be made fully autonomous inside the current minimum-permission boundary."
+    "LIVE_ACCEPTED": "Merged production Issue/Actions path passed a real acceptance test.",
+    "OPERATIONAL": "Depends on GitHub or a manual platform operation and cannot be fully automated inside the minimum-permission boundary.",
+    "BY_DESIGN": "Intentional architecture constraint rather than an unresolved defect."
   },
   "implemented_and_live_accepted": [
     "owner-only exact [control] admission",
@@ -20,11 +22,14 @@
     "idempotent child Issue reuse",
     "provisional terminal does not end polling",
     "later task-bound expert rejection is accepted with model calls 0",
+    "Artifact-backed success is absorbing and cannot be revoked by a later idempotency rejection",
+    "late terminal reconciliation to success with preserved Artifact identity",
+    "one-time marker-bound lost-trigger recovery followed by late success reconciliation",
     "bounded monitor errors and timeout",
     "three-center terminal Issue automatic reclamation",
     "zero-call invalid expert ticket rejection",
     "minimum-permission positive and negative token probes",
-    "compute success task identity and Artifact contract",
+    "compute and intelligence success task identity and Artifact contracts",
     "camelCase secret and executable-field rejection"
   ],
   "p0": [
@@ -32,72 +37,102 @@
       "id": "P0-01",
       "name": "failed-task-resubmission",
       "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED", "LIVE_ACCEPTED"],
-      "implementation": "Duplicate detection blocks open, running, completed and duplicate predecessors, but does not allow failed/not_planned history to poison a new Issue fingerprint.",
-      "production_acceptance": "Governance Issue 84 repeated failed Issue 79 exactly, received new task_id gov-84-expert and a new child Issue rather than CONTROL_DUPLICATE."
+      "implementation": "Duplicate detection blocks open, running, completed and duplicate predecessors, but failed/not_planned history does not poison a new Issue fingerprint.",
+      "production_acceptance": "Governance Issue 84 repeated failed Issue 79, received new task_id gov-84-expert and a new child Issue rather than CONTROL_DUPLICATE."
     },
     {
       "id": "P0-02",
       "name": "comment-pagination",
       "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED"],
       "implementation": "Governance child monitoring, retry accounting and status ownership checks scan up to ten pages of 100 comments.",
-      "production_acceptance": "pending-nondestructive-scale-test"
+      "production_acceptance": "No destructive 1000-comment live fixture was executed; deterministic pagination coverage is the current evidence boundary."
     },
     {
       "id": "P0-03",
       "name": "task-id-binding",
       "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED", "LIVE_ACCEPTED"],
-      "implementation": "Production monitoring accepts only an exact governance-generated task_id. A bot terminal with a missing or mismatched Task ID is provisional evidence and polling continues for a later task-bound terminal; it is never accepted as the result.",
-      "production_acceptance": "Governance Issue 84 stayed open after an unbound primary rejection and completed only after the task-bound gov-84-expert fallback rejection arrived."
+      "implementation": "Monitoring accepts only the governance-generated task_id. Missing or mismatched Task ID terminals remain provisional and do not end polling.",
+      "production_acceptance": "Governance Issue 84 stayed open after an unbound expert rejection and completed only after the task-bound gov-84-expert rejection arrived."
     },
     {
       "id": "P0-04",
       "name": "artifact-contract",
       "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED", "LIVE_ACCEPTED"],
-      "implementation": "Compute/API success requires Artifact ID, 64-hex digest and matching URL. Expert success additionally requires primary and final-attestation Artifact identities. An incomplete success receipt is provisional and monitoring continues for a corrected audited receipt.",
-      "production_acceptance": "Compute governance Issue 78 passed with a task-bound Artifact identity; intelligence and paid expert success are not required for this zero-call release."
+      "implementation": "Compute/API success requires Artifact ID, 64-hex digest and matching Artifact URL. Expert success additionally requires primary and final-attestation Artifact identities.",
+      "production_acceptance": "Compute Issues 78 and 88 and intelligence Issue 90 were accepted only with exact task-bound Artifact identities."
     },
     {
       "id": "P0-05",
       "name": "late-terminal-reconciliation",
-      "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED"],
-      "implementation": "A serialized scheduled/closed-Issue worker reconciles only owner-authored canonical [control] timeout or monitor-error records. It derives task_id from the governance Issue number, enforces the route-fixed child repository and reuses provisional terminal validation.",
-      "production_acceptance": "pending-controlled-fixture-after-identity-hardening-merge"
+      "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED", "LIVE_ACCEPTED"],
+      "implementation": "A serialized worker reconciles only owner-authored canonical [control] timeout or monitor-error records, derives task_id from the governance Issue number, enforces the route-fixed child repository and applies absorbing Artifact-backed success precedence.",
+      "production_acceptance": "Governance Issue 90 changed from CONTROL_TIMEOUT to CONTROL_RECONCILED_LATE_SUCCESS with state_reason completed, child API_COMPLETED, Artifact ID 8906242150 and digest 456940a9deb4b492adb0394c8976d2f43045ea5bf177195b69b91cfb344e6a59. A later already-accepted API_REJECTED did not revoke the completed success."
     },
     {
       "id": "P0-06",
       "name": "lost-trigger-recovery",
-      "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED"],
+      "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED", "LIVE_ACCEPTED"],
       "implementation": "When no trusted child bot activity is observed, governance performs at most one marker-bound recovery: close/reopen for compute/API or one exact expert command repost.",
-      "production_acceptance": "pending-controlled-fixture"
+      "production_acceptance": "Governance Issue 88 reused compute Issue 109, wrote exactly one Recovery attempt 1/1 marker, reopened the child, obtained COMPUTE_COMPLETED with Artifact ID 8906239829 and reconciled to CONTROL_RECONCILED_LATE_SUCCESS with state_reason completed."
     },
     {
       "id": "P0-07",
       "name": "gpts-trusted-comment-read",
       "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED", "OPERATIONAL"],
       "implementation": "Repository OpenAPI exposes one additional read-only governance Issue comments operation. No child-repository or mutation operation is exposed.",
-      "operational_boundary": "A custom GPT does not automatically import a changed repository OpenAPI file; the GPT Action schema must be updated in the GPT configuration before live acceptance.",
-      "production_acceptance": "pending-custom-gpt-schema-import"
+      "operational_boundary": "A custom GPT does not automatically import a changed repository OpenAPI file. The Action schema must be updated in the GPT configuration before live acceptance of the comments operation.",
+      "production_acceptance": "Pending manual custom-GPT schema import; repository permission and interface contracts pass."
     },
     {
       "id": "P0-08",
       "name": "json-complexity-and-secret-variants",
       "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED", "LIVE_ACCEPTED"],
       "implementation": "The gateway bounds body size, JSON depth, node count, key length and string length, and rejects camelCase authorization/secret variants plus executable field names.",
-      "production_acceptance": "clientSecret-and-pythonCode-live-rejected-with-zero-dispatch"
+      "production_acceptance": "Governance Issue 80 rejected clientSecret and pythonCode with zero child dispatch and zero model/API/compute calls."
     }
   ],
-  "p1_required": [
-    "GitHub rate-limit aware backoff using Retry-After and X-RateLimit-Reset",
-    "bounded retry and explicit receipt for next-worker wake failure",
-    "daily token scope and repository identity health check",
-    "standard user-facing status dictionary and next-action text",
-    "long-term Issue and Artifact archive policy"
+  "p1": [
+    {
+      "id": "P1-01",
+      "name": "github-rate-limit-and-network-backoff",
+      "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED"],
+      "implementation": "The resilient transport retries HTTP 429, rate-limit 403, HTTP 502/503/504 and short network failures with bounded attempts and backoff, while ordinary 403/4xx fail immediately.",
+      "boundary": "GitHub platform-wide outages remain operational dependencies."
+    },
+    {
+      "id": "P1-02",
+      "name": "bounded-next-worker-wake",
+      "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED"],
+      "implementation": "The next FIFO worker is awakened at 0, 5 and 15 seconds. Exhaustion publishes CONTROL_QUEUE_WAKE_DEGRADED and preserves the open Issue queue for the 15-minute scheduled worker."
+    },
+    {
+      "id": "P1-03",
+      "name": "daily-token-and-repository-health",
+      "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED", "OPERATIONAL"],
+      "implementation": "A daily zero-business-call health workflow validates four repository identities, positive Issue access and negative Contents/Actions-Secrets permissions, maintaining one health Issue only on failure.",
+      "boundary": "Exact hidden fine-grained PAT checkboxes cannot be read back through repository APIs; runtime positive and negative permission behavior is the enforceable evidence."
+    },
+    {
+      "id": "P1-04",
+      "name": "user-facing-status-dictionary",
+      "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED"],
+      "implementation": "A machine-readable dictionary defines terminality, user meaning and next action for control, timeout, reconciliation, queue-degradation and platform-unavailable states."
+    },
+    {
+      "id": "P1-05",
+      "name": "issue-and-artifact-retention-policy",
+      "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED", "OPERATIONAL"],
+      "implementation": "Closed Issues remain as durable task indexes, Artifacts use explicit retention and long-term archival must preserve task_id, run, commit, Artifact ID and digest.",
+      "boundary": "GitHub Artifact retention is not indefinite; external long-term archival is a separate future operation."
+    }
   ],
   "operational_boundaries": [
     "GitHub platform-wide outages cannot be bypassed without violating the evidence architecture.",
     "Closing an Issue does not cancel an already-running child workflow because the control token intentionally has no Actions write permission.",
     "Exact hidden fine-grained PAT settings for the custom GPT cannot be read back through repository APIs.",
-    "The updated OpenAPI file must be imported into the custom GPT before the new read-only comments operation is available there."
+    "The updated OpenAPI file must be imported into the custom GPT before the read-only comments operation is available there.",
+    "P0-02 has deterministic pagination evidence but no destructive 1000-comment live fixture.",
+    "Artifact retention is finite unless a separate governed archive is configured."
   ],
   "acceptance": {
     "minimum_fault_scenarios": 30,
@@ -105,6 +140,9 @@
     "duplicate_dispatches": 0,
     "fifo_required": true,
     "late_terminal_reconciliation_required": true,
+    "late_terminal_reconciliation_live_accepted": true,
+    "lost_trigger_recovery_live_accepted": true,
+    "absorbing_success_terminal_required": true,
     "reconciliation_owner_control_identity_required": true,
     "reconciliation_task_id_must_be_issue_derived": true,
     "reconciliation_child_repository_must_match_route": true,
@@ -112,6 +150,7 @@
     "provisional_terminal_must_not_end_polling": true,
     "success_artifact_contract_required": true,
     "permission_negative_probe_required": true,
+    "p1_operational_resilience_merged": true,
     "paid_model_calls_required_for_this_release": false
   }
 }
