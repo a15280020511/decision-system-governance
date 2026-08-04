@@ -1,0 +1,79 @@
+{
+  "schema_version": "decision-system-topology-v1",
+  "status": "production-control",
+  "gpts_entry": {
+    "repository": "a15280020511/decision-system-governance",
+    "issues_only": true,
+    "direct_business_repository_access_allowed": false,
+    "direct_huggingface_access_allowed": false
+  },
+  "business_centers": {
+    "intelligence": "a15280020511/evidence-data-center",
+    "compute": "a15280020511/compute-simulation-center",
+    "expert": "a15280020511/expert-assessment-center"
+  },
+  "allowed_runtime_edges": [
+    "gpts->governance:control_issue",
+    "governance->intelligence:child_issue_and_status_read",
+    "governance->compute:child_issue_and_governed_transfer",
+    "governance->expert:child_issue_and_status_read",
+    "intelligence->governance:immutable_numeric_artifact_handoff",
+    "governance->huggingface:private_compute_baseline_storage"
+  ],
+  "forbidden_runtime_edges": [
+    "gpts->intelligence",
+    "gpts->compute",
+    "gpts->expert",
+    "intelligence->compute",
+    "intelligence->expert",
+    "compute->intelligence",
+    "compute->expert",
+    "expert->intelligence",
+    "expert->compute",
+    "intelligence->huggingface_private_dataset",
+    "compute->huggingface_private_dataset",
+    "expert->huggingface_private_dataset"
+  ],
+  "compute_baseline": {
+    "library_id": "compute-numeric-baselines",
+    "platform": "hugging-face-private-dataset",
+    "storage_gateway_owner": "a15280020511/decision-system-governance",
+    "data_producer": "a15280020511/evidence-data-center",
+    "beneficiary_center": "a15280020511/compute-simulation-center",
+    "payload_scope": "pure-numeric-parquet-only",
+    "raw_text_allowed": false,
+    "documents_allowed": false,
+    "knowledge_graph_allowed": false,
+    "knowledge_base_allowed": false,
+    "compute_direct_network_access_allowed": false,
+    "expert_access_allowed": false
+  },
+  "secret_ownership": {
+    "governance_allowed": [
+      "CONTROL_PLANE_TOKEN",
+      "BASELINE_TRANSFER_TOKEN",
+      "HF_TOKEN"
+    ],
+    "intelligence_forbidden": [
+      "HF_TOKEN",
+      "HF_NUMERIC_BASELINE_DATASET_REPO",
+      "HF_DOMAIN_BENCHMARK_DATASET_REPO",
+      "HF_EXTERNAL_REALITY_DATASET_REPO"
+    ],
+    "compute_forbidden": [
+      "HF_TOKEN"
+    ],
+    "expert_forbidden": [
+      "HF_TOKEN"
+    ]
+  },
+  "handoff_sequence": [
+    "intelligence_collects_and_validates",
+    "intelligence_exports_immutable_numeric_artifact",
+    "governance_verifies_manifest_hash_schema_and_provenance",
+    "governance_commits_numeric_payload_to_private_baseline",
+    "governance_builds_task_scoped_compute_transfer",
+    "compute_executes_offline",
+    "governance_returns_audited_status_to_gpts"
+  ]
+}
