@@ -1,6 +1,8 @@
 name: Governance Late Terminal Reconciliation
 
 on:
+  issues:
+    types: [closed]
   workflow_dispatch:
   schedule:
     - cron: "7,22,37,52 * * * *"
@@ -28,10 +30,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Reconcile late trusted child terminal results
+      - name: Reconcile owner-bound late trusted child terminal results
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CONTROL_PLANE_TOKEN: ${{ secrets.CONTROL_PLANE_TOKEN }}
         run: |
-          python control-plane/control_plane.py reconcile \
+          python control-plane/deferred_reconcile.py \
             --repository "$GITHUB_REPOSITORY"
