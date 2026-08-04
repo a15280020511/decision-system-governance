@@ -10,7 +10,7 @@
   "control_plane": {
     "schema_version": "governance-control-ticket-v3",
     "gpt_action_openapi_version": "3.1.0",
-    "gpt_action_interface_version": "3.2.0",
+    "gpt_action_interface_version": "3.2.1",
     "submission_mode": "single_issue_create_asynchronous",
     "task_id_mode": "generated_from_governance_issue_number",
     "status_mode": "single_issue_state_reason_body_and_trusted_comments",
