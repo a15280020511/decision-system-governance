@@ -4,7 +4,7 @@
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 66,
-  "total_bytes": 396957,
+  "total_bytes": 398163,
   "files": [
     {
       "path": ".github/workflows/compute-baseline-gateway.yml",
@@ -153,13 +153,13 @@
     },
     {
       "path": "compute-baseline-gateway/README.md",
-      "size_bytes": 2999,
-      "sha256": "fd38875ed1f23d03bce25ac56753922dde2f3dc81dc47ede0ac9f50360907a4d"
+      "size_bytes": 3359,
+      "sha256": "e7a71b7b62fe28aa86fc40f21452aeba51cb9ecce416801a2193dfd356d4e445"
     },
     {
       "path": "compute-baseline-gateway/gateway-contract.json",
-      "size_bytes": 2060,
-      "sha256": "98af864536ac0d18233432e7dcb8b3ba3c94b2c5d8e9c651cb2832e315e30b38"
+      "size_bytes": 2249,
+      "sha256": "e2dbe459c8ce18cd436f2a7edc35f87ec36fbb3eb3f28eddc91c9f4d6fb40c2d"
     },
     {
       "path": "compute-baseline-gateway/gateway.py",
@@ -173,8 +173,8 @@
     },
     {
       "path": "compute-baseline-gateway/tests/test_gateway.py",
-      "size_bytes": 8012,
-      "sha256": "f7475ad8651c92c9e658ebe0566dc8e24e45244057a3e99ae32447c16894e210"
+      "size_bytes": 8392,
+      "sha256": "8db6dae327e7d6e185b4735a7d6334a30ed493217d769fc0cd9d67f58501ebe0"
     },
     {
       "path": "contracts/api-catalog.snapshot.json",
@@ -238,8 +238,8 @@
     },
     {
       "path": "control-plane/topology-contract.json",
-      "size_bytes": 2861,
-      "sha256": "ee054cf9cf58680cf0d78966ec0d5595f09aee1e70f9eb6e265a956f8b00e862"
+      "size_bytes": 3138,
+      "sha256": "b1bc19421e14fa276f33bc8b86b61a95b8482f23f6125aaad14e7ee3f3446298"
     },
     {
       "path": "governance-resilience-matrix.json",
