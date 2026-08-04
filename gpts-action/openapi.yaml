@@ -1,13 +1,14 @@
 openapi: 3.1.0
 info:
   title: Decision System Governance Gateway
-  version: 3.1.0
+  version: 3.2.0
   description: >
-    Minimal two-operation GPT interface for the three isolated decision centers.
+    Minimal three-operation GPT interface for the three isolated decision centers.
     Submission is asynchronous. Governance keeps one global execution slot,
-    processes owned [control] Issues in FIFO order, rejects normalized duplicate
-    tasks, performs bounded recovery, and writes all status and results back to
-    the same governance Issue.
+    processes owned [control] Issues in FIFO order, rejects only active or
+    successful normalized duplicates, performs one bounded child recovery,
+    validates bot terminal task identity and Artifact evidence, and reconciles
+    late terminal results.
 servers:
   - url: https://api.github.com
 paths:
@@ -18,11 +19,9 @@ paths:
       description: >
         Create exactly one governance Issue. Set title to [control]. Put one
         governance-control-ticket-v3 JSON object in body. Do not include task_id.
-        Save the returned Issue number and never retry by creating a second Issue.
-        Governance derives a canonical request fingerprint from route and ticket;
-        an identical earlier request is closed with state_reason=duplicate.
-        Valid distinct requests wait in FIFO order while the single execution
-        slot is occupied.
+        Save the returned Issue number. An identical active or successful request
+        is closed as duplicate; an identical historical failed request may be
+        submitted again with a new Issue and new task_id.
       requestBody:
         required: true
         content:
@@ -40,7 +39,7 @@ paths:
                   maxLength: 100000
                   description: >
                     JSON string with schema_version, route, ticket, and optional
-                    wait_seconds. The nested ticket must omit task_id.
+                    wait_seconds. The nested ticket must omit task_id and secrets.
                   examples:
                     - '{"schema_version":"governance-control-ticket-v3","route":"compute","ticket":{"operation":"descriptive_statistics","inputs":{"data":[1,2,3]}}}'
       responses:
@@ -55,13 +54,13 @@ paths:
       operationId: getDecisionTaskStatus
       summary: Read queue, execution, and terminal status
       description: >
-        Poll only this operation. state=open without a governance status block
-        means queued. CONTROL_RUNNING or CONTROL_DISPATCHED means the one global
-        slot is executing this task. state=closed with state_reason=completed
-        means success. state=closed with state_reason=duplicate means the same
-        normalized route and ticket were submitted earlier; the body identifies
-        the original Issue. state=closed with state_reason=not_planned means
-        rejection, failure, timeout, or bounded-retry exhaustion.
+        Read the Issue state and centralized status block. This body is a
+        convenience view, not sufficient evidence by itself. For any terminal
+        claim, also call getDecisionTaskReceipts and verify the latest matching
+        github-actions[bot] receipt, expected Task ID, child status and Artifact
+        identity. CONTROL_RECONCILED_LATE_SUCCESS and
+        CONTROL_RECONCILED_LATE_FAILURE replace an earlier timeout or monitor
+        error after a late child terminal result is verified.
       parameters:
         - $ref: '#/components/parameters/IssueNumber'
       responses:
@@ -71,6 +70,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Issue'
+  /repos/a15280020511/decision-system-governance/issues/{issue_number}/comments:
+    get:
+      operationId: getDecisionTaskReceipts
+      summary: Read trusted governance receipts
+      description: >
+        Read all Issue comments. Treat only comments whose user.login equals
+        github-actions[bot] as trusted workflow receipts. Select the latest
+        trusted terminal receipt and require its Task ID to match the governance
+        Issue status. This operation is read-only and does not expose child
+        repositories.
+      parameters:
+        - $ref: '#/components/parameters/IssueNumber'
+        - name: per_page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 100
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+      responses:
+        '200':
+          description: Governance Issue comments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Comment'
 components:
   securitySchemes:
     githubBearer:
@@ -85,6 +120,24 @@ components:
         type: integer
         minimum: 1
   schemas:
+    User:
+      type: object
+      properties:
+        login:
+          type: string
+    Comment:
+      type: object
+      properties:
+        id:
+          type: integer
+        body:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+        html_url:
+          type: string
+        created_at:
+          type: string
     Issue:
       type: object
       properties:
@@ -95,8 +148,8 @@ components:
         body:
           type: string
           description: >
-            Original immutable request followed by an optional governance-owned
-            status section delimited by governance-status markers.
+            Original request followed by an optional governance-owned status
+            section. Verify terminal claims against trusted comments.
         state:
           type: string
           enum: [open, closed]
