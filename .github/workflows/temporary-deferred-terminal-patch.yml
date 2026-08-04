@@ -1,6 +1,7 @@
 name: Temporary Deferred Terminal Patch
 
 on:
+  pull_request:
   push:
     branches: [fix/deferred-terminal-validation-20260805]
 
