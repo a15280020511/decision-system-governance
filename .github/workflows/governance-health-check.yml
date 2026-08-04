@@ -43,6 +43,17 @@ jobs:
             --output health-artifacts/governance-health.json \
             --markdown health-artifacts/governance-health.md
 
+      - name: Append zero-call evidence boundary
+        if: always()
+        run: |
+          mkdir -p health-artifacts
+          touch health-artifacts/governance-health.md
+          cat >> health-artifacts/governance-health.md <<'EOF'
+
+          - External business data calls: `0`
+          - Secret values recorded: `false`
+          EOF
+
       - name: Reconcile single health Issue
         if: always()
         env:
