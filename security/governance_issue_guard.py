@@ -3,12 +3,15 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any, Mapping
 
 STATUS_START = "<!-- governance-status:start -->"
 STATUS_END = "<!-- governance-status:end -->"
 TRUSTED_AUTHOR = "github-actions[bot]"
+MAX_COMMENT_PAGES = 10
 TRUSTED_HEADINGS = (
     "## CONTROL_RUNNING",
     "## CONTROL_DISPATCHED",
@@ -16,6 +19,8 @@ TRUSTED_HEADINGS = (
     "## CONTROL_FAILED",
     "## CONTROL_REJECTED",
     "## CONTROL_DUPLICATE",
+    "## CONTROL_RECONCILED_LATE_SUCCESS",
+    "## CONTROL_RECONCILED_LATE_FAILURE",
 )
 
 
@@ -39,21 +44,65 @@ def _extract_status_receipt(body: str) -> tuple[str | None, str | None]:
     end = body.find(STATUS_END)
     if start < 0 or end < start:
         return None, "governance status markers are malformed"
-    trailing = body[end + len(STATUS_END) :].strip()
+    trailing = body[end + len(STATUS_END):].strip()
     if trailing:
         return None, "content after the governance status block is forbidden"
-    receipt = body[start + len(STATUS_START) : end].strip()
+    receipt = body[start + len(STATUS_START):end].strip()
     if not receipt.startswith(TRUSTED_HEADINGS):
         return None, "governance status block has an unsupported heading"
     return receipt, None
 
 
-def _latest_trusted_receipt(rows: Any) -> str | None:
-    if not isinstance(rows, list):
+def _flatten_comments(value: Any) -> list[Mapping[str, Any]]:
+    output: list[Mapping[str, Any]] = []
+    if not isinstance(value, list):
+        return output
+    for row in value:
+        if isinstance(row, Mapping):
+            output.append(row)
+        elif isinstance(row, list):
+            output.extend(item for item in row if isinstance(item, Mapping))
+    return output
+
+
+def _fetch_paginated_comments() -> list[Mapping[str, Any]] | None:
+    token = os.getenv("GH_TOKEN") or os.getenv("GITHUB_TOKEN")
+    repository = os.getenv("GITHUB_REPOSITORY", "")
+    issue_number = os.getenv("GOVERNANCE_ISSUE_NUMBER", "")
+    if not token or not repository or not issue_number.isdigit():
         return None
-    for row in reversed(rows):
-        if not isinstance(row, Mapping):
-            continue
+
+    rows_out: list[Mapping[str, Any]] = []
+    for page in range(1, MAX_COMMENT_PAGES + 1):
+        url = (
+            f"https://api.github.com/repos/{repository}/issues/{issue_number}/comments"
+            f"?per_page=100&page={page}"
+        )
+        request = urllib.request.Request(
+            url,
+            headers={
+                "Accept": "application/vnd.github+json",
+                "Authorization": f"Bearer {token}",
+                "User-Agent": "decision-system-governance-status-guard",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                rows = json.loads(response.read().decode("utf-8"))
+        except (urllib.error.URLError, json.JSONDecodeError) as exc:
+            raise RuntimeError(f"paginated governance comments fetch failed: {exc}") from exc
+        if not isinstance(rows, list):
+            raise RuntimeError("paginated governance comments response is not an array")
+        rows_out.extend(item for item in rows if isinstance(item, Mapping))
+        if len(rows) < 100:
+            break
+    return rows_out
+
+
+def _latest_trusted_receipt(rows: Any) -> str | None:
+    comments = _flatten_comments(rows)
+    for row in reversed(comments):
         user = row.get("user") if isinstance(row.get("user"), Mapping) else {}
         if str(user.get("login") or "") != TRUSTED_AUTHOR:
             continue
@@ -101,9 +150,12 @@ def main() -> int:
     status_path = Path(args.prepare_status)
     try:
         body = Path(args.raw_body).read_text(encoding="utf-8")
-        comments = json.loads(Path(args.comments_json).read_text(encoding="utf-8"))
+        file_comments = json.loads(Path(args.comments_json).read_text(encoding="utf-8"))
+        comments = _fetch_paginated_comments()
+        if comments is None:
+            comments = _flatten_comments(file_comments)
         safe, reason = validate_status_ownership(body, comments)
-    except (OSError, json.JSONDecodeError, ValueError) as exc:
+    except (OSError, json.JSONDecodeError, ValueError, RuntimeError) as exc:
         safe = False
         reason = f"governance status ownership check failed: {exc}"
 

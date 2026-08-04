@@ -4,7 +4,6 @@ import importlib.util
 import unittest
 from pathlib import Path
 
-
 MODULE_PATH = Path(__file__).resolve().parents[1] / "security" / "governance_issue_guard.py"
 SPEC = importlib.util.spec_from_file_location("governance_issue_guard", MODULE_PATH)
 MODULE = importlib.util.module_from_spec(SPEC)
@@ -44,6 +43,22 @@ class GovernanceIssueGuardTests(unittest.TestCase):
         )
         comments = [
             {"user": {"login": "github-actions[bot]"}, "body": receipt},
+        ]
+        safe, _ = MODULE.validate_status_ownership(body, comments)
+        self.assertTrue(safe)
+
+    def test_accepts_paginated_slurp_shape(self) -> None:
+        receipt = "## CONTROL_RECONCILED_LATE_SUCCESS\n\n- Task ID: `gov-2-compute`"
+        body = (
+            '{"schema_version":"governance-control-ticket-v3"}'
+            "\n\n---\n\n"
+            "<!-- governance-status:start -->\n"
+            + receipt
+            + "\n<!-- governance-status:end -->\n"
+        )
+        comments = [
+            [{"user": {"login": "other"}, "body": "noise"}],
+            [{"user": {"login": "github-actions[bot]"}, "body": receipt}],
         ]
         safe, _ = MODULE.validate_status_ownership(body, comments)
         self.assertTrue(safe)
