@@ -23,6 +23,8 @@ jobs:
       - name: Compile governance control code
         run: |
           python -m py_compile control-plane/control_plane.py
+          python -m py_compile control-plane/deferred_poll.py
+          python -m py_compile control-plane/deferred_reconcile.py
           python -m py_compile security/governance_issue_guard.py
           python -m py_compile security/access_contract.py
 
@@ -65,6 +67,10 @@ jobs:
               ".github/workflows/control-plane-reconcile.yml"
           ).read_text(encoding="utf-8")
           runtime = Path("control-plane/control_plane.py").read_text(encoding="utf-8")
+          deferred = Path("control-plane/deferred_poll.py").read_text(encoding="utf-8")
+          reconcile_runtime = Path(
+              "control-plane/deferred_reconcile.py"
+          ).read_text(encoding="utf-8")
           guard = Path("security/governance_issue_guard.py").read_text(encoding="utf-8")
 
           required_openapi = (
@@ -95,6 +101,7 @@ jobs:
               "control_plane.py prepare",
               "governance_issue_guard.py",
               "control_plane.py pending",
+              "deferred_poll.py",
               "--phase duplicate",
               "--phase running",
               "-f state_reason=duplicate",
@@ -106,8 +113,9 @@ jobs:
 
           required_reconcile = (
               "Governance Late Terminal Reconciliation",
+              "types: [closed]",
               "group: governance-control-global-worker",
-              "control_plane.py reconcile",
+              "deferred_reconcile.py",
               "CONTROL_PLANE_TOKEN:",
               "persist-credentials: false",
           )
@@ -139,6 +147,32 @@ jobs:
           missing = [item for item in required_runtime if item not in runtime]
           if missing:
               raise SystemExit(f"P0 runtime entries missing: {missing}")
+
+          required_deferred = (
+              "def trusted_terminal(",
+              "missing/mismatched Task ID",
+              "incomplete success",
+              "CONTROL.poll(args)",
+          )
+          missing = [item for item in required_deferred if item not in deferred]
+          if missing:
+              raise SystemExit(f"deferred terminal entries missing: {missing}")
+
+          required_reconcile_runtime = (
+              "def reconciliation_candidate(",
+              "CONTROL._is_owned_control_issue",
+              "CONTROL._generated_task_id",
+              'CONTROL.ROUTES[route]["repository"]',
+              "CONTROL._trusted_terminal = DEFERRED.trusted_terminal",
+          )
+          missing = [
+              item for item in required_reconcile_runtime
+              if item not in reconcile_runtime
+          ]
+          if missing:
+              raise SystemExit(
+                  f"identity-hardened reconciliation entries missing: {missing}"
+              )
 
           required_guard = (
               'TRUSTED_AUTHOR = "github-actions[bot]"',
