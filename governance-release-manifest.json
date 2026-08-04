@@ -3,8 +3,8 @@
   "governance_version": "4.2.2",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
-  "file_count": 65,
-  "total_bytes": 393854,
+  "file_count": 66,
+  "total_bytes": 394595,
   "files": [
     {
       "path": ".github/workflows/compute-baseline-gateway.yml",
@@ -248,8 +248,8 @@
     },
     {
       "path": "gpts-action/openapi.yaml",
-      "size_bytes": 5258,
-      "sha256": "3bea3ea9d0bb1fedb3b1c32cd30c4dab166691ad51c08b938d52038e0d4ac473"
+      "size_bytes": 5272,
+      "sha256": "6956797bdac9d96c8796d174c01224877069c05311b5fc69e9be22f76e12ed50"
     },
     {
       "path": "gpts-knowledge/GPTS_CONTROL_PLANE.md",
@@ -315,6 +315,11 @@
       "path": "tests/test_governance_issue_guard.py",
       "size_bytes": 3665,
       "sha256": "ed1acf1cebc9f03e4f79d193dbdc9d8c56238965933e9f125a1707708db90850"
+    },
+    {
+      "path": "tests/test_gpts_schema_compat.py",
+      "size_bytes": 727,
+      "sha256": "87da3631fac22ac66e72bc826065563c38fccce5ae9b39611fb4d9f94a4666ae"
     },
     {
       "path": "tests/test_p1_operational_contract.py",
