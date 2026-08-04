@@ -77,7 +77,7 @@
     "The three business centers are peers and never call, dispatch, import, read runtime artifacts from, or write runtime artifacts to each other.",
     "GPTs remains the business orchestrator; the governance repository is only its command and status gateway.",
     "The governance gateway may create formal child Issues but may not execute or alter business-center work.",
-    "An API result becomes compute input only after GPTs retrieves and verifies the complete snapshot, manifest and hashes, then creates a new governance control ticket.",
+    "An API result becomes compute input only after GPTs retrieves and verifies the complete snapshot, manifest and hashes, creates an independent relay attestation, and then creates a new governance control ticket.",
     "A compute result becomes expert evidence only after GPTs retrieves and verifies the complete result package, then creates a new governance control ticket.",
     "The numerical compute runtime never fetches business data, calls models, downloads code or contacts another center.",
     "No center may silently repair another center's data, assumptions, prompts, code, workflow or output.",
@@ -112,31 +112,43 @@
     "hash_verification_required": true
   },
   "compute_material_handoff": {
-    "contract_version": "compute-material-handoff-v1",
+    "contract_version": "compute-material-handoff-v2",
     "packager_owner": "evidence-data-center",
     "packager_repository": "a15280020511/evidence-data-center",
     "packager_path": "api-center/huggingface/compute_material_packager.py",
     "packager_execution": "owner-authorized Evidence Center GitHub Actions",
     "authoritative_source_storage": "private Hugging Face Dataset managed by Evidence Center",
-    "output": "self-contained immutable GitHub Actions Artifact",
+    "output": "self-contained immutable GitHub Actions Artifact awaiting an independent GPTs relay attestation",
+    "trust_stages": [
+      "GPTs approves the selected verified source records and canonical selection SHA256 before packaging",
+      "Evidence Center packager verifies source bytes and produces manifest, envelope, payload and content SHA256",
+      "GPTs retrieves the complete Artifact bytes and independently verifies manifest, envelope, payload and content SHA256",
+      "GPTs adds gpts-relay-attestation.json bound to the task, transfer, manifest, envelope and content hashes",
+      "Compute Center independently revalidates all bytes and both GPTs trust stages before numeric execution"
+    ],
     "gpts_responsibilities": [
       "select verified source records",
       "bind the selection to a task ID and canonical selection SHA256",
       "retrieve the complete package bytes rather than metadata only",
-      "verify the Evidence Center receipt, manifest SHA256 and package SHA256",
-      "relay the complete package without modification",
+      "verify the Evidence Center receipt, manifest SHA256, envelope SHA256 and content SHA256",
+      "create an independent gpts-relay-attestation.json after package verification",
+      "bind the relay attestation to the same task ID, transfer ID, manifest SHA256, envelope SHA256 and content SHA256",
+      "relay the complete package and attestation without modifying the Evidence Center bytes",
       "create a separate governance compute ticket"
     ],
     "compute_responsibilities": [
-      "receive complete package bytes through GPTs",
+      "receive complete package bytes and the independent GPTs relay attestation through GPTs",
       "run offline deep validation before numeric execution",
-      "recalculate manifest and payload SHA256 values",
+      "recalculate manifest, envelope and payload SHA256 values",
       "recalculate declared file sizes",
-      "verify validity dates, source review dates and license use scope",
-      "verify GPTs approval is PASS and bound to the same task and manifest",
+      "verify validity dates, source review dates, license use scope and source-record bindings",
+      "verify GPTs selection approval is PASS and bound to the same task and selection",
+      "verify GPTs relay attestation is PASS and bound to the same task, transfer, manifest, envelope and content hashes",
       "reject credentials, unsafe paths, symbolic links, undeclared files, archives and executable content"
     ],
     "prohibited": [
+      "Evidence Center claiming that GPTs approved the final manifest",
+      "Evidence Center creating the GPTs relay attestation",
       "Evidence Center dispatching or uploading directly to Compute Center",
       "Compute Center downloading Evidence Center or Hugging Face artifacts",
       "governance repository storing or downloading business package bytes",
@@ -144,6 +156,7 @@
       "ticket-supplied executable code"
     ],
     "evidence_contract": "a15280020511/evidence-data-center:api-center/huggingface/compute-material-packaging/source-record.schema.json",
-    "compute_contract": "a15280020511/compute-simulation-center:compute-center/complete-material-package-contract.json"
+    "compute_contract": "a15280020511/compute-simulation-center:compute-center/complete-material-package-contract.json",
+    "relay_attestation_schema": "gpts-compute-material-relay-attestation-v1"
   }
 }
