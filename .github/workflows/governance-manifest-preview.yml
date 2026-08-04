@@ -33,7 +33,7 @@ jobs:
           python tools/generate_governance_release_manifest.py \
             --root . \
             --output manifest-preview/governance-release-manifest.json \
-            --version 4.1.0
+            --version 4.2.2
 
       - name: Upload manifest preview
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
