@@ -126,7 +126,10 @@ def validate_access_contract(openapi: str, workflow: str) -> None:
     if "persist-credentials: true" in workflow:
         errors.append("persisted checkout credentials are forbidden")
 
-    action_uses = re.findall(r"(?m)^[ \t]*-[ \t]*uses:[ \t]*([^\s#]+)", workflow)
+    action_uses = re.findall(
+        r"(?m)^[ \t]*(?:-[ \t]*)?uses:[ \t]*([^\s#]+)",
+        workflow,
+    )
     unpinned = [
         value
         for value in action_uses
