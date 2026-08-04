@@ -31,6 +31,17 @@ The child result must:
 
 A terminal with a missing or mismatched Task ID is provisional evidence. An incomplete success terminal is also provisional evidence. Neither may be used to reconcile a governance result.
 
+## Terminal precedence
+
+A valid Artifact-backed success is an absorbing terminal for its Task ID.
+
+- The newest valid success is selected when one or more valid successes exist.
+- A later duplicate-admission, already-running, replay or idempotency rejection cannot revoke that success.
+- A success without a complete Artifact contract is not absorbing and remains provisional.
+- When no valid success exists, the latest trusted task-bound failure is selected.
+
+This rule prevents a child Issue reopen or duplicate workflow run from converting an already completed task into a governance failure.
+
 ## State transition
 
 A valid late success becomes `CONTROL_RECONCILED_LATE_SUCCESS` with `state_reason=completed`.
