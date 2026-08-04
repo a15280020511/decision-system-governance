@@ -1,10 +1,10 @@
 {
   "schema_version": "governance-release-manifest-v1",
-  "governance_version": "3.7.0",
+  "governance_version": "3.7.1",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
-  "file_count": 30,
-  "total_bytes": 195492,
+  "file_count": 32,
+  "total_bytes": 201376,
   "files": [
     {
       "path": ".github/workflows/control-plane-ticket.yml",
@@ -60,6 +60,11 @@
       "path": "MIGRATION_EXECUTION_PLAN.md",
       "size_bytes": 424,
       "sha256": "272c4d17deddcf0d4de9838fdbec3bf2f7fdc27f0c82c63b0fb0ed055e68d4ad"
+    },
+    {
+      "path": "MODEL_ORCHESTRATION_POLICY.md",
+      "size_bytes": 3719,
+      "sha256": "745f0d75da4c8fcc2d092d7300f5ae24e4258f6fc5a0877b5558e4ea18670acc"
     },
     {
       "path": "README.md",
@@ -150,6 +155,11 @@
       "path": "integrations/serverchan/integration.json",
       "size_bytes": 576,
       "sha256": "3577e793d07643db7dc2066d24118e1e5986513e3ec6b7718f317d88886b1903"
+    },
+    {
+      "path": "model-orchestration-policy.json",
+      "size_bytes": 2165,
+      "sha256": "e6b8fa9c66438af1d82787b3f5be57734c4157cd954db22628e76029a934a577"
     },
     {
       "path": "tests/test_control_plane.py",
