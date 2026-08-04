@@ -13,6 +13,7 @@ GPTs（Orchestration Console）通过本仓库的受控 Issue 网关派发任务
 ## GPTs 控制入口
 
 - GPT Action OpenAPI：`gpts-action/openapi.yaml`
+- GPT 与治理 Action 的最小权限设计：`GPTS_ACCESS_KEY_POLICY.md`
 - 控制票据 Schema：`control-plane/control-ticket.schema.json`
 - 控制平面运行手册：`CONTROL_PLANE_RUNBOOK.md`
 - GPTs 操作约束：`gpts-knowledge/GPTS_CONTROL_PLANE.md`
