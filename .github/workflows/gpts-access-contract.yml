@@ -22,97 +22,13 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Enforce GPT and governance permission boundary
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-          import re
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
 
-          openapi = Path("gpts-action/openapi.yaml").read_text(encoding="utf-8")
-          workflow = Path(".github/workflows/control-plane-ticket.yml").read_text(
-              encoding="utf-8"
-          )
+      - name: Enforce live GPT and governance permission boundary
+        run: python security/access_contract.py
 
-          governance_repo = "a15280020511/decision-system-governance"
-          child_repos = {
-              "a15280020511/evidence-data-center",
-              "a15280020511/compute-simulation-center",
-              "a15280020511/expert-assessment-center",
-          }
-
-          expected_paths = {
-              f"/repos/{governance_repo}/issues:",
-              f"/repos/{governance_repo}/issues/{{issue_number}}:",
-          }
-          actual_paths = {
-              line.strip()
-              for line in openapi.splitlines()
-              if re.fullmatch(r"/repos/[^:]+:", line.strip())
-          }
-          if actual_paths != expected_paths:
-              raise SystemExit(
-                  f"GPT Action paths must be exactly {sorted(expected_paths)}; "
-                  f"got {sorted(actual_paths)}"
-              )
-
-          for repo in child_repos:
-              if repo in openapi:
-                  raise SystemExit(f"GPT Action must not expose child repository: {repo}")
-
-          forbidden_methods = re.findall(
-              r"(?m)^    (patch|put|delete):\s*$",
-              openapi,
-              flags=re.IGNORECASE,
-          )
-          if forbidden_methods:
-              raise SystemExit(
-                  f"GPT Action contains forbidden mutation methods: {forbidden_methods}"
-              )
-
-          if "type: http" not in openapi or "scheme: bearer" not in openapi:
-              raise SystemExit("GPT Action must use bearer-token authentication")
-
-          top_permissions_match = re.search(
-              r"(?ms)^permissions:\n(?P<body>.*?)(?=^concurrency:)",
-              workflow,
-          )
-          if not top_permissions_match:
-              raise SystemExit("control-plane workflow top-level permissions not found")
-
-          normalized = {
-              line.strip()
-              for line in top_permissions_match.group("body").splitlines()
-              if line.strip()
-          }
-          expected_permissions = {
-              "contents: read",
-              "issues: write",
-              "actions: write",
-          }
-          if normalized != expected_permissions:
-              raise SystemExit(
-                  "control-plane permissions must be exactly "
-                  f"{sorted(expected_permissions)}; got {sorted(normalized)}"
-              )
-
-          forbidden_grants = {
-              "contents: write",
-              "pull-requests: write",
-              "workflows: write",
-              "administration: write",
-          }
-          present = sorted(grant for grant in forbidden_grants if grant in workflow)
-          if present:
-              raise SystemExit(f"forbidden workflow grants detected: {present}")
-
-          token_uses = workflow.count("secrets.CONTROL_PLANE_TOKEN")
-          if token_uses != 2:
-              raise SystemExit(
-                  "CONTROL_PLANE_TOKEN must remain limited to dispatch and monitor; "
-                  f"found {token_uses} references"
-              )
-
-          print("GPTs access contract: PASS")
-          PY
+      - name: Run adversarial permission mutation matrix
+        run: python -m unittest tests.test_access_contract -v
