@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   probe:
@@ -15,8 +16,10 @@ jobs:
     timeout-minutes: 10
     env:
       CONTROL_PLANE_TOKEN: ${{ secrets.CONTROL_PLANE_TOKEN }}
+      REPORT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RUN_ID: ${{ github.run_id }}
     steps:
-      - name: Probe exact token scope without persisting forbidden changes
+      - name: Probe exact token scope and publish sanitized report
         shell: bash
         run: |
           set -euo pipefail
@@ -26,12 +29,16 @@ jobs:
           import urllib.error
           import urllib.request
 
-          token = os.environ.get("CONTROL_PLANE_TOKEN", "")
-          if not token:
-              raise SystemExit("CONTROL_PLANE_TOKEN is missing from the governance repository")
+          control_token = os.environ.get("CONTROL_PLANE_TOKEN", "")
+          report_token = os.environ.get("REPORT_TOKEN", "")
+          if not control_token:
+              raise SystemExit("CONTROL_PLANE_TOKEN is missing")
+          if not report_token:
+              raise SystemExit("GITHUB_TOKEN is missing")
 
           api = "https://api.github.com"
           owner = "a15280020511"
+          governance = f"{owner}/decision-system-governance"
           children = {
               "evidence-data-center": "api-ticket.yml",
               "compute-simulation-center": "compute-ticket.yml",
@@ -40,7 +47,7 @@ jobs:
           results = []
           failures = []
 
-          def request(method, path, payload=None):
+          def request(token, method, path, payload=None):
               data = None if payload is None else json.dumps(payload).encode()
               req = urllib.request.Request(
                   api + path,
@@ -56,8 +63,7 @@ jobs:
               )
               try:
                   with urllib.request.urlopen(req, timeout=30) as response:
-                      body = response.read().decode("utf-8", errors="replace")
-                      return response.status, body
+                      return response.status, response.read().decode("utf-8", errors="replace")
               except urllib.error.HTTPError as exc:
                   return exc.code, exc.read().decode("utf-8", errors="replace")
 
@@ -76,6 +82,7 @@ jobs:
           for repo, workflow in children.items():
               full = f"{owner}/{repo}"
               code, body = request(
+                  control_token,
                   "POST",
                   f"/repos/{full}/issues",
                   {
@@ -87,6 +94,7 @@ jobs:
               if code == 201:
                   number = json.loads(body)["number"]
                   close_code, _ = request(
+                      control_token,
                       "PATCH",
                       f"/repos/{full}/issues/{number}",
                       {"state": "closed", "state_reason": "not_planned"},
@@ -94,6 +102,7 @@ jobs:
                   record(full, "issues:close", close_code, {200})
 
               code, _ = request(
+                  control_token,
                   "PUT",
                   f"/repos/{full}/contents/.permission-probe-must-not-exist",
                   {
@@ -105,6 +114,7 @@ jobs:
               record(full, "contents:write", code, {403, 404})
 
               code, _ = request(
+                  control_token,
                   "POST",
                   f"/repos/{full}/git/refs",
                   {
@@ -115,24 +125,26 @@ jobs:
               record(full, "git-ref:create", code, {403, 404})
 
               code, _ = request(
+                  control_token,
                   "POST",
                   f"/repos/{full}/pulls",
                   {"title": "permission probe must not create PR", "head": "main", "base": "main"},
               )
               record(full, "pull-request:create", code, {403, 404})
 
-              code, _ = request("GET", f"/repos/{full}/actions/secrets")
+              code, _ = request(control_token, "GET", f"/repos/{full}/actions/secrets")
               record(full, "actions-secrets:list", code, {403, 404})
 
               code, _ = request(
+                  control_token,
                   "POST",
                   f"/repos/{full}/actions/workflows/{workflow}/dispatches",
                   {"ref": "permission-probe-nonexistent-ref"},
               )
               record(full, "workflow:dispatch", code, {403, 404})
 
-          governance = f"{owner}/decision-system-governance"
           code, body = request(
+              control_token,
               "POST",
               f"/repos/{governance}/issues",
               {
@@ -144,21 +156,40 @@ jobs:
           if code == 201:
               number = json.loads(body)["number"]
               request(
+                  control_token,
                   "PATCH",
                   f"/repos/{governance}/issues/{number}",
                   {"state": "closed", "state_reason": "not_planned"},
               )
 
-          report = {"status": "FAIL" if failures else "PASS", "results": results, "failures": failures}
-          print(json.dumps(report, indent=2, ensure_ascii=False))
-          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
-              handle.write("## CONTROL_PLANE_TOKEN Runtime Scope Probe\n\n")
-              handle.write(f"Result: **{report['status']}**\n\n")
-              for row in results:
-                  handle.write(
-                      f"- `{row['repository']}` `{row['operation']}` → HTTP `{row['http_status']}` "
-                      f"({'PASS' if row['passed'] else 'FAIL'})\n"
-                  )
+          report = {
+              "schema_version": "control-plane-token-scope-report-v1",
+              "status": "FAIL" if failures else "PASS",
+              "run_id": os.environ.get("RUN_ID", ""),
+              "results": results,
+              "failures": failures,
+              "secret_values_recorded": False,
+          }
+          report_text = json.dumps(report, indent=2, ensure_ascii=False)
+          print(report_text)
+          create_code, create_body = request(
+              report_token,
+              "POST",
+              f"/repos/{governance}/issues",
+              {
+                  "title": f"[audit] CONTROL_PLANE_TOKEN scope result {os.environ.get('RUN_ID', '')}",
+                  "body": "```json\n" + report_text + "\n```",
+              },
+          )
+          if create_code != 201:
+              raise SystemExit(f"failed to publish sanitized report: HTTP {create_code}")
+          report_issue = json.loads(create_body)["number"]
+          request(
+              report_token,
+              "PATCH",
+              f"/repos/{governance}/issues/{report_issue}",
+              {"state": "closed", "state_reason": "completed" if not failures else "not_planned"},
+          )
           if failures:
               raise SystemExit("; ".join(failures))
           PY
