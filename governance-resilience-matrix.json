@@ -1,7 +1,7 @@
 {
   "schema_version": "governance-resilience-matrix-v2",
   "updated_at": "2026-08-05",
-  "overall_status": "P0_IMPLEMENTED_PENDING_PRODUCTION_ACCEPTANCE",
+  "overall_status": "P0_IMPLEMENTED_PENDING_HOTFIX_PRODUCTION_ACCEPTANCE",
   "status_legend": {
     "IMPLEMENTED": "Production code exists.",
     "DETERMINISTIC_TESTED": "Repository-local deterministic tests pass without paid model calls.",
@@ -20,7 +20,9 @@
     "bounded monitor errors and timeout",
     "three-center terminal Issue automatic reclamation",
     "zero-call invalid expert ticket rejection",
-    "minimum-permission positive and negative token probes"
+    "minimum-permission positive and negative token probes",
+    "compute success task identity and Artifact contract",
+    "camelCase secret and executable-field rejection"
   ],
   "p0": [
     {
@@ -28,7 +30,7 @@
       "name": "failed-task-resubmission",
       "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED"],
       "implementation": "Duplicate detection blocks open, running, completed and duplicate predecessors, but does not allow failed/not_planned history to poison a new Issue fingerprint.",
-      "production_acceptance": "pending"
+      "production_acceptance": "pending-after-terminal-ordering-hotfix"
     },
     {
       "id": "P0-02",
@@ -41,16 +43,16 @@
       "id": "P0-03",
       "name": "task-id-binding",
       "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED"],
-      "implementation": "Every accepted child terminal must contain the exact governance-generated task_id; mismatch becomes CONTROL_CHILD_TASK_MISMATCH.",
-      "dependency": "Expert invalid-ticket fallback must publish Task ID.",
-      "production_acceptance": "pending"
+      "implementation": "Production monitoring accepts only an exact governance-generated task_id. A bot terminal with a missing or mismatched Task ID is provisional evidence and polling continues for a later task-bound terminal; it is never accepted as the result.",
+      "live_finding": "Governance Issue 79 exposed an unbound primary expert rejection followed by a correct task-bound fallback rejection. The ordering hotfix prevents premature failure on the first provisional comment.",
+      "production_acceptance": "pending-hotfix-merge-and-repeat"
     },
     {
       "id": "P0-04",
       "name": "artifact-contract",
-      "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED"],
-      "implementation": "Compute/API success requires Artifact ID, 64-hex digest and matching URL. Expert success additionally requires primary and final-attestation Artifact identities.",
-      "production_acceptance": "pending"
+      "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED", "LIVE_ACCEPTED"],
+      "implementation": "Compute/API success requires Artifact ID, 64-hex digest and matching URL. Expert success additionally requires primary and final-attestation Artifact identities. An incomplete success receipt is provisional and monitoring continues for a corrected audited receipt.",
+      "production_acceptance": "compute-live-accepted; intelligence/expert-success-specific-acceptance-not-required-for-zero-call-release"
     },
     {
       "id": "P0-05",
@@ -77,9 +79,9 @@
     {
       "id": "P0-08",
       "name": "json-complexity-and-secret-variants",
-      "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED"],
+      "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED", "LIVE_ACCEPTED"],
       "implementation": "The gateway bounds body size, JSON depth, node count, key length and string length, and rejects camelCase authorization/secret variants plus executable field names.",
-      "production_acceptance": "pending"
+      "production_acceptance": "clientSecret-and-pythonCode-live-rejected-with-zero-dispatch"
     }
   ],
   "p1_required": [
@@ -102,6 +104,7 @@
     "fifo_required": true,
     "late_terminal_reconciliation_required": true,
     "terminal_task_id_match_required": true,
+    "provisional_terminal_must_not_end_polling": true,
     "success_artifact_contract_required": true,
     "permission_negative_probe_required": true,
     "paid_model_calls_required_for_this_release": false

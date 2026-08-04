@@ -1,10 +1,10 @@
 {
   "schema_version": "governance-release-manifest-v1",
-  "governance_version": "4.0.0",
+  "governance_version": "4.0.1",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
-  "file_count": 41,
-  "total_bytes": 272568,
+  "file_count": 43,
+  "total_bytes": 280819,
   "files": [
     {
       "path": ".github/workflows/control-plane-reconcile.yml",
@@ -13,8 +13,8 @@
     },
     {
       "path": ".github/workflows/control-plane-ticket.yml",
-      "size_bytes": 13682,
-      "sha256": "61570714b4158455775db6a1f27d68c35eb17c97f8025ec2c4cd71870d3fa0ef"
+      "size_bytes": 13677,
+      "sha256": "cf0fcfd6a41a4e65e7a073a9159cff5e1cada3a266713a301fd2510d673329d7"
     },
     {
       "path": ".github/workflows/control-plane-validate.yml",
@@ -98,8 +98,8 @@
     },
     {
       "path": "RESILIENCE_AND_FAILURE_PLAYBOOK.md",
-      "size_bytes": 14107,
-      "sha256": "56f646c81b13a3f96a44809ab30dbed03edcc7994bb89d40bf243b2cf4bab375"
+      "size_bytes": 15156,
+      "sha256": "436ceda19227d161505655eb6fe1f3dbb258497ce9de911b200194773d2edc14"
     },
     {
       "path": "SECURITY_BOUNDARIES.md",
@@ -152,9 +152,14 @@
       "sha256": "0a4c4a1197217a3634fb74a6a9c9814c9dcb018a4278dd541b54f537efe877c4"
     },
     {
+      "path": "control-plane/deferred_poll.py",
+      "size_bytes": 2707,
+      "sha256": "55f9d8ef6d011d51829eef60dd841663d2fd2a14af96f5281f0cf369aab2394a"
+    },
+    {
       "path": "governance-resilience-matrix.json",
-      "size_bytes": 5620,
-      "sha256": "88bc3a65d9e2482608a2c1d86a831c25c37ec7a20fb4daa97846f0b636bcc4ef"
+      "size_bytes": 6398,
+      "sha256": "c19202e6c0d3b55e20293b23d88eb893af6903326ec4b1a74b9e3b3a40c6c1e6"
     },
     {
       "path": "gpts-action/openapi.yaml",
@@ -205,6 +210,11 @@
       "path": "tests/test_control_plane.py",
       "size_bytes": 17766,
       "sha256": "a3ea948a14a48a09147adb2de70d3255f2dbcca32084d8c7c6c2d19a8a3febef"
+    },
+    {
+      "path": "tests/test_deferred_poll.py",
+      "size_bytes": 3722,
+      "sha256": "539cde31ad10d164cd416fb73b2df209eeff008d3ddc6110eab90231d6bdc941"
     },
     {
       "path": "tests/test_governance_issue_guard.py",
