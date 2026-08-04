@@ -1,10 +1,10 @@
 {
   "schema_version": "governance-release-manifest-v1",
-  "governance_version": "3.9.0",
+  "governance_version": "3.9.1",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
-  "file_count": 38,
-  "total_bytes": 226766,
+  "file_count": 40,
+  "total_bytes": 246780,
   "files": [
     {
       "path": ".github/workflows/control-plane-ticket.yml",
@@ -92,6 +92,11 @@
       "sha256": "36f7247d9dcf3e48b5d2a737a8a8f9173d203ebc3a5042112106d6acb550ed9c"
     },
     {
+      "path": "RESILIENCE_AND_FAILURE_PLAYBOOK.md",
+      "size_bytes": 16954,
+      "sha256": "e09d3fa253acef684305b8ce2d0fbf0becee9c0bcac60a25dd663e827c411386"
+    },
+    {
       "path": "SECURITY_BOUNDARIES.md",
       "size_bytes": 1093,
       "sha256": "e0024b62f8c57747526f5f9751b901e99384a45851b1dd5aeac1ba32996b9b5f"
@@ -140,6 +145,11 @@
       "path": "control-plane/control_plane.py",
       "size_bytes": 27539,
       "sha256": "61b490a24442ae6e755463ade8e15b843e4c11dfe0b8dae1897d70470521e65d"
+    },
+    {
+      "path": "governance-resilience-matrix.json",
+      "size_bytes": 3060,
+      "sha256": "225363753986f4952886770bba13c90145d3368b01adbd098abc07cc3632182e"
     },
     {
       "path": "gpts-action/openapi.yaml",
