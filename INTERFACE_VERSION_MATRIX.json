@@ -1,16 +1,22 @@
 {
-  "schema_version": "interface-version-matrix-v1",
-  "governance_version": "3.7.0",
+  "schema_version": "interface-version-matrix-v2",
+  "governance_version": "4.2.2",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
+  "external_controller": "a15280020511/decision-system-governance",
+  "gpts_direct_center_control_allowed": false,
+  "sole_cross_repository_relay": "a15280020511/decision-system-governance",
+  "direct_center_to_center_calls_allowed": false,
   "control_plane": {
     "schema_version": "governance-control-ticket-v3",
     "gpt_action_openapi_version": "3.1.0",
+    "gpt_action_interface_version": "3.2.0",
     "submission_mode": "single_issue_create_asynchronous",
     "task_id_mode": "generated_from_governance_issue_number",
-    "status_mode": "single_issue_state_reason_and_body_receipt",
-    "receipt_surface": "governance_issue_body",
-    "audit_comment_surface": "human_only_not_exposed_to_gpts",
+    "status_mode": "single_issue_state_reason_body_and_trusted_comments",
+    "receipt_surface": "governance_issue_body_and_trusted_comments",
+    "trusted_receipt_author": "github-actions[bot]",
+    "audit_comment_surface": "trusted_github_actions_bot_comments_readable_by_gpts",
     "execution_slots": 1,
     "queue_discipline": "global_fifo_by_issue_number",
     "duplicate_identity": "sha256_canonical_schema_route_ticket",
@@ -22,7 +28,8 @@
     "terminal_comment_normalization": "leading_hidden_html_comments_only",
     "gpt_operations": [
       "submitDecisionTask",
-      "getDecisionTaskStatus"
+      "getDecisionTaskStatus",
+      "getDecisionTaskReceipts"
     ],
     "routes": {
       "intelligence": {
@@ -51,16 +58,30 @@
   "centers": {
     "evidence-data-center": {
       "center_version": "3.0.0",
-      "compatible_governance_versions": ">=3.1.0,<4.0.0"
+      "compatible_governance_versions": ">=4.1.0,<5.0.0",
+      "external_controller": "a15280020511/decision-system-governance",
+      "gpts_direct_control_allowed": false,
+      "direct_center_to_center_calls_allowed": false,
+      "bounded_external_data_network_allowed": true,
+      "private_huggingface_storage_allowed": false
     },
     "compute-simulation-center": {
       "center_version": "3.2.0",
-      "compatible_governance_versions": ">=3.2.0,<4.0.0",
+      "compatible_governance_versions": ">=4.1.0,<5.0.0",
+      "external_controller": "a15280020511/decision-system-governance",
+      "gpts_direct_control_allowed": false,
+      "direct_center_to_center_calls_allowed": false,
+      "runtime_network_allowed": false,
       "runtime_plan_extension": "compute-systems-route-v1"
     },
     "expert-assessment-center": {
       "center_version": "3.0.0",
-      "compatible_governance_versions": ">=3.1.0,<4.0.0"
+      "compatible_governance_versions": ">=4.1.0,<5.0.0",
+      "external_controller": "a15280020511/decision-system-governance",
+      "gpts_direct_control_allowed": false,
+      "direct_center_to_center_calls_allowed": false,
+      "tools_allowed": false,
+      "network_allowed": false
     }
   },
   "runtime_cross_repository_read": false,
