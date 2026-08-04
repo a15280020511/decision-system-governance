@@ -23,6 +23,8 @@ jobs:
       - name: Compile governance control code
         run: |
           python -m py_compile control-plane/control_plane.py
+          python -m py_compile control-plane/deferred_poll.py
+          python -m py_compile control-plane/deferred_reconcile.py
           python -m py_compile security/governance_issue_guard.py
           python -m py_compile security/access_contract.py
 
@@ -34,16 +36,8 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
-
-          data = json.loads(
-              Path("integrations/serverchan/integration.json").read_text(encoding="utf-8")
-          )
-          expected = {
-              "id": "serverchan",
-              "installation_status": "installed",
-              "activation_status": "disabled",
-              "implementation_status": "not_designed",
-          }
+          data = json.loads(Path("integrations/serverchan/integration.json").read_text(encoding="utf-8"))
+          expected = {"id":"serverchan","installation_status":"installed","activation_status":"disabled","implementation_status":"not_designed"}
           for key, value in expected.items():
               if data.get(key) != value:
                   raise SystemExit(f"ServerChan installation field mismatch: {key}")
@@ -56,119 +50,87 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-
           openapi = Path("gpts-action/openapi.yaml").read_text(encoding="utf-8")
-          workflow = Path(".github/workflows/control-plane-ticket.yml").read_text(
-              encoding="utf-8"
-          )
-          reconcile = Path(
-              ".github/workflows/control-plane-reconcile.yml"
-          ).read_text(encoding="utf-8")
+          workflow = Path(".github/workflows/control-plane-ticket.yml").read_text(encoding="utf-8")
+          reconcile = Path(".github/workflows/control-plane-reconcile.yml").read_text(encoding="utf-8")
           runtime = Path("control-plane/control_plane.py").read_text(encoding="utf-8")
+          deferred = Path("control-plane/deferred_poll.py").read_text(encoding="utf-8")
+          reconcile_runtime = Path("control-plane/deferred_reconcile.py").read_text(encoding="utf-8")
           guard = Path("security/governance_issue_guard.py").read_text(encoding="utf-8")
 
           required_openapi = (
-              "openapi: 3.1.0",
-              "version: 3.2.0",
-              "operationId: submitDecisionTask",
-              "operationId: getDecisionTaskStatus",
-              "operationId: getDecisionTaskReceipts",
-              "/issues/{issue_number}/comments:",
-              "github-actions[bot]",
-              "governance-control-ticket-v3",
-              '"inputs":{"data":[1,2,3]}',
-              "FIFO",
+              "openapi: 3.1.0", "version: 3.2.0",
+              "operationId: submitDecisionTask", "operationId: getDecisionTaskStatus",
+              "operationId: getDecisionTaskReceipts", "/issues/{issue_number}/comments:",
+              "github-actions[bot]", "governance-control-ticket-v3",
+              '"inputs":{"data":[1,2,3]}', "FIFO",
           )
           missing = [item for item in required_openapi if item not in openapi]
-          if missing:
-              raise SystemExit(f"OpenAPI required entries missing: {missing}")
+          if missing: raise SystemExit(f"OpenAPI required entries missing: {missing}")
 
           required_workflow = (
-              "issues:",
-              "types: [opened]",
-              "workflow_dispatch:",
-              'cron: "*/15 * * * *"',
-              "actions: write",
-              "group: governance-control-global-worker",
-              "cancel-in-progress: false",
-              "control_plane.py select",
-              "control_plane.py prepare",
-              "governance_issue_guard.py",
-              "control_plane.py pending",
-              "--phase duplicate",
-              "--phase running",
-              "-f state_reason=duplicate",
+              "issues:", "types: [opened]", "workflow_dispatch:", 'cron: "*/15 * * * *"',
+              "actions: write", "group: governance-control-global-worker",
+              "cancel-in-progress: false", "control_plane.py select", "control_plane.py prepare",
+              "governance_issue_guard.py", "control_plane.py pending", "deferred_poll.py",
+              "--phase duplicate", "--phase running", "-f state_reason=duplicate",
               "gh workflow run control-plane-ticket.yml --ref main",
           )
           missing = [item for item in required_workflow if item not in workflow]
-          if missing:
-              raise SystemExit(f"serial queue workflow entries missing: {missing}")
+          if missing: raise SystemExit(f"serial queue workflow entries missing: {missing}")
 
           required_reconcile = (
-              "Governance Late Terminal Reconciliation",
-              "group: governance-control-global-worker",
-              "control_plane.py reconcile",
-              "CONTROL_PLANE_TOKEN:",
-              "persist-credentials: false",
+              "Governance Late Terminal Reconciliation", "types: [closed]",
+              "group: governance-control-global-worker", "deferred_reconcile.py",
+              "CONTROL_PLANE_TOKEN:", "persist-credentials: false",
           )
           missing = [item for item in required_reconcile if item not in reconcile]
-          if missing:
-              raise SystemExit(f"reconcile workflow entries missing: {missing}")
+          if missing: raise SystemExit(f"reconcile workflow entries missing: {missing}")
           if reconcile.count("CONTROL_PLANE_TOKEN:") != 1:
               raise SystemExit("reconcile workflow must reference CONTROL_PLANE_TOKEN exactly once")
 
           required_runtime = (
-              "MAX_EXECUTION_ATTEMPTS = 3",
-              "MAX_COMMENT_SCAN_PAGES = 10",
-              "MAX_JSON_DEPTH = 32",
-              "MAX_JSON_NODES = 5_000",
-              "def _request_fingerprint(",
-              "def _duplicate_blocks(",
-              "def _list_comments(",
-              "def _artifact_contract_error(",
-              "CONTROL_CHILD_TASK_MISMATCH",
-              "CONTROL_CHILD_EVIDENCE_INVALID",
-              "def _perform_one_recovery(",
-              "def reconcile(",
-              "CONTROL_RECONCILED_LATE_SUCCESS",
-              "CONTROL_RECONCILED_LATE_FAILURE",
-              "def select(",
-              "def pending(",
+              "MAX_EXECUTION_ATTEMPTS = 3", "MAX_COMMENT_SCAN_PAGES = 10",
+              "MAX_JSON_DEPTH = 32", "MAX_JSON_NODES = 5_000",
+              "def _request_fingerprint(", "def _duplicate_blocks(", "def _list_comments(",
+              "def _artifact_contract_error(", "CONTROL_CHILD_TASK_MISMATCH",
+              "CONTROL_CHILD_EVIDENCE_INVALID", "def _perform_one_recovery(", "def reconcile(",
+              "CONTROL_RECONCILED_LATE_SUCCESS", "CONTROL_RECONCILED_LATE_FAILURE",
+              "def select(", "def pending(",
               'choices=["duplicate", "exhausted", "running", "rejected", "dispatched", "final"]',
           )
           missing = [item for item in required_runtime if item not in runtime]
-          if missing:
-              raise SystemExit(f"P0 runtime entries missing: {missing}")
+          if missing: raise SystemExit(f"P0 runtime entries missing: {missing}")
+
+          required_deferred = ("def trusted_terminal(", "missing/mismatched Task ID", "incomplete success", "CONTROL.poll(args)")
+          missing = [item for item in required_deferred if item not in deferred]
+          if missing: raise SystemExit(f"deferred terminal entries missing: {missing}")
+
+          required_reconcile_runtime = (
+              "def reconciliation_candidate(", "CONTROL._is_owned_control_issue",
+              "CONTROL._generated_task_id", 'CONTROL.ROUTES[route]["repository"]',
+              "CONTROL._trusted_terminal = DEFERRED.trusted_terminal",
+          )
+          missing = [item for item in required_reconcile_runtime if item not in reconcile_runtime]
+          if missing: raise SystemExit(f"identity-hardened reconciliation entries missing: {missing}")
 
           required_guard = (
-              'TRUSTED_AUTHOR = "github-actions[bot]"',
-              "MAX_COMMENT_PAGES = 10",
-              "def _fetch_paginated_comments(",
-              "CONTROL_RECONCILED_LATE_SUCCESS",
+              'TRUSTED_AUTHOR = "github-actions[bot]"', "MAX_COMMENT_PAGES = 10",
+              "def _fetch_paginated_comments(", "CONTROL_RECONCILED_LATE_SUCCESS",
               "untrusted governance status block is forbidden",
               "does not match the latest trusted bot receipt",
           )
           missing = [item for item in required_guard if item not in guard]
-          if missing:
-              raise SystemExit(f"governance status guard entries missing: {missing}")
+          if missing: raise SystemExit(f"governance status guard entries missing: {missing}")
 
           forbidden = (
-              "commentGovernanceIssue",
-              "/dispatch-control",
-              "issue_comment:",
-              "governance-control-ticket-v1",
-              "governance-control-ticket-v2",
-              '"inputs":{"values":',
-              "cancel-in-progress: true",
+              "commentGovernanceIssue", "/dispatch-control", "issue_comment:",
+              "governance-control-ticket-v1", "governance-control-ticket-v2",
+              '"inputs":{"values":', "cancel-in-progress: true",
           )
           found = [item for item in forbidden if item in openapi or item in workflow]
-          if found:
-              raise SystemExit(f"legacy or unsafe interface content remains: {found}")
-
-          if openapi.count("operationId:") != 3:
-              raise SystemExit("GPT Action must expose exactly three operations")
-          if workflow.count("group: governance-control-global-worker") != 1:
-              raise SystemExit("governance must expose exactly one global execution slot")
-          if runtime.count("hashlib.sha256") != 1:
-              raise SystemExit("request identity must use one canonical SHA-256 path")
+          if found: raise SystemExit(f"legacy or unsafe interface content remains: {found}")
+          if openapi.count("operationId:") != 3: raise SystemExit("GPT Action must expose exactly three operations")
+          if workflow.count("group: governance-control-global-worker") != 1: raise SystemExit("governance must expose exactly one global execution slot")
+          if runtime.count("hashlib.sha256") != 1: raise SystemExit("request identity must use one canonical SHA-256 path")
           PY
