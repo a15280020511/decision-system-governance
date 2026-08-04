@@ -4,7 +4,7 @@
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 38,
-  "total_bytes": 226764,
+  "total_bytes": 226766,
   "files": [
     {
       "path": ".github/workflows/control-plane-ticket.yml",
@@ -13,8 +13,8 @@
     },
     {
       "path": ".github/workflows/control-plane-validate.yml",
-      "size_bytes": 6447,
-      "sha256": "d79863515f06745981dc3438810715f01b9c62105ad925d6bdbebbbb061b1d09"
+      "size_bytes": 6449,
+      "sha256": "5652a206f38672042f46511738e636c96d4a754a97ae74bf6cda7dd6e28e0213"
     },
     {
       "path": ".github/workflows/governance-validate.yml",
@@ -29,7 +29,7 @@
     {
       "path": "ARCHITECTURE.md",
       "size_bytes": 2015,
-      "sha256": "91e8eea0cb4d9c487d4490dc1e498d2b59691c3b5ee414"
+      "sha256": "91e8eea0cb4d9c487d4490dc7cb05f80a490a8669c1e498d2b59691c3b5ee414"
     },
     {
       "path": "CAPABILITY_AUTHORITY_POLICY.md",
