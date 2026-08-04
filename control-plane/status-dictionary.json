@@ -1,0 +1,88 @@
+{
+  "schema_version": "governance-status-dictionary-v1",
+  "language": "zh-CN",
+  "statuses": {
+    "CREATED": {
+      "terminal": false,
+      "meaning": "治理 Issue 已创建，但尚不能证明任务已受理。",
+      "next_action": "保存 Issue 编号并读取治理状态。"
+    },
+    "QUEUED": {
+      "terminal": false,
+      "meaning": "任务正在全局 FIFO 队列中等待。",
+      "next_action": "继续读取同一治理 Issue，不要重复提交。"
+    },
+    "CONTROL_RUNNING": {
+      "terminal": false,
+      "meaning": "治理 worker 已冻结并校验当前任务。",
+      "next_action": "等待子仓库派发回执。"
+    },
+    "CONTROL_DISPATCHED": {
+      "terminal": false,
+      "meaning": "子 Issue 已创建或幂等复用。",
+      "next_action": "等待子中心可信机器人终态。"
+    },
+    "CHILD_ACCEPTED": {
+      "terminal": false,
+      "meaning": "子中心已受理，但业务结果尚未完成。",
+      "next_action": "继续等待，不得把受理写成成功。"
+    },
+    "CONTROL_COMPLETED": {
+      "terminal": true,
+      "meaning": "可信子终态、Task ID 和成功 Artifact 合同均已通过。",
+      "next_action": "读取治理机器人回执和 Artifact 证据后交付结果。"
+    },
+    "CONTROL_FAILED": {
+      "terminal": true,
+      "meaning": "治理或子中心返回可信失败，或者成功证据合同未完成。",
+      "next_action": "读取 failure class 和 child status；仅在失败可重试时创建新治理 Issue。"
+    },
+    "CONTROL_REJECTED": {
+      "terminal": true,
+      "meaning": "票据格式、权限、安全字段或状态所有权不合格，未派发子任务。",
+      "next_action": "按拒绝原因修正票据后重新提交。"
+    },
+    "CONTROL_DUPLICATE": {
+      "terminal": true,
+      "meaning": "相同业务任务已有开放、运行中、成功或已确认重复记录。",
+      "next_action": "返回原治理 Issue，不要创建新任务。"
+    },
+    "CONTROL_TIMEOUT": {
+      "terminal": false,
+      "meaning": "治理等待窗口结束，但子任务可能仍在运行。",
+      "next_action": "不要重复执行；等待迟到终态对账或检查子 Issue。"
+    },
+    "CONTROL_MONITOR_ERROR": {
+      "terminal": false,
+      "meaning": "连续 GitHub API 监控错误导致本轮无法确认终态。",
+      "next_action": "保留原任务，等待自动对账；不要把监控错误写成业务失败。"
+    },
+    "CONTROL_RECONCILED_LATE_SUCCESS": {
+      "terminal": true,
+      "meaning": "超时或监控错误后，已验证迟到的可信成功终态。",
+      "next_action": "使用新的对账回执和 Artifact 作为最终结果。"
+    },
+    "CONTROL_RECONCILED_LATE_FAILURE": {
+      "terminal": true,
+      "meaning": "超时或监控错误后，已验证迟到的可信失败终态。",
+      "next_action": "依据迟到失败原因决定是否创建新任务。"
+    },
+    "CONTROL_QUEUE_WAKE_DEGRADED": {
+      "terminal": false,
+      "meaning": "当前任务结果不变，但三次即时唤醒后续 worker 均失败。",
+      "next_action": "保留开放队列，等待 15 分钟 schedule 自动恢复。"
+    },
+    "PLATFORM_UNAVAILABLE": {
+      "terminal": false,
+      "meaning": "GitHub 平台或 Actions 长期不可用，系统不能安全执行。",
+      "next_action": "禁止无证据绕过；平台恢复后从开放治理 Issue 继续。"
+    }
+  },
+  "truth_rules": [
+    "Issue created is not task accepted.",
+    "Child accepted is not business completed.",
+    "Only github-actions[bot] receipts are trusted.",
+    "Success requires matching task_id and route-specific Artifact evidence.",
+    "Timeout and monitor error do not prove that the child task stopped."
+  ]
+}
