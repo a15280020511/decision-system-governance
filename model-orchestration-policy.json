@@ -1,0 +1,72 @@
+{
+  "schema_version": "model-orchestration-policy-v1",
+  "status": "proposed-production-policy",
+  "semantic_control_plane": {
+    "owner": "web-gpt",
+    "exclusive": true,
+    "sole_external_entry": true,
+    "sole_cross_center_relay": true,
+    "responsibilities": [
+      "interpret_user_intent",
+      "prepare_center_tickets",
+      "sequence_center_calls",
+      "verify_receipts_and_artifacts",
+      "communicate_results"
+    ]
+  },
+  "governance_repository": {
+    "role": "deterministic-policy-and-contract-authority",
+    "task_execution": false,
+    "external_api_calls": false,
+    "model_calls": false,
+    "business_secrets": false,
+    "business_artifacts": false,
+    "fourth_business_center": false,
+    "direct_center_connections_allowed": false
+  },
+  "optional_external_review": {
+    "execution_owner": "web-gpt",
+    "deployed_in_governance_repository": false,
+    "enabled_by_default": false,
+    "execution_mode": "on-demand-stateless-single-pass",
+    "authority": "advisory-only",
+    "read_only": true,
+    "cross_task_memory": false,
+    "autonomous_loop": false,
+    "direct_center_calls": false,
+    "repository_write": false,
+    "merge_or_release": false,
+    "secret_access": false,
+    "paid_call_autonomy": false,
+    "allowed_inputs": [
+      "pull_request_diff",
+      "issue_ticket",
+      "workflow_receipt",
+      "artifact_manifest",
+      "frozen_governance_rules"
+    ],
+    "allowed_outputs": [
+      "rule_findings",
+      "risk_findings",
+      "missing_evidence",
+      "recommended_tests",
+      "advisory_summary"
+    ]
+  },
+  "business_centers": {
+    "evidence_data_center": {"embedded_manager_model": false},
+    "compute_simulation_center": {"embedded_manager_model": false},
+    "expert_assessment_center": {"embedded_manager_model": false}
+  },
+  "prohibited": [
+    "model_execution_in_governance_repository",
+    "second_semantic_authority",
+    "autonomous_fourth_ai_center",
+    "model_to_model_center_network",
+    "model_override_of_deterministic_gates",
+    "unbounded_agent_loop",
+    "silent_policy_mutation"
+  ],
+  "fallback": "web-gpt-plus-deterministic-governance",
+  "final_authority": "user"
+}
