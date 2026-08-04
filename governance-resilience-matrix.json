@@ -1,0 +1,80 @@
+{
+  "schema_version": "governance-resilience-matrix-v1",
+  "updated_at": "2026-08-04",
+  "overall_status": "CONDITIONAL_PASS",
+  "implemented": [
+    "owner-only exact [control] admission",
+    "global FIFO single execution slot",
+    "duplicate fingerprint excluding wait_seconds",
+    "route allowlist and repository override rejection",
+    "governance-generated task_id",
+    "recursive common secret field rejection",
+    "untrusted governance status rejection",
+    "frozen selected ticket during execution",
+    "idempotent child Issue reuse",
+    "trusted github-actions[bot] terminal recognition",
+    "bounded monitor errors and timeout",
+    "three-center terminal Issue automatic reclamation",
+    "zero-call invalid expert ticket rejection",
+    "minimum-permission positive and negative token probes"
+  ],
+  "p0_required": [
+    {
+      "id": "P0-01",
+      "name": "failed-task-resubmission",
+      "requirement": "A prior failed/not_planned task must not permanently block an identical new task as duplicate."
+    },
+    {
+      "id": "P0-02",
+      "name": "comment-pagination",
+      "requirement": "All trusted comment scans must paginate and locate terminal states beyond the first 100 comments."
+    },
+    {
+      "id": "P0-03",
+      "name": "task-id-binding",
+      "requirement": "A child terminal comment must contain the exact expected governance-generated task_id."
+    },
+    {
+      "id": "P0-04",
+      "name": "artifact-contract",
+      "requirement": "Success must include the route-specific Artifact ID, digest, URL and expert final attestation where applicable."
+    },
+    {
+      "id": "P0-05",
+      "name": "late-terminal-reconciliation",
+      "requirement": "CONTROL_TIMEOUT and CONTROL_MONITOR_ERROR must be reconciled when a trusted child terminal arrives later."
+    },
+    {
+      "id": "P0-06",
+      "name": "lost-trigger-recovery",
+      "requirement": "If a child Issue has no trusted bot activity, perform at most one audited re-trigger and never loop indefinitely."
+    },
+    {
+      "id": "P0-07",
+      "name": "gpts-trusted-comment-read",
+      "requirement": "GPT Action must expose read-only Issue comments so GPT can verify github-actions[bot] rather than trust editable Issue body."
+    },
+    {
+      "id": "P0-08",
+      "name": "json-complexity-and-secret-variants",
+      "requirement": "Bound JSON depth/node count/string size and reject camelCase or authorization-style secret field variants."
+    }
+  ],
+  "p1_required": [
+    "GitHub rate-limit aware backoff",
+    "bounded next-worker wake retry",
+    "daily token and repository identity health check",
+    "standard user-facing status dictionary",
+    "long-term Issue and Artifact archive policy"
+  ],
+  "acceptance": {
+    "minimum_fault_scenarios": 30,
+    "invalid_dispatches": 0,
+    "duplicate_dispatches": 0,
+    "fifo_required": true,
+    "late_terminal_reconciliation_required": true,
+    "terminal_task_id_match_required": true,
+    "success_artifact_contract_required": true,
+    "permission_negative_probe_required": true
+  }
+}
