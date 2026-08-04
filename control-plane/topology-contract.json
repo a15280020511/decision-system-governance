@@ -37,9 +37,13 @@
   "compute_baseline": {
     "library_id": "compute-numeric-baselines",
     "platform": "hugging-face-private-dataset",
+    "exclusive_purpose": "compute-center-numeric-baseline",
     "storage_gateway_owner": "a15280020511/decision-system-governance",
     "data_producer": "a15280020511/evidence-data-center",
     "beneficiary_center": "a15280020511/compute-simulation-center",
+    "exclusive_beneficiary": true,
+    "other_business_center_use_allowed": false,
+    "general_storage_allowed": false,
     "payload_scope": "pure-numeric-parquet-only",
     "raw_text_allowed": false,
     "documents_allowed": false,
