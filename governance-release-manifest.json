@@ -144,7 +144,7 @@
     {
       "path": "gpts-knowledge/KNOWLEDGE_UPLOAD_MANIFEST.md",
       "size_bytes": 3846,
-      "sha256": "8aeca2f3007bff0d6d42549f4f5e6a835b6399c6d30334f4e37fd9beefe6fd"
+      "sha256": "8aeca2f3007bfffb0d6d42549f4f5e6a835b6399c6d30334f4e37fd9beefe6fd"
     },
     {
       "path": "integrations/serverchan/integration.json",
