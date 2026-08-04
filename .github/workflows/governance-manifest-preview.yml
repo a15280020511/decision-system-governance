@@ -1,5 +1,6 @@
 name: Governance Manifest Preview
 
+# Read-only preview: this workflow never writes repository contents or refs.
 on:
   pull_request:
   workflow_dispatch:
