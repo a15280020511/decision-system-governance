@@ -70,7 +70,9 @@ def validate_access_contract(openapi: str, workflow: str) -> None:
         if fragment in openapi:
             errors.append(f"GPT Action contains forbidden API surface: {fragment}")
 
-    permission_headers = re.findall(r"(?m)^(\s*)permissions:(?:\s*(\S.*))?$", workflow)
+    permission_headers = re.findall(
+        r"(?m)^([ \t]*)permissions:(?:[ \t]*(\S[^\n]*))?$", workflow
+    )
     if len(permission_headers) != 1 or permission_headers[0][0] != "":
         errors.append(
             "control-plane workflow must contain exactly one top-level permissions block"
@@ -79,7 +81,7 @@ def validate_access_contract(openapi: str, workflow: str) -> None:
         errors.append("top-level permissions must be an explicit mapping")
 
     top_permissions_match = re.search(
-        r"(?ms)^permissions:\n(?P<body>(?:^[ \t].*\n)+)",
+        r"(?m)^permissions:\n(?P<body>(?:^[ \t]+[^\n]*\n)+)",
         workflow,
     )
     if not top_permissions_match:
