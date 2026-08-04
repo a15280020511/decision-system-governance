@@ -130,11 +130,13 @@ class AccessContractTests(unittest.TestCase):
         )
 
     def test_rejects_token_reuse_or_exfiltration(self) -> None:
+        marker = "run: |\n          python control-plane/resilient_control.py dispatch"
+        self.assertIn(marker, WORKFLOW)
         self.assert_rejected(
             workflow=WORKFLOW.replace(
-                "run: |\n          python control-plane/control_plane.py dispatch",
+                marker,
                 "run: |\n          echo \"$CONTROL_PLANE_TOKEN\"\n"
-                "          python control-plane/control_plane.py dispatch",
+                "          python control-plane/resilient_control.py dispatch",
                 1,
             )
         )
