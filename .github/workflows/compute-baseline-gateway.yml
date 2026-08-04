@@ -5,7 +5,6 @@ on:
     paths:
       - "control-plane/topology-contract.json"
       - "compute-baseline-gateway/**"
-      - "tests/test_compute_baseline_gateway.py"
       - ".github/workflows/compute-baseline-gateway.yml"
       - "ARCHITECTURE.md"
       - "THREE_CENTER_CONTRACT.md"
@@ -16,7 +15,6 @@ on:
     paths:
       - "control-plane/topology-contract.json"
       - "compute-baseline-gateway/**"
-      - "tests/test_compute_baseline_gateway.py"
       - ".github/workflows/compute-baseline-gateway.yml"
       - "ARCHITECTURE.md"
       - "THREE_CENTER_CONTRACT.md"
@@ -65,7 +63,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m py_compile compute-baseline-gateway/gateway.py
-          python -m unittest tests/test_compute_baseline_gateway.py -v
+          python -m unittest compute-baseline-gateway/tests/test_gateway.py -v
           python compute-baseline-gateway/gateway.py validate \
             --output-dir baseline-gateway-validation
           python - <<'PY'
