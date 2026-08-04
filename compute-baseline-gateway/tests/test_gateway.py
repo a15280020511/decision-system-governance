@@ -18,21 +18,19 @@ SPEC.loader.exec_module(MODULE)
 
 
 class ComputeBaselineGatewayTests(unittest.TestCase):
-    def test_contract_assigns_storage_to_governance(self) -> None:
+    def test_contract_authorizes_compute_and_expert_through_governance(self) -> None:
         result = MODULE.validate_contracts()
         contract = result["contract"]
         dataset = contract["dataset"]
         boundaries = contract["boundaries"]
         baseline = result["topology"]["compute_baseline"]
 
-        self.assertEqual(
-            dataset["exclusive_purpose"],
-            "compute-center-numeric-baseline",
-        )
-        self.assertEqual(
-            dataset["exclusive_beneficiary"],
+        expected_beneficiaries = {
             "a15280020511/compute-simulation-center",
-        )
+            "a15280020511/expert-assessment-center",
+        }
+        self.assertEqual(dataset["purpose"], "compute-and-expert-numeric-baseline")
+        self.assertEqual(set(dataset["authorized_beneficiaries"]), expected_beneficiaries)
         self.assertEqual(
             set(dataset["forbidden_uses"]),
             {
@@ -40,11 +38,14 @@ class ComputeBaselineGatewayTests(unittest.TestCase):
                 "knowledge-base",
                 "knowledge-graph",
                 "document-archive",
-                "expert-evidence-source",
                 "general-file-storage",
             },
         )
-        self.assertFalse(boundaries["other_business_center_use_allowed"])
+        self.assertTrue(boundaries["compute_governed_baseline_use_allowed"])
+        self.assertTrue(boundaries["expert_governed_baseline_use_allowed"])
+        self.assertFalse(boundaries["compute_direct_huggingface_access_allowed"])
+        self.assertFalse(boundaries["expert_direct_huggingface_access_allowed"])
+        self.assertFalse(boundaries["unauthorized_business_center_use_allowed"])
 
         self.assertEqual(
             baseline["storage_gateway_owner"],
@@ -54,21 +55,16 @@ class ComputeBaselineGatewayTests(unittest.TestCase):
             baseline["data_producer"],
             "a15280020511/evidence-data-center",
         )
-        self.assertEqual(
-            baseline["beneficiary_center"],
-            "a15280020511/compute-simulation-center",
-        )
-        self.assertEqual(
-            baseline["exclusive_purpose"],
-            "compute-center-numeric-baseline",
-        )
-        self.assertTrue(baseline["exclusive_beneficiary"])
-        self.assertFalse(baseline["other_business_center_use_allowed"])
+        self.assertEqual(baseline["purpose"], "compute-and-expert-numeric-baseline")
+        self.assertEqual(set(baseline["beneficiary_centers"]), expected_beneficiaries)
+        self.assertTrue(baseline["compute_governed_transfer_allowed"])
+        self.assertTrue(baseline["expert_governed_evidence_allowed"])
         self.assertFalse(baseline["general_storage_allowed"])
         self.assertFalse(baseline["compute_direct_network_access_allowed"])
+        self.assertFalse(baseline["expert_direct_network_access_allowed"])
+        self.assertFalse(baseline["expert_tools_required_for_baseline_use"])
         self.assertFalse(baseline["knowledge_graph_allowed"])
         self.assertFalse(baseline["knowledge_base_allowed"])
-        self.assertFalse(baseline["expert_access_allowed"])
 
     def test_health_ticket_is_accepted_without_source_fields(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
