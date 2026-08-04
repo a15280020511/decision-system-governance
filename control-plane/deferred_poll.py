@@ -29,22 +29,26 @@ def trusted_terminal(
     route: str,
     expected_task_id: str = "",
 ) -> tuple[str, str, bool] | None:
-    """Return only a task-bound terminal whose success evidence is complete.
+    """Return a task-bound terminal without allowing success revocation.
 
     A bot terminal with a missing/mismatched Task ID or an incomplete success
-    Artifact is not accepted and is not treated as final. Polling continues so a
-    bounded fallback or corrected audited receipt can arrive. If none arrives,
-    the unchanged base poller ends fail-closed with CONTROL_TIMEOUT.
+    Artifact is provisional and is never accepted. A valid completed success is
+    absorbing for its Task ID: later duplicate-admission, already-running or
+    replay rejection comments cannot revoke an Artifact-backed completion. When
+    no valid success exists, the latest trusted task-bound failure is returned.
     """
     config = CONTROL.ROUTES[route]
     if not isinstance(rows, list):
         return None
+
+    latest_failure: tuple[str, str, bool] | None = None
     for row in reversed(rows):
         if not isinstance(row, Mapping):
             continue
         user = row.get("user") if isinstance(row.get("user"), Mapping) else {}
         if str(user.get("login") or "") != CONTROL.TRUSTED_COMMENT_AUTHOR:
             continue
+
         raw_body = str(row.get("body") or "").strip()
         match_body = CONTROL._normalized_terminal_body(raw_body)
         matched_status = ""
@@ -65,10 +69,14 @@ def trusted_terminal(
         actual_task_id = CONTROL._extract_task_id(raw_body)
         if expected_task_id and actual_task_id != expected_task_id:
             continue
-        if success and CONTROL._artifact_contract_error(route, raw_body):
-            continue
-        return matched_status, raw_body, success
-    return None
+        if success:
+            if CONTROL._artifact_contract_error(route, raw_body):
+                continue
+            return matched_status, raw_body, True
+        if latest_failure is None:
+            latest_failure = (matched_status, raw_body, False)
+
+    return latest_failure
 
 
 def main() -> int:
