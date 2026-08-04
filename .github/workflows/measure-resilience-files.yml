@@ -1,0 +1,27 @@
+name: Measure Resilience Files
+
+on:
+  pull_request:
+    paths:
+      - RESILIENCE_AND_FAILURE_PLAYBOOK.md
+      - governance-resilience-matrix.json
+      - .github/workflows/measure-resilience-files.yml
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - run: |
+          set -euo pipefail
+          for path in RESILIENCE_AND_FAILURE_PLAYBOOK.md governance-resilience-matrix.json; do
+            printf 'MEASURE %s size=' "$path"
+            wc -c < "$path" | tr -d ' '
+            printf 'MEASURE %s sha256=' "$path"
+            sha256sum "$path" | awk '{print $1}'
+          done
