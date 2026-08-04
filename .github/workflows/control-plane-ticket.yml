@@ -46,8 +46,66 @@ jobs:
         if: steps.select.outputs.has_task != 'true'
         run: echo "No owned open [control] Issue is waiting."
 
+      - name: Parse and validate selected ticket before classification
+        id: prepare
+        if: steps.select.outputs.has_task == 'true'
+        continue-on-error: true
+        run: |
+          python control-plane/control_plane.py prepare \
+            --event-path control-artifacts/selected-event.json \
+            --output-dir control-artifacts
+
+      - name: Verify governance status ownership
+        id: status_guard
+        if: steps.select.outputs.has_task == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOVERNANCE_ISSUE_NUMBER: ${{ steps.select.outputs.issue_number }}
+        run: |
+          gh api \
+            "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}" \
+            --jq '.body // ""' > control-artifacts/raw-issue-body.md
+          gh api \
+            "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}/comments?per_page=100" \
+            > control-artifacts/governance-comments.json
+          python security/governance_issue_guard.py \
+            --raw-body control-artifacts/raw-issue-body.md \
+            --comments-json control-artifacts/governance-comments.json \
+            --prepare-status control-artifacts/prepare-status.json
+
+      - name: Publish rejected governance ticket
+        if: >-
+          steps.select.outputs.has_task == 'true' &&
+          (steps.prepare.outputs.accepted != 'true' ||
+           steps.status_guard.outputs.safe != 'true')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOVERNANCE_ISSUE_NUMBER: ${{ steps.select.outputs.issue_number }}
+        run: |
+          python control-plane/control_plane.py render \
+            --phase rejected \
+            --output-dir control-artifacts \
+            --output governance-comment.md
+          python control-plane/control_plane.py compose \
+            --request control-artifacts/selected-request.md \
+            --receipt governance-comment.md \
+            --output governance-issue-body.md
+          gh api --method POST \
+            "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}/comments" \
+            -F body=@governance-comment.md
+          gh api --method PATCH \
+            "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}" \
+            -F body=@governance-issue-body.md \
+            -f state=closed \
+            -f state_reason=not_planned
+          touch control-artifacts/task-handled
+
       - name: Reject duplicate submission
-        if: steps.select.outputs.has_task == 'true' && steps.select.outputs.duplicate == 'true'
+        if: >-
+          steps.select.outputs.has_task == 'true' &&
+          steps.prepare.outputs.accepted == 'true' &&
+          steps.status_guard.outputs.safe == 'true' &&
+          steps.select.outputs.duplicate == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GOVERNANCE_ISSUE_NUMBER: ${{ steps.select.outputs.issue_number }}
@@ -73,6 +131,8 @@ jobs:
       - name: Close bounded-retry exhaustion
         if: >-
           steps.select.outputs.has_task == 'true' &&
+          steps.prepare.outputs.accepted == 'true' &&
+          steps.status_guard.outputs.safe == 'true' &&
           steps.select.outputs.duplicate != 'true' &&
           steps.select.outputs.retry_exhausted == 'true'
         env:
@@ -97,48 +157,12 @@ jobs:
             -f state_reason=not_planned
           touch control-artifacts/task-handled
 
-      - name: Parse and validate selected ticket
-        id: prepare
+      - name: Publish global-slot running receipt
         if: >-
-          steps.select.outputs.has_task == 'true' &&
+          steps.prepare.outputs.accepted == 'true' &&
+          steps.status_guard.outputs.safe == 'true' &&
           steps.select.outputs.duplicate != 'true' &&
           steps.select.outputs.retry_exhausted != 'true'
-        continue-on-error: true
-        run: |
-          python control-plane/control_plane.py prepare \
-            --event-path control-artifacts/selected-event.json \
-            --output-dir control-artifacts
-
-      - name: Publish rejected governance ticket
-        if: >-
-          steps.select.outputs.has_task == 'true' &&
-          steps.select.outputs.duplicate != 'true' &&
-          steps.select.outputs.retry_exhausted != 'true' &&
-          steps.prepare.outputs.accepted != 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GOVERNANCE_ISSUE_NUMBER: ${{ steps.select.outputs.issue_number }}
-        run: |
-          python control-plane/control_plane.py render \
-            --phase rejected \
-            --output-dir control-artifacts \
-            --output governance-comment.md
-          python control-plane/control_plane.py compose \
-            --request control-artifacts/selected-request.md \
-            --receipt governance-comment.md \
-            --output governance-issue-body.md
-          gh api --method POST \
-            "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}/comments" \
-            -F body=@governance-comment.md
-          gh api --method PATCH \
-            "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}" \
-            -F body=@governance-issue-body.md \
-            -f state=closed \
-            -f state_reason=not_planned
-          touch control-artifacts/task-handled
-
-      - name: Publish global-slot running receipt
-        if: steps.prepare.outputs.accepted == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GOVERNANCE_ISSUE_NUMBER: ${{ steps.select.outputs.issue_number }}
@@ -160,7 +184,11 @@ jobs:
 
       - name: Dispatch through the child repository formal Issue entry
         id: dispatch
-        if: steps.prepare.outputs.accepted == 'true'
+        if: >-
+          steps.prepare.outputs.accepted == 'true' &&
+          steps.status_guard.outputs.safe == 'true' &&
+          steps.select.outputs.duplicate != 'true' &&
+          steps.select.outputs.retry_exhausted != 'true'
         continue-on-error: true
         env:
           CONTROL_PLANE_TOKEN: ${{ secrets.CONTROL_PLANE_TOKEN }}
@@ -169,7 +197,7 @@ jobs:
             --output-dir control-artifacts
 
       - name: Publish dispatch infrastructure failure
-        if: steps.prepare.outputs.accepted == 'true' && steps.dispatch.outcome != 'success'
+        if: steps.dispatch.outcome == 'failure'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GOVERNANCE_ISSUE_NUMBER: ${{ steps.select.outputs.issue_number }}
@@ -291,13 +319,16 @@ jobs:
           if [ "${{ steps.select.outputs.has_task }}" != "true" ]; then
             exit 0
           fi
+          if [ "${{ steps.prepare.outputs.accepted }}" != "true" ]; then
+            exit 1
+          fi
+          if [ "${{ steps.status_guard.outputs.safe }}" != "true" ]; then
+            exit 1
+          fi
           if [ "${{ steps.select.outputs.duplicate }}" = "true" ]; then
             exit 0
           fi
           if [ "${{ steps.select.outputs.retry_exhausted }}" = "true" ]; then
-            exit 1
-          fi
-          if [ "${{ steps.prepare.outputs.accepted }}" != "true" ]; then
             exit 1
           fi
           if [ "${{ steps.dispatch.outcome }}" != "success" ]; then
