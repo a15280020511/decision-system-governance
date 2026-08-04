@@ -1,25 +1,30 @@
 {
   "schema_version": "governance-release-manifest-v1",
-  "governance_version": "3.7.1",
+  "governance_version": "3.9.0",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
-  "file_count": 32,
-  "total_bytes": 201376,
+  "file_count": 38,
+  "total_bytes": 226766,
   "files": [
     {
       "path": ".github/workflows/control-plane-ticket.yml",
-      "size_bytes": 12302,
-      "sha256": "3cf3868d67919dda614a10e354d81ed98efb769b3eaeec496ca8f9e6ff7679a2"
+      "size_bytes": 13682,
+      "sha256": "61570714b4158455775db6a1f27d68c35eb17c97f8025ec2c4cd71870d3fa0ef"
     },
     {
       "path": ".github/workflows/control-plane-validate.yml",
-      "size_bytes": 5225,
-      "sha256": "12089649ab1fec74b595ed0cd1d4e3eafbf43688e09fbaa62cb571703ec897c7"
+      "size_bytes": 6449,
+      "sha256": "5652a206f38672042f46511738e636c96d4a754a97ae74bf6cda7dd6e28e0213"
     },
     {
       "path": ".github/workflows/governance-validate.yml",
       "size_bytes": 4331,
       "sha256": "936a3a272eb5301945220ee40130bd17bbbee89386a629d6de30d53b53d31394"
+    },
+    {
+      "path": ".github/workflows/gpts-access-contract.yml",
+      "size_bytes": 838,
+      "sha256": "39e5c37bf8c0e3c1d74ebe98aafa872a02b6cc387553b124e8fb90ce109efeca"
     },
     {
       "path": "ARCHITECTURE.md",
@@ -40,6 +45,11 @@
       "path": "GLOBAL_RECOVERY_CHECKLIST.md",
       "size_bytes": 491,
       "sha256": "f7ebfc0a515d8ff2b003bc8455ccf4eff5d1157250c7dc4e72d093973bac74e4"
+    },
+    {
+      "path": "GPTS_ACCESS_KEY_POLICY.md",
+      "size_bytes": 4147,
+      "sha256": "85024e727720ef5e0f246099cf731a097071c723046b77f5c29a414bed3e2bba"
     },
     {
       "path": "GPTS_REBUILD_GUIDE.md",
@@ -68,8 +78,8 @@
     },
     {
       "path": "README.md",
-      "size_bytes": 1440,
-      "sha256": "5806c80f6158d0f78e2b2ddfff21b06d79ed241dfef4f768710f073bbf19b974"
+      "size_bytes": 1515,
+      "sha256": "7bf8a8d996f0362d0e0ed772038fc4c19128f3cb61c04025c0ee9e53a753beed"
     },
     {
       "path": "RELEASE_CHECKLIST.md",
@@ -162,9 +172,29 @@
       "sha256": "e6b8fa9c66438af1d82787b3f5be57734c4157cd954db22628e76029a934a577"
     },
     {
+      "path": "security/access_contract.py",
+      "size_bytes": 5519,
+      "sha256": "7688fea6dc31797fe19ae97b8582a8159fc2d250363757a533ba50e74970dee8"
+    },
+    {
+      "path": "security/governance_issue_guard.py",
+      "size_bytes": 4203,
+      "sha256": "e23eb55f0448d0486221f35dcf610ee69b1b8ab8406856368a783bcae03364aa"
+    },
+    {
+      "path": "tests/test_access_contract.py",
+      "size_bytes": 4985,
+      "sha256": "71a818b3a48cd02dbe1f81c1fc3e0fe4787d2f06e9a1729663f8d23f8732ed1c"
+    },
+    {
       "path": "tests/test_control_plane.py",
       "size_bytes": 11867,
       "sha256": "fe94934f035c9c7c56a9b87b83a3b1a7f3265e5de1bf8800f945735e19b9efc7"
+    },
+    {
+      "path": "tests/test_governance_issue_guard.py",
+      "size_bytes": 3019,
+      "sha256": "9d46e0159d26f09f0a9edb68c5c3368eba12eb047d11fb8ab964c6ddad30659b"
     }
   ]
 }

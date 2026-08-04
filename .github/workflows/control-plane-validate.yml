@@ -19,10 +19,12 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.12"
-      - name: Compile control plane
-        run: python -m py_compile control-plane/control_plane.py
-      - name: Run deterministic control-plane tests
-        run: python -m unittest discover -s tests -p 'test_control_plane.py' -v
+      - name: Compile governance control code
+        run: |
+          python -m py_compile control-plane/control_plane.py
+          python -m py_compile security/governance_issue_guard.py
+      - name: Run deterministic governance tests
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
       - name: Validate disabled ServerChan installation
         run: |
           python - <<'PY'
@@ -56,6 +58,7 @@ jobs:
               encoding="utf-8"
           )
           runtime = Path("control-plane/control_plane.py").read_text(encoding="utf-8")
+          guard = Path("security/governance_issue_guard.py").read_text(encoding="utf-8")
           schema = json.loads(
               Path("control-plane/control-ticket.schema.json").read_text(encoding="utf-8")
           )
@@ -83,6 +86,8 @@ jobs:
               "group: governance-control-global-worker",
               "cancel-in-progress: false",
               "control_plane.py select",
+              "control_plane.py prepare",
+              "governance_issue_guard.py",
               "control_plane.py pending",
               "--phase duplicate",
               "--phase running",
@@ -92,6 +97,24 @@ jobs:
           missing = [item for item in required_workflow if item not in workflow]
           if missing:
               raise SystemExit(f"serial queue workflow entries missing: {missing}")
+
+          prepare_position = workflow.index("Parse and validate selected ticket before classification")
+          duplicate_position = workflow.index("Reject duplicate submission")
+          if prepare_position >= duplicate_position:
+              raise SystemExit("ticket validation must occur before duplicate classification")
+
+          guard_position = workflow.index("Verify governance status ownership")
+          if guard_position >= duplicate_position:
+              raise SystemExit("status ownership validation must occur before duplicate classification")
+
+          required_guard = (
+              "TRUSTED_AUTHOR = \"github-actions[bot]\"",
+              "untrusted governance status block is forbidden",
+              "does not match the latest trusted bot receipt",
+          )
+          missing = [item for item in required_guard if item not in guard]
+          if missing:
+              raise SystemExit(f"governance status guard entries missing: {missing}")
 
           required_runtime = (
               "MAX_EXECUTION_ATTEMPTS = 3",
