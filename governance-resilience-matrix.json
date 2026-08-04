@@ -1,71 +1,99 @@
 {
-  "schema_version": "governance-resilience-matrix-v1",
-  "updated_at": "2026-08-04",
-  "overall_status": "CONDITIONAL_PASS",
-  "implemented": [
+  "schema_version": "governance-resilience-matrix-v2",
+  "updated_at": "2026-08-05",
+  "overall_status": "P0_IMPLEMENTED_PENDING_PRODUCTION_ACCEPTANCE",
+  "status_legend": {
+    "IMPLEMENTED": "Production code exists.",
+    "DETERMINISTIC_TESTED": "Repository-local deterministic tests pass without paid model calls.",
+    "LIVE_ACCEPTED": "Merged production path has passed a real Issue/Actions acceptance test.",
+    "OPERATIONAL": "Depends on GitHub or a manual platform operation and cannot be made fully autonomous inside the current minimum-permission boundary."
+  },
+  "implemented_and_live_accepted": [
     "owner-only exact [control] admission",
     "global FIFO single execution slot",
     "duplicate fingerprint excluding wait_seconds",
     "route allowlist and repository override rejection",
     "governance-generated task_id",
-    "recursive common secret field rejection",
     "untrusted governance status rejection",
     "frozen selected ticket during execution",
     "idempotent child Issue reuse",
-    "trusted github-actions[bot] terminal recognition",
     "bounded monitor errors and timeout",
     "three-center terminal Issue automatic reclamation",
     "zero-call invalid expert ticket rejection",
     "minimum-permission positive and negative token probes"
   ],
-  "p0_required": [
+  "p0": [
     {
       "id": "P0-01",
       "name": "failed-task-resubmission",
-      "requirement": "A prior failed/not_planned task must not permanently block an identical new task as duplicate."
+      "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED"],
+      "implementation": "Duplicate detection blocks open, running, completed and duplicate predecessors, but does not allow failed/not_planned history to poison a new Issue fingerprint.",
+      "production_acceptance": "pending"
     },
     {
       "id": "P0-02",
       "name": "comment-pagination",
-      "requirement": "All trusted comment scans must paginate and locate terminal states beyond the first 100 comments."
+      "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED"],
+      "implementation": "Governance child monitoring, retry accounting and status ownership checks scan up to ten pages of 100 comments.",
+      "production_acceptance": "pending-nondestructive-scale-test"
     },
     {
       "id": "P0-03",
       "name": "task-id-binding",
-      "requirement": "A child terminal comment must contain the exact expected governance-generated task_id."
+      "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED"],
+      "implementation": "Every accepted child terminal must contain the exact governance-generated task_id; mismatch becomes CONTROL_CHILD_TASK_MISMATCH.",
+      "dependency": "Expert invalid-ticket fallback must publish Task ID.",
+      "production_acceptance": "pending"
     },
     {
       "id": "P0-04",
       "name": "artifact-contract",
-      "requirement": "Success must include the route-specific Artifact ID, digest, URL and expert final attestation where applicable."
+      "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED"],
+      "implementation": "Compute/API success requires Artifact ID, 64-hex digest and matching URL. Expert success additionally requires primary and final-attestation Artifact identities.",
+      "production_acceptance": "pending"
     },
     {
       "id": "P0-05",
       "name": "late-terminal-reconciliation",
-      "requirement": "CONTROL_TIMEOUT and CONTROL_MONITOR_ERROR must be reconciled when a trusted child terminal arrives later."
+      "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED"],
+      "implementation": "A serialized scheduled worker reconciles closed CONTROL_TIMEOUT or CONTROL_MONITOR_ERROR Issues to a trusted late success or failure.",
+      "production_acceptance": "pending-controlled-fixture"
     },
     {
       "id": "P0-06",
       "name": "lost-trigger-recovery",
-      "requirement": "If a child Issue has no trusted bot activity, perform at most one audited re-trigger and never loop indefinitely."
+      "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED"],
+      "implementation": "When no trusted child bot activity is observed, governance performs at most one marker-bound recovery: close/reopen for compute/API or one exact expert command repost.",
+      "production_acceptance": "pending-controlled-fixture"
     },
     {
       "id": "P0-07",
       "name": "gpts-trusted-comment-read",
-      "requirement": "GPT Action must expose read-only Issue comments so GPT can verify github-actions[bot] rather than trust editable Issue body."
+      "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED", "OPERATIONAL"],
+      "implementation": "Repository OpenAPI exposes one additional read-only governance Issue comments operation. No child-repository or mutation operation is exposed.",
+      "operational_boundary": "A custom GPT does not automatically import a changed repository OpenAPI file; the GPT Action schema must be updated in the GPT configuration before live acceptance.",
+      "production_acceptance": "pending-custom-gpt-schema-import"
     },
     {
       "id": "P0-08",
       "name": "json-complexity-and-secret-variants",
-      "requirement": "Bound JSON depth/node count/string size and reject camelCase or authorization-style secret field variants."
+      "status": ["IMPLEMENTED", "DETERMINISTIC_TESTED"],
+      "implementation": "The gateway bounds body size, JSON depth, node count, key length and string length, and rejects camelCase authorization/secret variants plus executable field names.",
+      "production_acceptance": "pending"
     }
   ],
   "p1_required": [
-    "GitHub rate-limit aware backoff",
-    "bounded next-worker wake retry",
-    "daily token and repository identity health check",
-    "standard user-facing status dictionary",
+    "GitHub rate-limit aware backoff using Retry-After and X-RateLimit-Reset",
+    "bounded retry and explicit receipt for next-worker wake failure",
+    "daily token scope and repository identity health check",
+    "standard user-facing status dictionary and next-action text",
     "long-term Issue and Artifact archive policy"
+  ],
+  "operational_boundaries": [
+    "GitHub platform-wide outages cannot be bypassed without violating the evidence architecture.",
+    "Closing an Issue does not cancel an already-running child workflow because the control token intentionally has no Actions write permission.",
+    "Exact hidden fine-grained PAT settings for the custom GPT cannot be read back through repository APIs.",
+    "The updated OpenAPI file must be imported into the custom GPT before the new read-only comments operation is available there."
   ],
   "acceptance": {
     "minimum_fault_scenarios": 30,
@@ -75,6 +103,7 @@
     "late_terminal_reconciliation_required": true,
     "terminal_task_id_match_required": true,
     "success_artifact_contract_required": true,
-    "permission_negative_probe_required": true
+    "permission_negative_probe_required": true,
+    "paid_model_calls_required_for_this_release": false
   }
 }
