@@ -1,0 +1,44 @@
+name: Governance Manifest Preview
+
+# Read-only preview: this workflow never writes repository contents or refs.
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: governance-manifest-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout pinned source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+
+      - name: Generate exact manifest preview
+        run: |
+          set -euo pipefail
+          python tools/generate_governance_release_manifest.py \
+            --root . \
+            --output manifest-preview/governance-release-manifest.json \
+            --version 4.1.0
+
+      - name: Upload manifest preview
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: governance-manifest-preview-${{ github.run_id }}
+          path: manifest-preview/governance-release-manifest.json
+          if-no-files-found: error
+          retention-days: 7

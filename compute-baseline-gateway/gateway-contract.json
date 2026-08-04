@@ -1,0 +1,54 @@
+{
+  "schema_version": "governance-compute-baseline-gateway-v1",
+  "status": "production-control",
+  "issue_title": "[baseline]",
+  "dataset": {
+    "default_repository_name": "compute-numeric-baselines",
+    "visibility": "private",
+    "remote_root": "numeric-baselines/v1/data",
+    "payload_scope": "pure-numeric-parquet-only",
+    "control_metadata_uploaded": false
+  },
+  "operations": [
+    "health",
+    "ingest_evidence_artifact"
+  ],
+  "source": {
+    "repository": "a15280020511/evidence-data-center",
+    "artifact_name_prefix": "compute-baseline-export-",
+    "manifest_name": "manifest.json",
+    "manifest_schema_version": "governance-baseline-export-v1"
+  },
+  "limits": {
+    "max_files": 64,
+    "max_uncompressed_bytes": 536870912,
+    "max_rows_per_file": 5000000,
+    "allowed_suffixes": [
+      ".parquet"
+    ],
+    "automatic_retry_max": 0
+  },
+  "validation": {
+    "sha256_required": true,
+    "numeric_columns_only": true,
+    "null_values_allowed": false,
+    "schema_match_required_for_append": true,
+    "path_traversal_rejected": true,
+    "unexpected_files_rejected": true,
+    "duplicate_batch_rejected": true
+  },
+  "credentials": {
+    "hf_token_owner": "decision-system-governance",
+    "artifact_read_token_owner": "decision-system-governance",
+    "business_center_hf_tokens_allowed": false
+  },
+  "boundaries": {
+    "gpts_is_only_external_controller": true,
+    "child_centers_direct_communication_allowed": false,
+    "compute_direct_huggingface_access_allowed": false,
+    "knowledge_base_storage_allowed": false,
+    "knowledge_graph_storage_allowed": false,
+    "raw_text_storage_allowed": false,
+    "document_storage_allowed": false
+  }
+}
