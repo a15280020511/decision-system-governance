@@ -20,7 +20,32 @@ SPEC.loader.exec_module(MODULE)
 class ComputeBaselineGatewayTests(unittest.TestCase):
     def test_contract_assigns_storage_to_governance(self) -> None:
         result = MODULE.validate_contracts()
+        contract = result["contract"]
+        dataset = contract["dataset"]
+        boundaries = contract["boundaries"]
         baseline = result["topology"]["compute_baseline"]
+
+        self.assertEqual(
+            dataset["exclusive_purpose"],
+            "compute-center-numeric-baseline",
+        )
+        self.assertEqual(
+            dataset["exclusive_beneficiary"],
+            "a15280020511/compute-simulation-center",
+        )
+        self.assertEqual(
+            set(dataset["forbidden_uses"]),
+            {
+                "intelligence-library",
+                "knowledge-base",
+                "knowledge-graph",
+                "document-archive",
+                "expert-evidence-source",
+                "general-file-storage",
+            },
+        )
+        self.assertFalse(boundaries["other_business_center_use_allowed"])
+
         self.assertEqual(
             baseline["storage_gateway_owner"],
             "a15280020511/decision-system-governance",
@@ -33,9 +58,17 @@ class ComputeBaselineGatewayTests(unittest.TestCase):
             baseline["beneficiary_center"],
             "a15280020511/compute-simulation-center",
         )
+        self.assertEqual(
+            baseline["exclusive_purpose"],
+            "compute-center-numeric-baseline",
+        )
+        self.assertTrue(baseline["exclusive_beneficiary"])
+        self.assertFalse(baseline["other_business_center_use_allowed"])
+        self.assertFalse(baseline["general_storage_allowed"])
         self.assertFalse(baseline["compute_direct_network_access_allowed"])
         self.assertFalse(baseline["knowledge_graph_allowed"])
         self.assertFalse(baseline["knowledge_base_allowed"])
+        self.assertFalse(baseline["expert_access_allowed"])
 
     def test_health_ticket_is_accepted_without_source_fields(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
