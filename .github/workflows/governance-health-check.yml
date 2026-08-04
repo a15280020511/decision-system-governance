@@ -1,0 +1,97 @@
+name: Governance Token and Repository Health
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 2 * * *"
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: governance-health-check
+  cancel-in-progress: false
+
+jobs:
+  health:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GOVERNANCE_HTTP_AUDIT_FILE: health-artifacts/http-retry-audit.jsonl
+      GOVERNANCE_HTTP_MAX_ATTEMPTS: "4"
+      HEALTH_ISSUE_TITLE: "[health] Governance Control Plane"
+    steps:
+      - name: Checkout governance source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Run zero-call health checks
+        id: check
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CONTROL_PLANE_TOKEN: ${{ secrets.CONTROL_PLANE_TOKEN }}
+        run: |
+          python security/governance_health_check.py \
+            --output health-artifacts/governance-health.json \
+            --markdown health-artifacts/governance-health.md
+
+      - name: Reconcile single health Issue
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          issue_json="$(gh api --paginate \
+            "repos/${GITHUB_REPOSITORY}/issues?state=all&per_page=100" \
+            --jq ".[] | select(.pull_request == null and .title == env.HEALTH_ISSUE_TITLE) | {number,state}" \
+            | head -n 1 || true)"
+          issue_number="$(printf '%s' "$issue_json" | jq -r '.number // empty' 2>/dev/null || true)"
+          issue_state="$(printf '%s' "$issue_json" | jq -r '.state // empty' 2>/dev/null || true)"
+
+          if [ "${{ steps.check.outcome }}" = "success" ]; then
+            if [ -n "$issue_number" ] && [ "$issue_state" = "open" ]; then
+              gh api --method POST \
+                "repos/${GITHUB_REPOSITORY}/issues/${issue_number}/comments" \
+                -F body=@health-artifacts/governance-health.md
+              gh api --method PATCH \
+                "repos/${GITHUB_REPOSITORY}/issues/${issue_number}" \
+                -f state=closed \
+                -f state_reason=completed
+            fi
+            exit 0
+          fi
+
+          if [ -z "$issue_number" ]; then
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/issues" \
+              -f title="$HEALTH_ISSUE_TITLE" \
+              -F body=@health-artifacts/governance-health.md
+          else
+            gh api --method PATCH \
+              "repos/${GITHUB_REPOSITORY}/issues/${issue_number}" \
+              -F body=@health-artifacts/governance-health.md \
+              -f state=open
+            gh api --method POST \
+              "repos/${GITHUB_REPOSITORY}/issues/${issue_number}/comments" \
+              -F body=@health-artifacts/governance-health.md
+          fi
+
+      - name: Upload health evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: governance-health-${{ github.run_id }}
+          path: health-artifacts/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce health result
+        if: always()
+        run: test "${{ steps.check.outcome }}" = "success"
