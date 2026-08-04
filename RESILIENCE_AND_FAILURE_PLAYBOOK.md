@@ -56,8 +56,8 @@ CONTROL_DISPATCH_ERROR
 CONTROL_MONITOR_ERROR
 CONTROL_TIMEOUT
 CONTROL_RETRY_EXHAUSTED
-CONTROL_CHILD_TASK_MISMATCH
-CONTROL_CHILD_EVIDENCE_INVALID
+CONTROL_CHILD_TASK_MISMATCH（诊断，不接受为结果）
+CONTROL_CHILD_EVIDENCE_INVALID（诊断，不接受为结果）
 CONTROL_RECONCILED_LATE_SUCCESS
 CONTROL_RECONCILED_LATE_FAILURE
 ```
@@ -81,8 +81,8 @@ CONTROL_RECONCILED_LATE_FAILURE
 | 错误 route 或路径穿越 | 只允许 `compute`、`intelligence`、`expert` | `LIVE_ACCEPTED` |
 | 用户指定 repository | 顶层未知字段拒绝，不派发 | `LIVE_ACCEPTED` |
 | 用户指定 task_id | 拒绝；Task ID 只由治理 Issue 编号生成 | `LIVE_ACCEPTED` |
-| Secret 夹带 | 拦截 token、secret、password、apiKey、accessToken、clientSecret、authorization 等规范变体 | `IMPLEMENTED` + `DETERMINISTIC_TESTED` |
-| shell/code/script 夹带 | 拦截 shell、command、script、pythonCode、powershell、eval、exec 等执行字段 | `IMPLEMENTED` + `DETERMINISTIC_TESTED` |
+| Secret 夹带 | 拦截 token、secret、password、apiKey、accessToken、clientSecret、authorization 等规范变体 | `IMPLEMENTED` + `DETERMINISTIC_TESTED` + `LIVE_ACCEPTED` |
+| shell/code/script 夹带 | 拦截 shell、command、script、pythonCode、powershell、eval、exec 等执行字段 | `IMPLEMENTED` + `DETERMINISTIC_TESTED` + `LIVE_ACCEPTED` |
 | 超深或爆炸 JSON | 限制正文、深度、节点数、Key 长度和单字符串长度；使用迭代遍历 | `IMPLEMENTED` + `DETERMINISTIC_TESTED` |
 | NaN/Infinity | JSON 解析阶段拒绝 | `LIVE_ACCEPTED/STATIC` |
 | 非 `[control]` 标题 | 不进入治理队列 | `LIVE_ACCEPTED` |
@@ -134,9 +134,11 @@ CONTROL_RECONCILED_LATE_FAILURE
 | 终态位于第 101–1000 条评论 | 统一分页读取最多 10 页，从最新评论倒序识别 | `IMPLEMENTED` + `DETERMINISTIC_TESTED` |
 | 迟到成功 | 定时对账器更新为 `CONTROL_RECONCILED_LATE_SUCCESS` | `IMPLEMENTED` + `DETERMINISTIC_TESTED` |
 | 迟到失败 | 定时对账器更新为 `CONTROL_RECONCILED_LATE_FAILURE` | `IMPLEMENTED` + `DETERMINISTIC_TESTED` |
-| 终态 Task ID 缺失或不匹配 | 返回 `CONTROL_CHILD_TASK_MISMATCH`，不得绑定结果 | `IMPLEMENTED` + `DETERMINISTIC_TESTED` |
-| 成功终态缺 Artifact | 返回 `CONTROL_CHILD_EVIDENCE_INVALID`，不得发布成功 | `IMPLEMENTED` + `DETERMINISTIC_TESTED` |
+| 终态 Task ID 缺失或不匹配 | 不接受、不结束轮询；继续等待后续同 Task ID 的可信终态；始终没有则 `CONTROL_TIMEOUT` | `IMPLEMENTED` + `DETERMINISTIC_TESTED` |
+| 成功终态缺 Artifact 合同 | 不接受、不结束轮询；继续等待修正后的审计回执；始终没有则 `CONTROL_TIMEOUT` | `IMPLEMENTED` + `DETERMINISTIC_TESTED` |
 | GitHub 403/429 rate limit | 目前作为监控错误处理 | `P1_REQUIRED` |
+
+2026-08-05 的真实验收中，专家主 admission 链先发布了缺 Task ID 的拒绝评论，45 秒后零调用兜底链发布了同任务、带 Task ID 的拒绝评论。生产监控必须忽略第一条 provisional evidence，并在第二条出现后正常完成，不能提前关闭治理任务。
 
 迟到对账器与主 worker 使用同一全局 concurrency group，因此不会在业务任务执行时并发改写同一治理状态。
 
@@ -170,7 +172,7 @@ Final attestation Artifact ID / digest / URL
 
 ### 失败与拒绝
 
-失败终态不要求成功 Artifact，但必须包含正确 Task ID。专家无效票据兜底拒绝链必须从正式命令提取 Task ID，模型调用保持 0。
+失败终态不要求成功 Artifact，但治理只接受包含正确 Task ID 的回执。专家主链若先发布缺 Task ID 的拒绝，该评论仅作为 provisional evidence；零调用兜底链发布 task-bound 拒绝后才可结束治理轮询。
 
 ## 八、GPT 交互规范
 
@@ -193,9 +195,10 @@ RECONCILED   超时/监控错误后取得迟到可信终态
 1. GET 治理 Issue；
 2. GET 治理 Issue comments；
 3. 只选择 `user.login == github-actions[bot]` 的评论；
-4. 选择最新可信终态；
-5. 核对 Task ID、route、child status 和 Artifact 身份；
-6. 不得把用户编辑的 Issue body 单独作为最终证据。
+4. 忽略缺失/不匹配 Task ID 或成功证据不完整的 provisional 评论；
+5. 选择最新的同 Task ID、合同完整终态；
+6. 核对 route、child status 和 Artifact 身份；
+7. 不得把用户编辑的 Issue body 单独作为最终证据。
 
 GPT Action 仍只有三项操作：创建治理 Issue、读取治理 Issue、读取治理 Issue comments。没有 PATCH、PUT、DELETE，也没有子仓库、Contents、PR、Actions、Workflow 或 Secrets 接口。
 
@@ -216,7 +219,7 @@ GPT Action 仍只有三项操作：创建治理 Issue、读取治理 Issue、读
 
 ### 专家中心
 
-- 非法票据：在模型调用前返回 task-bound `EXECUTION_REJECTED`；
+- 非法票据：在模型调用前返回 `EXECUTION_REJECTED`，最终被治理接受的拒绝必须绑定 Task ID；
 - 有效任务：只有审计、主 Artifact、独立复算、最终状态和 attestation 完整通过才能成功；
 - main 与 production 不一致：生产工作流失败关闭。
 
@@ -238,17 +241,17 @@ GPT Action 仍只有三项操作：创建治理 Issue、读取治理 Issue、读
 
 1. 失败任务重新提交；
 2. comments 全分页；
-3. Task ID 强绑定；
-4. Artifact/attestation 合同；
+3. Task ID 强绑定和 provisional 终态延迟判定；
+4. Artifact/attestation 合同和不完整成功延迟判定；
 5. 迟到终态对账；
 6. 一次性 lost-trigger 恢复；
 7. GPT comments 只读操作；
 8. JSON 复杂度、Secret 变体和执行字段防护。
 
-在合并后的真实零调用验收完成前，整体状态保持：
+在热修复合并后的真实零调用验收完成前，整体状态保持：
 
 ```text
-P0_IMPLEMENTED_PENDING_PRODUCTION_ACCEPTANCE
+P0_IMPLEMENTED_PENDING_HOTFIX_PRODUCTION_ACCEPTANCE
 ```
 
 ### P1
@@ -280,10 +283,11 @@ P0_IMPLEMENTED_PENDING_PRODUCTION_ACCEPTANCE
 8. 迟到终态可自动对账；
 9. 第 101–1000 条评论中的终态仍可发现；
 10. Task ID、子 Issue、Artifact ID、digest、URL 一致；
-11. 专家无效票据拒绝带 Task ID 且模型调用为 0；
-12. Key 权限负向测试对代码、分支、PR、Workflow、Secrets 持续为 403；
-13. 自定义 GPT 已导入新版 Action schema，并能读取可信 comments；
-14. 所有测试和费用回执如实记录。
+11. provisional 终态不得提前结束轮询，后续 task-bound 回执必须可被接受；
+12. 专家无效票据最终拒绝带 Task ID 且模型调用为 0；
+13. Key 权限负向测试对代码、分支、PR、Workflow、Secrets 持续为 403；
+14. 自定义 GPT 已导入新版 Action schema，并能读取可信 comments；
+15. 所有测试和费用回执如实记录。
 
 ## 十三、当前结论
 
@@ -293,9 +297,11 @@ P0_IMPLEMENTED_PENDING_PRODUCTION_ACCEPTANCE
 FIFO 与突发队列：LIVE_ACCEPTED
 输入攻击与运行中篡改防护：LIVE_ACCEPTED
 三中心终态 Issue 自动回收：LIVE_ACCEPTED
+Compute Task ID + Artifact 合同：LIVE_ACCEPTED
+Secret/执行字段拒绝：LIVE_ACCEPTED
 P0-01 至 P0-08 代码：IMPLEMENTED
 P0 确定性测试：PASSED
-P0 合并后真实验收：PENDING
+Provisional 终态顺序热修复：IMPLEMENTED / PENDING LIVE ACCEPTANCE
 自定义 GPT 新 schema 导入：OPERATIONAL / PENDING
 P1 与 P2：未作为本轮生产阻断
 ```
