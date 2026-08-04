@@ -7,11 +7,20 @@ import importlib.util
 from pathlib import Path
 from typing import Any, Mapping
 
-MODULE_PATH = Path(__file__).with_name("control_plane.py")
-SPEC = importlib.util.spec_from_file_location("governance_control_plane_runtime", MODULE_PATH)
-CONTROL = importlib.util.module_from_spec(SPEC)
-assert SPEC.loader is not None
-SPEC.loader.exec_module(CONTROL)
+ROOT = Path(__file__).resolve().parent
+
+
+def _load(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+CONTROL = _load("governance_control_plane_runtime", ROOT / "control_plane.py")
+HTTP = _load("governance_deferred_poll_http", ROOT / "resilient_http.py")
+CONTROL._github_request = HTTP.github_request
 
 
 def trusted_terminal(

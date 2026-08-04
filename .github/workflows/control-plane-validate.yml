@@ -23,8 +23,11 @@ jobs:
       - name: Compile governance control code
         run: |
           python -m py_compile control-plane/control_plane.py
+          python -m py_compile control-plane/resilient_http.py
+          python -m py_compile control-plane/resilient_control.py
           python -m py_compile control-plane/deferred_poll.py
           python -m py_compile control-plane/deferred_reconcile.py
+          python -m py_compile security/governance_health_check.py
           python -m py_compile security/governance_issue_guard.py
           python -m py_compile security/access_contract.py
 
@@ -46,17 +49,22 @@ jobs:
                   raise SystemExit(f"ServerChan must have no active {key}")
           PY
 
-      - name: Validate P0 resilience contract
+      - name: Validate P0 and P1 resilience contract
         run: |
           python - <<'PY'
           from pathlib import Path
           openapi = Path("gpts-action/openapi.yaml").read_text(encoding="utf-8")
           workflow = Path(".github/workflows/control-plane-ticket.yml").read_text(encoding="utf-8")
           reconcile = Path(".github/workflows/control-plane-reconcile.yml").read_text(encoding="utf-8")
+          health_workflow = Path(".github/workflows/governance-health-check.yml").read_text(encoding="utf-8")
           runtime = Path("control-plane/control_plane.py").read_text(encoding="utf-8")
+          resilient_http = Path("control-plane/resilient_http.py").read_text(encoding="utf-8")
+          resilient_control = Path("control-plane/resilient_control.py").read_text(encoding="utf-8")
           deferred = Path("control-plane/deferred_poll.py").read_text(encoding="utf-8")
           reconcile_runtime = Path("control-plane/deferred_reconcile.py").read_text(encoding="utf-8")
+          health_runtime = Path("security/governance_health_check.py").read_text(encoding="utf-8")
           guard = Path("security/governance_issue_guard.py").read_text(encoding="utf-8")
+          status_dictionary = Path("control-plane/status-dictionary.json").read_text(encoding="utf-8")
 
           required_openapi = (
               "openapi: 3.1.0", "version: 3.2.0",
@@ -71,13 +79,18 @@ jobs:
           required_workflow = (
               "issues:", "types: [opened]", "workflow_dispatch:", 'cron: "*/15 * * * *"',
               "actions: write", "group: governance-control-global-worker",
-              "cancel-in-progress: false", "control_plane.py select", "control_plane.py prepare",
-              "governance_issue_guard.py", "control_plane.py pending", "deferred_poll.py",
+              "cancel-in-progress: false", "resilient_control.py select", "resilient_control.py prepare",
+              "governance_issue_guard.py", "resilient_control.py pending", "deferred_poll.py",
+              "GOVERNANCE_HTTP_AUDIT_FILE", "GOVERNANCE_HTTP_MAX_ATTEMPTS",
+              "Wake next FIFO worker with bounded retry", "delays=(0 5 15)",
+              "CONTROL_QUEUE_WAKE_DEGRADED", "15-minute scheduled worker",
               "--phase duplicate", "--phase running", "-f state_reason=duplicate",
               "gh workflow run control-plane-ticket.yml --ref main",
           )
           missing = [item for item in required_workflow if item not in workflow]
           if missing: raise SystemExit(f"serial queue workflow entries missing: {missing}")
+          if "python control-plane/control_plane.py" in workflow:
+              raise SystemExit("direct non-resilient control entrypoint remains")
 
           required_reconcile = (
               "Governance Late Terminal Reconciliation", "types: [closed]",
@@ -102,7 +115,26 @@ jobs:
           missing = [item for item in required_runtime if item not in runtime]
           if missing: raise SystemExit(f"P0 runtime entries missing: {missing}")
 
-          required_deferred = ("def trusted_terminal(", "missing/mismatched Task ID", "incomplete success", "CONTROL.poll(args)")
+          required_resilient_http = (
+              "RETRYABLE_HTTP = {429, 502, 503, 504}", "X-RateLimit-Reset",
+              "X-RateLimit-Remaining", "Retry-After", "MAX_BACKOFF_SECONDS = 120",
+              "def github_request(", "request-retry", "network-retry",
+          )
+          missing = [item for item in required_resilient_http if item not in resilient_http]
+          if missing: raise SystemExit(f"resilient HTTP entries missing: {missing}")
+          if "Authorization" not in resilient_http or "token" not in resilient_http:
+              raise SystemExit("resilient HTTP authentication contract missing")
+
+          required_resilient_control = (
+              "CONTROL._github_request = HTTP.github_request", "CONTROL.parser().parse_args()",
+          )
+          missing = [item for item in required_resilient_control if item not in resilient_control]
+          if missing: raise SystemExit(f"resilient control entries missing: {missing}")
+
+          required_deferred = (
+              "def trusted_terminal(", "missing/mismatched Task ID", "incomplete success",
+              "CONTROL._github_request = HTTP.github_request", "CONTROL.poll(args)",
+          )
           missing = [item for item in required_deferred if item not in deferred]
           if missing: raise SystemExit(f"deferred terminal entries missing: {missing}")
 
@@ -110,9 +142,32 @@ jobs:
               "def reconciliation_candidate(", "CONTROL._is_owned_control_issue",
               "CONTROL._generated_task_id", 'CONTROL.ROUTES[route]["repository"]',
               "CONTROL._trusted_terminal = DEFERRED.trusted_terminal",
+              "CONTROL._github_request = HTTP.github_request",
           )
           missing = [item for item in required_reconcile_runtime if item not in reconcile_runtime]
           if missing: raise SystemExit(f"identity-hardened reconciliation entries missing: {missing}")
+
+          required_health_workflow = (
+              "Governance Token and Repository Health", 'cron: "23 2 * * *"',
+              "governance_health_check.py", "Reconcile single health Issue",
+              "[health] Governance Control Plane", "CONTROL_PLANE_TOKEN:",
+              "External business data calls: `0`", "Secret values recorded: `false`",
+          )
+          missing = [item for item in required_health_workflow if item not in health_workflow]
+          if missing: raise SystemExit(f"health workflow entries missing: {missing}")
+          if health_workflow.count("CONTROL_PLANE_TOKEN:") != 1:
+              raise SystemExit("health workflow must reference CONTROL_PLANE_TOKEN exactly once")
+
+          required_health_runtime = (
+              "a15280020511/decision-system-governance",
+              "a15280020511/evidence-data-center",
+              "a15280020511/compute-simulation-center",
+              "a15280020511/expert-assessment-center",
+              "/contents", "/actions/secrets", '"secret_values_recorded": False',
+              '"model_calls": 0', '"external_business_data_calls": 0',
+          )
+          missing = [item for item in required_health_runtime if item not in health_runtime]
+          if missing: raise SystemExit(f"health runtime entries missing: {missing}")
 
           required_guard = (
               'TRUSTED_AUTHOR = "github-actions[bot]"', "MAX_COMMENT_PAGES = 10",
@@ -122,6 +177,15 @@ jobs:
           )
           missing = [item for item in required_guard if item not in guard]
           if missing: raise SystemExit(f"governance status guard entries missing: {missing}")
+
+          required_statuses = (
+              '"CONTROL_COMPLETED"', '"CONTROL_FAILED"', '"CONTROL_TIMEOUT"',
+              '"CONTROL_MONITOR_ERROR"', '"CONTROL_RECONCILED_LATE_SUCCESS"',
+              '"CONTROL_RECONCILED_LATE_FAILURE"', '"CONTROL_QUEUE_WAKE_DEGRADED"',
+              '"PLATFORM_UNAVAILABLE"', '"next_action"',
+          )
+          missing = [item for item in required_statuses if item not in status_dictionary]
+          if missing: raise SystemExit(f"status dictionary entries missing: {missing}")
 
           forbidden = (
               "commentGovernanceIssue", "/dispatch-control", "issue_comment:",

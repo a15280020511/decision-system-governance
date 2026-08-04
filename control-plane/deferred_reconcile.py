@@ -20,6 +20,8 @@ def _load(name: str, path: Path):
 
 CONTROL = _load("governance_control_plane_reconcile", ROOT / "control_plane.py")
 DEFERRED = _load("governance_deferred_terminal_reconcile", ROOT / "deferred_poll.py")
+HTTP = _load("governance_deferred_reconcile_http", ROOT / "resilient_http.py")
+CONTROL._github_request = HTTP.github_request
 BASE_CANDIDATE = CONTROL._reconciliation_candidate
 
 

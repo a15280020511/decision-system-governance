@@ -22,6 +22,8 @@ jobs:
     timeout-minutes: 50
     env:
       GOVERNANCE_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      GOVERNANCE_HTTP_AUDIT_FILE: control-artifacts/http-retry-audit.jsonl
+      GOVERNANCE_HTTP_MAX_ATTEMPTS: "4"
     steps:
       - name: Checkout governance control plane
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -38,7 +40,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          python control-plane/control_plane.py select \
+          python control-plane/resilient_control.py select \
             --repository "$GITHUB_REPOSITORY" \
             --output-dir control-artifacts
 
@@ -51,7 +53,7 @@ jobs:
         if: steps.select.outputs.has_task == 'true'
         continue-on-error: true
         run: |
-          python control-plane/control_plane.py prepare \
+          python control-plane/resilient_control.py prepare \
             --event-path control-artifacts/selected-event.json \
             --output-dir control-artifacts
 
@@ -82,11 +84,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GOVERNANCE_ISSUE_NUMBER: ${{ steps.select.outputs.issue_number }}
         run: |
-          python control-plane/control_plane.py render \
+          python control-plane/resilient_control.py render \
             --phase rejected \
             --output-dir control-artifacts \
             --output governance-comment.md
-          python control-plane/control_plane.py compose \
+          python control-plane/resilient_control.py compose \
             --request control-artifacts/selected-request.md \
             --receipt governance-comment.md \
             --output governance-issue-body.md
@@ -110,11 +112,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GOVERNANCE_ISSUE_NUMBER: ${{ steps.select.outputs.issue_number }}
         run: |
-          python control-plane/control_plane.py render \
+          python control-plane/resilient_control.py render \
             --phase duplicate \
             --output-dir control-artifacts \
             --output governance-comment.md
-          python control-plane/control_plane.py compose \
+          python control-plane/resilient_control.py compose \
             --request control-artifacts/selected-request.md \
             --receipt governance-comment.md \
             --output governance-issue-body.md
@@ -139,11 +141,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GOVERNANCE_ISSUE_NUMBER: ${{ steps.select.outputs.issue_number }}
         run: |
-          python control-plane/control_plane.py render \
+          python control-plane/resilient_control.py render \
             --phase exhausted \
             --output-dir control-artifacts \
             --output governance-comment.md
-          python control-plane/control_plane.py compose \
+          python control-plane/resilient_control.py compose \
             --request control-artifacts/selected-request.md \
             --receipt governance-comment.md \
             --output governance-issue-body.md
@@ -167,11 +169,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GOVERNANCE_ISSUE_NUMBER: ${{ steps.select.outputs.issue_number }}
         run: |
-          python control-plane/control_plane.py render \
+          python control-plane/resilient_control.py render \
             --phase running \
             --output-dir control-artifacts \
             --output governance-comment.md
-          python control-plane/control_plane.py compose \
+          python control-plane/resilient_control.py compose \
             --request control-artifacts/selected-request.md \
             --receipt governance-comment.md \
             --output governance-issue-body.md
@@ -193,7 +195,7 @@ jobs:
         env:
           CONTROL_PLANE_TOKEN: ${{ secrets.CONTROL_PLANE_TOKEN }}
         run: |
-          python control-plane/control_plane.py dispatch \
+          python control-plane/resilient_control.py dispatch \
             --output-dir control-artifacts
 
       - name: Publish dispatch infrastructure failure
@@ -209,7 +211,7 @@ jobs:
           - Child center result: `not created or not confirmed`
           - Action: inspect this workflow run; no business success is claimed.
           EOF
-          python control-plane/control_plane.py compose \
+          python control-plane/resilient_control.py compose \
             --request control-artifacts/selected-request.md \
             --receipt governance-comment.md \
             --output governance-issue-body.md
@@ -229,11 +231,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GOVERNANCE_ISSUE_NUMBER: ${{ steps.select.outputs.issue_number }}
         run: |
-          python control-plane/control_plane.py render \
+          python control-plane/resilient_control.py render \
             --phase dispatched \
             --output-dir control-artifacts \
             --output governance-comment.md
-          python control-plane/control_plane.py compose \
+          python control-plane/resilient_control.py compose \
             --request control-artifacts/selected-request.md \
             --receipt governance-comment.md \
             --output governance-issue-body.md
@@ -261,11 +263,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GOVERNANCE_ISSUE_NUMBER: ${{ steps.select.outputs.issue_number }}
         run: |
-          python control-plane/control_plane.py render \
+          python control-plane/resilient_control.py render \
             --phase final \
             --output-dir control-artifacts \
             --output governance-comment.md
-          python control-plane/control_plane.py compose \
+          python control-plane/resilient_control.py compose \
             --request control-artifacts/selected-request.md \
             --receipt governance-comment.md \
             --output governance-issue-body.md
@@ -300,18 +302,56 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -f control-artifacts/task-handled ]; then
-            python control-plane/control_plane.py pending \
+            python control-plane/resilient_control.py pending \
               --repository "$GITHUB_REPOSITORY"
           else
             echo "has_more=false" >> "$GITHUB_OUTPUT"
             echo "pending_count=unknown" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Wake next FIFO worker
+      - name: Wake next FIFO worker with bounded retry
+        id: wake
         if: always() && steps.remaining.outputs.has_more == 'true'
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run control-plane-ticket.yml --ref main
+        run: |
+          set -euo pipefail
+          delays=(0 5 15)
+          for index in "${!delays[@]}"; do
+            delay="${delays[$index]}"
+            if [ "$delay" -gt 0 ]; then
+              sleep "$delay"
+            fi
+            if gh workflow run control-plane-ticket.yml --ref main; then
+              echo "wake_attempt=$((index + 1))" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "wake_attempt=3" >> "$GITHUB_OUTPUT"
+          exit 1
+
+      - name: Publish queue wake degradation receipt
+        if: >-
+          always() &&
+          steps.remaining.outputs.has_more == 'true' &&
+          steps.wake.outcome != 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOVERNANCE_ISSUE_NUMBER: ${{ steps.select.outputs.issue_number }}
+        run: |
+          cat > queue-wake-degraded.md <<'EOF'
+          ## CONTROL_QUEUE_WAKE_DEGRADED
+
+          - Immediate wake attempts: `3/3 failed`
+          - Business result of the handled task: `unchanged`
+          - Queue preservation: `open [control] Issues remain authoritative`
+          - Automatic fallback: `15-minute scheduled worker`
+          - Model/API/compute calls caused by wake retries: `0`
+          EOF
+          gh api --method POST \
+            "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}/comments" \
+            -F body=@queue-wake-degraded.md
 
       - name: Enforce selected task result
         if: always()
