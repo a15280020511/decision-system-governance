@@ -4,7 +4,7 @@
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 30,
-  "total_bytes": 192044,
+  "total_bytes": 194109,
   "files": [
     {
       "path": ".github/workflows/control-plane-ticket.yml",
@@ -98,8 +98,8 @@
     },
     {
       "path": "contracts/architecture/three-center-isolation-contract.json",
-      "size_bytes": 4144,
-      "sha256": "d42824cf69f5c27de623cd625cd823dc24757dc14a5efcc48a960f5f36fa1783"
+      "size_bytes": 6209,
+      "sha256": "60dac59ca8bfcb35f8022b710bb55fe964ab6b4d924184cfa29455f3cd10ebfc"
     },
     {
       "path": "contracts/compute-capabilities.snapshot.json",
