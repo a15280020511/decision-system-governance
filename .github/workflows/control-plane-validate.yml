@@ -108,12 +108,14 @@ jobs:
               "Governance Late Terminal Reconciliation",
               "group: governance-control-global-worker",
               "control_plane.py reconcile",
-              "CONTROL_PLANE_TOKEN: ${{ secrets.CONTROL_PLANE_TOKEN }}",
+              "CONTROL_PLANE_TOKEN:",
               "persist-credentials: false",
           )
           missing = [item for item in required_reconcile if item not in reconcile]
           if missing:
               raise SystemExit(f"reconcile workflow entries missing: {missing}")
+          if reconcile.count("CONTROL_PLANE_TOKEN:") != 1:
+              raise SystemExit("reconcile workflow must reference CONTROL_PLANE_TOKEN exactly once")
 
           required_runtime = (
               "MAX_EXECUTION_ATTEMPTS = 3",
