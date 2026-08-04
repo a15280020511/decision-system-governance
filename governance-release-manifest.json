@@ -1,10 +1,10 @@
 {
   "schema_version": "governance-release-manifest-v1",
-  "governance_version": "3.7.1",
+  "governance_version": "3.8.0",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
-  "file_count": 32,
-  "total_bytes": 201376,
+  "file_count": 34,
+  "total_bytes": 209492,
   "files": [
     {
       "path": ".github/workflows/control-plane-ticket.yml",
@@ -20,6 +20,11 @@
       "path": ".github/workflows/governance-validate.yml",
       "size_bytes": 4331,
       "sha256": "936a3a272eb5301945220ee40130bd17bbbee89386a629d6de30d53b53d31394"
+    },
+    {
+      "path": ".github/workflows/gpts-access-contract.yml",
+      "size_bytes": 3894,
+      "sha256": "0eb90154a9cc42227a6b8cc16a927218ed4b33c28759e1329242e4a9f6456a68"
     },
     {
       "path": "ARCHITECTURE.md",
@@ -40,6 +45,11 @@
       "path": "GLOBAL_RECOVERY_CHECKLIST.md",
       "size_bytes": 491,
       "sha256": "f7ebfc0a515d8ff2b003bc8455ccf4eff5d1157250c7dc4e72d093973bac74e4"
+    },
+    {
+      "path": "GPTS_ACCESS_KEY_POLICY.md",
+      "size_bytes": 4147,
+      "sha256": "85024e727720ef5e0f246099cf731a097071c723046b77f5c29a414bed3e2bba"
     },
     {
       "path": "GPTS_REBUILD_GUIDE.md",
@@ -68,8 +78,8 @@
     },
     {
       "path": "README.md",
-      "size_bytes": 1440,
-      "sha256": "5806c80f6158d0f78e2b2ddfff21b06d79ed241dfef4f768710f073bbf19b974"
+      "size_bytes": 1515,
+      "sha256": "7bf8a8d996f0362d0e0ed772038fc4c19128f3cb61c04025c0ee9e53a753beed"
     },
     {
       "path": "RELEASE_CHECKLIST.md",
