@@ -1,11 +1,16 @@
 {
   "schema_version": "governance-release-manifest-v1",
-  "governance_version": "3.9.1",
+  "governance_version": "4.0.0",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
-  "file_count": 40,
-  "total_bytes": 246780,
+  "file_count": 41,
+  "total_bytes": 272568,
   "files": [
+    {
+      "path": ".github/workflows/control-plane-reconcile.yml",
+      "size_bytes": 983,
+      "sha256": "47915a0adb2c7427fd8064d0d4b48be91a40c349e51222af25c471842129f76e"
+    },
     {
       "path": ".github/workflows/control-plane-ticket.yml",
       "size_bytes": 13682,
@@ -13,8 +18,8 @@
     },
     {
       "path": ".github/workflows/control-plane-validate.yml",
-      "size_bytes": 6449,
-      "sha256": "5652a206f38672042f46511738e636c96d4a754a97ae74bf6cda7dd6e28e0213"
+      "size_bytes": 6949,
+      "sha256": "267bce480f924db4e5f2ef89b07549d53f93e9ba3ed6c4c5a969ba5f7d5d0016"
     },
     {
       "path": ".github/workflows/governance-validate.yml",
@@ -93,8 +98,8 @@
     },
     {
       "path": "RESILIENCE_AND_FAILURE_PLAYBOOK.md",
-      "size_bytes": 16954,
-      "sha256": "e09d3fa253acef684305b8ce2d0fbf0becee9c0bcac60a25dd663e827c411386"
+      "size_bytes": 14107,
+      "sha256": "56f646c81b13a3f96a44809ab30dbed03edcc7994bb89d40bf243b2cf4bab375"
     },
     {
       "path": "SECURITY_BOUNDARIES.md",
@@ -143,18 +148,18 @@
     },
     {
       "path": "control-plane/control_plane.py",
-      "size_bytes": 27539,
-      "sha256": "61b490a24442ae6e755463ade8e15b843e4c11dfe0b8dae1897d70470521e65d"
+      "size_bytes": 41113,
+      "sha256": "0a4c4a1197217a3634fb74a6a9c9814c9dcb018a4278dd541b54f537efe877c4"
     },
     {
       "path": "governance-resilience-matrix.json",
-      "size_bytes": 3060,
-      "sha256": "225363753986f4952886770bba13c90145d3368b01adbd098abc07cc3632182e"
+      "size_bytes": 5620,
+      "sha256": "88bc3a65d9e2482608a2c1d86a831c25c37ec7a20fb4daa97846f0b636bcc4ef"
     },
     {
       "path": "gpts-action/openapi.yaml",
-      "size_bytes": 4155,
-      "sha256": "26163ddfdd8a31207ec1d23c784a33e8a459497d11bae1b86f83f8c5c33538e2"
+      "size_bytes": 5632,
+      "sha256": "b64b4ca24521b06e018d31aee0833bbbb8113f224aab3702fcd56f246949a237"
     },
     {
       "path": "gpts-knowledge/GPTS_CONTROL_PLANE.md",
@@ -183,28 +188,28 @@
     },
     {
       "path": "security/access_contract.py",
-      "size_bytes": 5519,
-      "sha256": "7688fea6dc31797fe19ae97b8582a8159fc2d250363757a533ba50e74970dee8"
+      "size_bytes": 6056,
+      "sha256": "efe23272a259f2ed95c1721c8ac3c5f8319a5d2413e091fb048dd3867c63d565"
     },
     {
       "path": "security/governance_issue_guard.py",
-      "size_bytes": 4203,
-      "sha256": "e23eb55f0448d0486221f35dcf610ee69b1b8ab8406856368a783bcae03364aa"
+      "size_bytes": 6317,
+      "sha256": "570974f3611b1e44359656d3608fe98e6bc46f0fa4c6339bedbbdba0b9236319"
     },
     {
       "path": "tests/test_access_contract.py",
-      "size_bytes": 4985,
-      "sha256": "71a818b3a48cd02dbe1f81c1fc3e0fe4787d2f06e9a1729663f8d23f8732ed1c"
+      "size_bytes": 5330,
+      "sha256": "fc25c78b6d8c0661527088e621bed2131debf773707db31c1ecf35c9d0499d9c"
     },
     {
       "path": "tests/test_control_plane.py",
-      "size_bytes": 11867,
-      "sha256": "fe94934f035c9c7c56a9b87b83a3b1a7f3265e5de1bf8800f945735e19b9efc7"
+      "size_bytes": 17766,
+      "sha256": "a3ea948a14a48a09147adb2de70d3255f2dbcca32084d8c7c6c2d19a8a3febef"
     },
     {
       "path": "tests/test_governance_issue_guard.py",
-      "size_bytes": 3019,
-      "sha256": "9d46e0159d26f09f0a9edb68c5c3368eba12eb047d11fb8ab964c6ddad30659b"
+      "size_bytes": 3665,
+      "sha256": "ed1acf1cebc9f03e4f79d193dbdc9d8c56238965933e9f125a1707708db90850"
     }
   ]
 }

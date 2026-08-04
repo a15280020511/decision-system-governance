@@ -19,12 +19,16 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.12"
+
       - name: Compile governance control code
         run: |
           python -m py_compile control-plane/control_plane.py
           python -m py_compile security/governance_issue_guard.py
+          python -m py_compile security/access_contract.py
+
       - name: Run deterministic governance tests
         run: python -m unittest discover -s tests -p 'test_*.py' -v
+
       - name: Validate disabled ServerChan installation
         run: |
           python - <<'PY'
@@ -47,30 +51,32 @@ jobs:
               if data.get(key) != []:
                   raise SystemExit(f"ServerChan must have no active {key}")
           PY
-      - name: Validate serial asynchronous queue contract
+
+      - name: Validate P0 resilience contract
         run: |
           python - <<'PY'
-          import json
           from pathlib import Path
 
           openapi = Path("gpts-action/openapi.yaml").read_text(encoding="utf-8")
           workflow = Path(".github/workflows/control-plane-ticket.yml").read_text(
               encoding="utf-8"
           )
+          reconcile = Path(
+              ".github/workflows/control-plane-reconcile.yml"
+          ).read_text(encoding="utf-8")
           runtime = Path("control-plane/control_plane.py").read_text(encoding="utf-8")
           guard = Path("security/governance_issue_guard.py").read_text(encoding="utf-8")
-          schema = json.loads(
-              Path("control-plane/control-ticket.schema.json").read_text(encoding="utf-8")
-          )
 
           required_openapi = (
               "openapi: 3.1.0",
-              "version: 3.1.0",
+              "version: 3.2.0",
               "operationId: submitDecisionTask",
               "operationId: getDecisionTaskStatus",
+              "operationId: getDecisionTaskReceipts",
+              "/issues/{issue_number}/comments:",
+              "github-actions[bot]",
               "governance-control-ticket-v3",
               '"inputs":{"data":[1,2,3]}',
-              "state_reason=duplicate",
               "FIFO",
           )
           missing = [item for item in required_openapi if item not in openapi]
@@ -98,17 +104,47 @@ jobs:
           if missing:
               raise SystemExit(f"serial queue workflow entries missing: {missing}")
 
-          prepare_position = workflow.index("Parse and validate selected ticket before classification")
-          duplicate_position = workflow.index("Reject duplicate submission")
-          if prepare_position >= duplicate_position:
-              raise SystemExit("ticket validation must occur before duplicate classification")
+          required_reconcile = (
+              "Governance Late Terminal Reconciliation",
+              "group: governance-control-global-worker",
+              "control_plane.py reconcile",
+              "CONTROL_PLANE_TOKEN:",
+              "persist-credentials: false",
+          )
+          missing = [item for item in required_reconcile if item not in reconcile]
+          if missing:
+              raise SystemExit(f"reconcile workflow entries missing: {missing}")
+          if reconcile.count("CONTROL_PLANE_TOKEN:") != 1:
+              raise SystemExit("reconcile workflow must reference CONTROL_PLANE_TOKEN exactly once")
 
-          guard_position = workflow.index("Verify governance status ownership")
-          if guard_position >= duplicate_position:
-              raise SystemExit("status ownership validation must occur before duplicate classification")
+          required_runtime = (
+              "MAX_EXECUTION_ATTEMPTS = 3",
+              "MAX_COMMENT_SCAN_PAGES = 10",
+              "MAX_JSON_DEPTH = 32",
+              "MAX_JSON_NODES = 5_000",
+              "def _request_fingerprint(",
+              "def _duplicate_blocks(",
+              "def _list_comments(",
+              "def _artifact_contract_error(",
+              "CONTROL_CHILD_TASK_MISMATCH",
+              "CONTROL_CHILD_EVIDENCE_INVALID",
+              "def _perform_one_recovery(",
+              "def reconcile(",
+              "CONTROL_RECONCILED_LATE_SUCCESS",
+              "CONTROL_RECONCILED_LATE_FAILURE",
+              "def select(",
+              "def pending(",
+              'choices=["duplicate", "exhausted", "running", "rejected", "dispatched", "final"]',
+          )
+          missing = [item for item in required_runtime if item not in runtime]
+          if missing:
+              raise SystemExit(f"P0 runtime entries missing: {missing}")
 
           required_guard = (
-              "TRUSTED_AUTHOR = \"github-actions[bot]\"",
+              'TRUSTED_AUTHOR = "github-actions[bot]"',
+              "MAX_COMMENT_PAGES = 10",
+              "def _fetch_paginated_comments(",
+              "CONTROL_RECONCILED_LATE_SUCCESS",
               "untrusted governance status block is forbidden",
               "does not match the latest trusted bot receipt",
           )
@@ -116,21 +152,7 @@ jobs:
           if missing:
               raise SystemExit(f"governance status guard entries missing: {missing}")
 
-          required_runtime = (
-              "MAX_EXECUTION_ATTEMPTS = 3",
-              "def _request_fingerprint(",
-              "def _find_duplicate_issue(",
-              "def select(",
-              "def pending(",
-              'choices=["duplicate", "exhausted", "running", "rejected", "dispatched", "final"]',
-          )
-          missing = [item for item in required_runtime if item not in runtime]
-          if missing:
-              raise SystemExit(f"queue runtime entries missing: {missing}")
-
           forbidden = (
-              "operationId: getDecisionTaskReceipts",
-              "/issues/{issue_number}/comments:",
               "commentGovernanceIssue",
               "/dispatch-control",
               "issue_comment:",
@@ -143,13 +165,10 @@ jobs:
           if found:
               raise SystemExit(f"legacy or unsafe interface content remains: {found}")
 
-          if openapi.count("operationId:") != 2:
-              raise SystemExit("GPT Action must expose exactly two operations")
+          if openapi.count("operationId:") != 3:
+              raise SystemExit("GPT Action must expose exactly three operations")
           if workflow.count("group: governance-control-global-worker") != 1:
               raise SystemExit("governance must expose exactly one global execution slot")
           if runtime.count("hashlib.sha256") != 1:
               raise SystemExit("request identity must use one canonical SHA-256 path")
-          version = schema["properties"]["schema_version"]["const"]
-          if version != "governance-control-ticket-v3":
-              raise SystemExit("control schema version mismatch")
           PY

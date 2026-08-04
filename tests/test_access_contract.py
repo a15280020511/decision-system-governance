@@ -25,6 +25,14 @@ class AccessContractTests(unittest.TestCase):
     def test_current_contract_passes(self) -> None:
         MODULE.validate_access_contract(OPENAPI, WORKFLOW)
 
+    def test_comments_operation_is_read_only(self) -> None:
+        self.assertIn("operationId: getDecisionTaskReceipts", OPENAPI)
+        comments_section = OPENAPI.split(
+            "/issues/{issue_number}/comments:", 1
+        )[1]
+        self.assertIn("    get:", comments_section)
+        self.assertNotIn("    post:", comments_section)
+
     def test_rejects_direct_child_repository_path(self) -> None:
         mutated = OPENAPI.replace(
             "paths:\n",

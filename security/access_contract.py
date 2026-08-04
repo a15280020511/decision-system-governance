@@ -12,6 +12,7 @@ CHILD_REPOSITORIES = {
 EXPECTED_PATHS = {
     f"/repos/{GOVERNANCE_REPOSITORY}/issues:",
     f"/repos/{GOVERNANCE_REPOSITORY}/issues/{{issue_number}}:",
+    f"/repos/{GOVERNANCE_REPOSITORY}/issues/{{issue_number}}/comments:",
 }
 EXPECTED_TOP_LEVEL_PERMISSIONS = {
     "contents: read",
@@ -57,11 +58,23 @@ def validate_access_contract(openapi: str, workflow: str) -> None:
         r"(?mi)^    (get|post|patch|put|delete|options|head|trace):\s*$",
         openapi,
     )
-    if methods != ["post", "get"]:
-        errors.append(f"GPT Action methods must be exactly ['post', 'get']; got {methods}")
+    if methods != ["post", "get", "get"]:
+        errors.append(
+            "GPT Action methods must be exactly ['post', 'get', 'get']; "
+            f"got {methods}"
+        )
 
-    if openapi.count("operationId:") != 2:
-        errors.append("GPT Action must expose exactly two operations")
+    if openapi.count("operationId:") != 3:
+        errors.append("GPT Action must expose exactly three operations")
+
+    required_operations = {
+        "operationId: submitDecisionTask",
+        "operationId: getDecisionTaskStatus",
+        "operationId: getDecisionTaskReceipts",
+    }
+    missing_operations = sorted(item for item in required_operations if item not in openapi)
+    if missing_operations:
+        errors.append(f"GPT Action operations missing: {missing_operations}")
 
     if "type: http" not in openapi or "scheme: bearer" not in openapi:
         errors.append("GPT Action must use bearer-token authentication")
@@ -113,7 +126,10 @@ def validate_access_contract(openapi: str, workflow: str) -> None:
     if "persist-credentials: true" in workflow:
         errors.append("persisted checkout credentials are forbidden")
 
-    action_uses = re.findall(r"(?m)^\s*uses:\s*([^\s#]+)", workflow)
+    action_uses = re.findall(
+        r"(?m)^[ \t]*(?:-[ \t]*)?uses:[ \t]*([^\s#]+)",
+        workflow,
+    )
     unpinned = [
         value
         for value in action_uses

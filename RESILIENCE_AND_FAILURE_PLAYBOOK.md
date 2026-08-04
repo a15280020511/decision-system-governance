@@ -1,6 +1,6 @@
 # 治理系统异常、故障与交互韧性预案
 
-版本：2026-08-04
+版本：2026-08-05
 
 适用范围：
 
@@ -10,42 +10,44 @@
 - `expert-assessment-center`
 - 网页 GPTs → 治理仓库 → 三个子中心的单线控制链
 
-本文件是正式运行预案，不把“有测试”误写成“所有异常都已解决”。每一类情况必须标记为：
+本文件区分四种证据状态：
 
-- `IMPLEMENTED`：代码已实现并有真实或静态证据；
-- `REQUIRED`：生产前必须补齐；
-- `OPERATIONAL`：依赖 GitHub 或人工操作，系统只能提供降级与恢复路径；
-- `OUT_OF_SCOPE`：基于安全边界故意不支持。
+- `IMPLEMENTED`：生产代码已经实现；
+- `DETERMINISTIC_TESTED`：仓库内确定性测试已经通过，不调用付费模型；
+- `LIVE_ACCEPTED`：合并后的正式 Issue/Actions 链已经真实验收；
+- `OPERATIONAL`：依赖 GitHub 或人工平台操作，不能在现有最小权限边界内完全自动化。
 
-## 一、不可破坏的总原则
+不得把代码存在、Issue 创建成功、工作流启动成功或 HTTP 2xx 写成业务成功。正式成功必须由可信终态、正确 Task ID 和对应 Artifact 共同证明。
 
-1. 网页 GPTs 只接触治理仓库，不直接接触三个子仓库。
-2. `GPTS_GOVERNANCE_TOKEN` 只允许治理仓库 `Metadata: read`、`Issues: read/write`。
-3. `CONTROL_PLANE_TOKEN` 只允许三个子仓库 `Metadata: read`、`Issues: read/write`。
-4. 所有代码、分支、PR、Workflow、Secrets、Variables、Administration 权限均保持禁止。
-5. 全球仅一个治理执行槽，FIFO，禁止并发执行多个业务任务。
+## 一、不可破坏的边界
+
+1. 网页 GPTs 只访问治理仓库，不直接访问三个子仓库。
+2. `GPTS_GOVERNANCE_TOKEN` 只应拥有治理仓库 `Metadata: read`、`Issues: read/write`。
+3. `CONTROL_PLANE_TOKEN` 只应拥有三个子仓库 `Metadata: read`、`Issues: read/write`。
+4. GPT 与控制 Token 均不得拥有 Contents、Branches、Pull requests、Actions、Workflows、Secrets、Variables、Administration 等写权限。
+5. 治理全局只有一个执行槽，FIFO，`cancel-in-progress=false`。
 6. 子中心之间禁止直连。
-7. 只信任 `github-actions[bot]` 的正式终态，用户正文中的状态不构成证据。
-8. 重试必须有限、幂等、可审计，禁止无限 Agent 循环和无限重试。
-9. 失败必须显式，不能把 Issue 创建成功、工作流启动成功或接口 HTTP 2xx 当成业务成功。
-10. 所有终态必须携带任务 ID、子 Issue、调用数量和 Artifact/诊断证据。
+7. 只信任 `github-actions[bot]` 的正式状态评论；Issue 正文仅是便捷视图。
+8. 重试必须有限、幂等、带唯一标记，禁止无限 Agent 循环。
+9. 超时不等于取消，关闭 Issue 不等于停止已经运行的 GitHub Actions。
+10. 任何恢复不得通过临时扩大 Token 权限实现。
 
-## 二、任务生命周期状态机
+## 二、任务状态机
 
-标准状态：
+正常链：
 
 ```text
 QUEUED
 → VALIDATING
-→ RUNNING
-→ DISPATCHED
+→ CONTROL_RUNNING
+→ CONTROL_DISPATCHED
 → CHILD_ACCEPTED
 → CHILD_TERMINAL
 → CONTROL_COMPLETED / CONTROL_FAILED
 → CHILD_ISSUE_RECLAIMED
 ```
 
-异常状态：
+异常链：
 
 ```text
 CONTROL_REJECTED
@@ -54,240 +56,248 @@ CONTROL_DISPATCH_ERROR
 CONTROL_MONITOR_ERROR
 CONTROL_TIMEOUT
 CONTROL_RETRY_EXHAUSTED
+CONTROL_CHILD_TASK_MISMATCH
+CONTROL_CHILD_EVIDENCE_INVALID
 CONTROL_RECONCILED_LATE_SUCCESS
 CONTROL_RECONCILED_LATE_FAILURE
 ```
 
-任何状态跳转都必须满足：
+所有状态必须保持：
 
-- 任务 ID 不变；
-- route 不变；
-- 子仓库固定；
-- 子 Issue 与任务 ID 一一对应；
-- 可信评论作者为 `github-actions[bot]`；
-- 成功终态必须满足对应 Artifact 合同。
+- 治理 Issue 编号不变；
+- `route` 不变；
+- Task ID 由治理生成并与子 Issue 一一对应；
+- 子仓库只能由 route 决定；
+- 终态作者必须为 `github-actions[bot]`；
+- 成功必须满足路由对应 Artifact 合同。
 
-## 三、异常矩阵与处理预案
+## 三、提交、重复与交互异常
 
-### A. 提交与交互错误
+| 场景 | 当前处理 | 状态 |
+|---|---|---|
+| 用户或 GPT 重复点击 | 业务内容生成规范指纹；`wait_seconds` 不参与指纹 | `LIVE_ACCEPTED` |
+| 原任务仍开放、运行中或已成功 | 新任务关闭为 `CONTROL_DUPLICATE`，子派发为 0 | `LIVE_ACCEPTED` |
+| 原任务失败或 `not_planned` 后原样重提 | 不再由历史失败污染指纹；新 Issue 获得新 Task ID | `IMPLEMENTED` + `DETERMINISTIC_TESTED` |
+| 错误 route 或路径穿越 | 只允许 `compute`、`intelligence`、`expert` | `LIVE_ACCEPTED` |
+| 用户指定 repository | 顶层未知字段拒绝，不派发 | `LIVE_ACCEPTED` |
+| 用户指定 task_id | 拒绝；Task ID 只由治理 Issue 编号生成 | `LIVE_ACCEPTED` |
+| Secret 夹带 | 拦截 token、secret、password、apiKey、accessToken、clientSecret、authorization 等规范变体 | `IMPLEMENTED` + `DETERMINISTIC_TESTED` |
+| shell/code/script 夹带 | 拦截 shell、command、script、pythonCode、powershell、eval、exec 等执行字段 | `IMPLEMENTED` + `DETERMINISTIC_TESTED` |
+| 超深或爆炸 JSON | 限制正文、深度、节点数、Key 长度和单字符串长度；使用迭代遍历 | `IMPLEMENTED` + `DETERMINISTIC_TESTED` |
+| NaN/Infinity | JSON 解析阶段拒绝 | `LIVE_ACCEPTED/STATIC` |
+| 非 `[control]` 标题 | 不进入治理队列 | `LIVE_ACCEPTED` |
+| 排队期间编辑正文 | worker 选择时读取最终正文并重新校验 | `LIVE_ACCEPTED` |
+| RUNNING 后编辑正文或伪造状态 | 执行使用冻结快照，最终可信回执覆盖编辑 | `LIVE_ACCEPTED` |
+| 完成后编辑 Issue 正文 | GPT 必须读取 comments 并验证最新可信机器人回执，不能仅信任正文 | `IMPLEMENTED` + `DETERMINISTIC_TESTED` + `OPERATIONAL` |
 
-| 场景 | 风险 | 当前状态 | 预案 |
-|---|---|---|---|
-| 用户重复点击或 GPT 重复提交同一任务 | 重复调用、重复费用 | `IMPLEMENTED` | 对业务内容生成指纹，忽略 `wait_seconds`，原任务开放或成功时拒绝新任务并返回 `CONTROL_DUPLICATE`。 |
-| 原任务失败后原样重提 | 当前历史失败可能仍被当作 duplicate | `REQUIRED` | duplicate 只应阻止“开放、运行中、成功、已确认 duplicate”的原任务；`not_planned` 失败任务允许新 Issue 重新执行。 |
-| 用户把 `wait_seconds` 改成不同值绕过去重 | 重复执行 | `IMPLEMENTED` | 指纹不包含等待时间。 |
-| 用户提交错误 route | 路径穿越或误派发 | `IMPLEMENTED` | route 只能为 `compute`、`intelligence`、`expert`。 |
-| 用户直接指定子仓库 | 越权绕过路由 | `IMPLEMENTED` | 顶层未知字段如 `repository` 直接拒绝。 |
-| 用户伪造 `task_id` | 任务劫持、复用别人结果 | `IMPLEMENTED` | task_id 只能由治理 Issue 编号生成。 |
-| 用户夹带 Secret | Secret 泄露到 Issue | `IMPLEMENTED/PARTIAL` | 已递归拦截常见 secret/token/password/api_key 字段；仍需补充 camelCase、authorization、clientSecret 等变体。 |
-| 用户夹带 shell/code/script 字段 | 诱导执行任意代码 | `IMPLEMENTED/PARTIAL` | 子中心严格 Schema 已阻止未知执行字段；治理层仍应增加精确危险字段黑名单。 |
-| JSON 过大 | 内存、日志与 API 压力 | `IMPLEMENTED` | 请求正文上限 100,000 字符。 |
-| JSON 超深嵌套或节点爆炸 | 递归异常、DoS | `REQUIRED` | 增加最大深度、最大节点数、最大单字符串长度，并使用迭代遍历。 |
-| NaN/Infinity | 计算与指纹不一致 | `IMPLEMENTED` | 非有限 JSON 数值直接拒绝。 |
-| 非 `[control]` 标题 | 错误触发治理 | `IMPLEMENTED` | 只接受标题精确等于 `[control]` 且作者为仓库所有者。 |
-| 用户误关排队 Issue | 任务丢失 | `IMPLEMENTED/OPERATIONAL` | 已关闭 Issue 不会被选择；重新打开后可由 FIFO 定时 worker 接管。 |
-| 用户在排队时修改任务 | 执行非预期版本 | `IMPLEMENTED` | 选择时读取最终正文并重新校验，非法修改直接拒绝。 |
-| 用户在 RUNNING 后修改正文或伪造终态 | 路由劫持、结果欺骗 | `IMPLEMENTED` | worker 使用已冻结票据快照；最终可信回执覆盖用户修改。 |
-| 用户在完成后修改正文 | GPT 可能只看到伪造正文 | `REQUIRED` | GPT Action 必须增加只读 comments 查询，并要求验证最新 `github-actions[bot]` 终态；不能只读 Issue body。 |
+`OPERATIONAL` 边界：仓库中的 OpenAPI 更新不会自动进入现有自定义 GPT；必须在 GPT 配置中重新导入或更新 Action schema，新的只读 comments 操作才会可用。
 
-### B. FIFO、并发与队列故障
+## 四、FIFO、并发与队列异常
 
-| 场景 | 风险 | 当前状态 | 预案 |
-|---|---|---|---|
-| 多个任务同时提交 | 并发污染、成本失控 | `IMPLEMENTED` | 治理 workflow 使用全局 concurrency group，`cancel-in-progress=false`，FIFO 按 Issue 编号处理。 |
-| 无效任务夹在有效任务之间 | 阻塞尾部任务 | `IMPLEMENTED` | 无效任务快速拒绝、调用 0，随后唤醒下一 worker。 |
-| 同一任务的多个 workflow run 同时启动 | 双重派发 | `IMPLEMENTED` | 全局 concurrency + 子 Issue 标题幂等复用。 |
-| 下一 worker 唤醒失败 | 队列停顿 | `IMPLEMENTED/PARTIAL` | 15 分钟 schedule 会恢复；还应为 `gh workflow run` 增加有限重试和显式降级回执。 |
-| GitHub Actions 短时不可用 | 队列无人处理 | `OPERATIONAL` | 恢复后由 schedule 自动继续；无法绕过 GitHub 平台级中断。 |
-| 长任务占用唯一槽 | 后续任务等待 | `BY_DESIGN` | 这是串行安全边界；状态必须显示队列与当前任务，不允许并发绕过。 |
-| 开放非控制 Issue | 干扰扫描 | `IMPLEMENTED` | 非 `[control]` Issue 被忽略。 |
-| 任务数量超过扫描分页 | 老任务或 duplicate 漏检 | `REQUIRED` | 当前最多扫描 1000 个 Issue；应增加基于时间窗/标签/索引的长期归档策略。 |
+| 场景 | 当前处理 | 状态 |
+|---|---|---|
+| 多任务突发提交 | 全局 concurrency group 串行处理，FIFO 按 Issue 编号 | `LIVE_ACCEPTED` |
+| 无效任务夹在有效任务之间 | 无效任务零调用快速拒绝，继续唤醒尾部任务 | `LIVE_ACCEPTED` |
+| 多个 worker 同时启动 | 全局执行槽防并发；子 Issue 按唯一标题幂等复用 | `LIVE_ACCEPTED` |
+| 下一 worker 主动唤醒失败 | 15 分钟 schedule 兜底恢复 | `IMPLEMENTED/PARTIAL` |
+| GitHub Actions 短时中断 | 平台恢复后 schedule 继续扫描开放治理 Issue | `OPERATIONAL` |
+| 长任务占用唯一槽 | 后续任务等待，不允许绕过串行边界 | `BY_DESIGN` |
+| 开放非控制 Issue | 扫描时忽略 | `LIVE_ACCEPTED` |
+| 子任务终态后仍开放 | 三中心可信终态回收器自动关闭，并有 5 分钟兜底扫描 | `LIVE_ACCEPTED` |
 
-### C. 派发、Token 与子仓库故障
+仍属 P1：下一 worker 的 `gh workflow run` 应增加有限重试和显式唤醒失败回执。
 
-| 场景 | 风险 | 当前状态 | 预案 |
-|---|---|---|---|
-| `CONTROL_PLANE_TOKEN` 缺失、过期或撤销 | 无法创建子任务 | `IMPLEMENTED/PARTIAL` | 返回 `CONTROL_DISPATCH_ERROR`，不宣称业务成功；应增加每日只读健康检查与单一健康状态 Issue。 |
-| Token 权限被错误扩大 | 代码或配置越权 | `IMPLEMENTED` | 实测代码、分支、PR、Secrets、Workflow 均返回 403；权限合同 CI 阻止配置扩大。 |
-| 子 Issue 已存在 | 重复创建 | `IMPLEMENTED` | 按唯一标题复用已有子 Issue。 |
-| 专家命令重复发送 | 重复模型调用 | `IMPLEMENTED` | 正常首次命令去重；受控 retry 必须使用唯一 retry_id。 |
-| 子 Issue 创建成功但子工作流事件丢失 | 永久无终态 | `REQUIRED` | 若在规定时间内没有任何可信 bot 活动，只允许一次受控重触发：compute/API 关闭后 reopen；expert 重发一次 `/run-expert-team`。必须记录 recovery_id。 |
-| 子工作流已接受但中途被取消 | 开放任务与无终态 | `REQUIRED` | 超时后标记为可恢复失败；禁止盲目并发重跑。新任务可重新提交，旧任务进入迟到终态对账。 |
-| 子 Issue 被人工编辑 | 票据被篡改 | `IMPLEMENTED/PARTIAL` | 首次 workflow 使用事件快照；受控重试前应校验或恢复治理保存的规范票据。 |
-| 子 Issue 被人工关闭 | workflow 仍可能运行 | `OPERATIONAL` | 关闭 Issue 不等于取消 GitHub Actions；系统必须继续观察可信终态。 |
-| 子 Issue 终态后仍开放 | 陈旧锁误拒后续任务 | `IMPLEMENTED` | 三中心已加入可信终态自动回收器，成功关闭为 completed，失败关闭为 not_planned，并有 5 分钟兜底扫描。 |
+## 五、派发、Token 与子工作流异常
 
-### D. 轮询、超时与迟到结果
+| 场景 | 当前处理 | 状态 |
+|---|---|---|
+| `CONTROL_PLANE_TOKEN` 缺失、过期或撤销 | 返回 `CONTROL_DISPATCH_ERROR`，不得宣称子 Issue 已创建 | `IMPLEMENTED` |
+| Token 权限被扩大 | 权限合同 CI 与负向 403 探针阻止/发现越权 | `LIVE_ACCEPTED` |
+| 子 Issue 已存在 | 按治理生成的唯一标题复用 | `LIVE_ACCEPTED` |
+| 专家命令重复 | 首次命令去重；受控 retry 使用唯一 retry_id | `LIVE_ACCEPTED` |
+| 子 Issue 创建但没有任何机器人活动 | 保护窗口后最多执行一次恢复；写入唯一 recovery marker | `IMPLEMENTED` + `DETERMINISTIC_TESTED` |
+| compute/API 事件丢失 | 子 Issue close 后 reopen 一次，重新触发 opened/reopened 工作流 | `IMPLEMENTED` + `DETERMINISTIC_TESTED` |
+| expert 命令事件丢失 | 精确重发一次 `/run-expert-team <task_id>` | `IMPLEMENTED` + `DETERMINISTIC_TESTED` |
+| 一次恢复仍无活动 | 最终超时或监控失败，不继续循环 | `IMPLEMENTED` + `DETERMINISTIC_TESTED` |
+| 子工作流已接受后被取消 | 不盲目并发重跑；等待超时并进入迟到对账 | `IMPLEMENTED/PARTIAL` |
+| 子 Issue 被人工关闭 | 关闭不代表取消；治理继续依据可信评论对账 | `OPERATIONAL` |
 
-| 场景 | 风险 | 当前状态 | 预案 |
-|---|---|---|---|
-| 单次 GitHub API 网络错误 | 短时误失败 | `IMPLEMENTED` | 轮询继续，连续错误计数归零后恢复。 |
-| 连续 5 次轮询错误 | 监控失效 | `IMPLEMENTED/PARTIAL` | 输出 `CONTROL_MONITOR_ERROR`；仍需定时对账器处理迟到终态。 |
-| 到达 `wait_seconds` 无终态 | 任务可能仍在执行 | `IMPLEMENTED/PARTIAL` | 输出 `CONTROL_TIMEOUT`，不宣称成功；仍需迟到终态对账。 |
-| 超时后子任务晚到成功 | 治理永久显示失败 | `REQUIRED` | 定时对账 closed governance Issue；若任务 ID、route、子 Issue 和可信终态一致，更新为 `CONTROL_RECONCILED_LATE_SUCCESS`。 |
-| 超时后子任务晚到失败 | 状态不一致 | `REQUIRED` | 更新为 `CONTROL_RECONCILED_LATE_FAILURE` 并保留原超时证据。 |
-| 子 Issue 评论超过 100 条 | 终态位于第二页而漏读 | `REQUIRED` | 所有 comment 查询统一分页，至少 10 页，并从最后一页倒序寻找终态。 |
-| GitHub rate limit | 403/429 被当成普通错误 | `REQUIRED` | 识别 `Retry-After` 与 `X-RateLimit-Reset`，指数退避并写入审计。 |
-| 评论存在 bot 终态但任务 ID 不匹配 | 误绑定其他任务 | `REQUIRED` | 终态必须包含预期 task_id；不匹配一律忽略并记录安全告警。 |
-| 成功评论缺 Artifact | 假成功或交付不完整 | `REQUIRED` | compute/API 成功必须有 Artifact ID、digest、URL；expert 成功必须有最终 attestation Artifact。 |
+恢复只在“没有任何可信 bot 活动”时触发。只要子中心已发布 ACCEPTED、REJECTED、FAILED 或 COMPLETED 等正式状态，治理不得再进行 lost-trigger 恢复。
 
-### E. 子中心自身故障
+## 六、轮询、超时与迟到结果
 
-| 场景 | 风险 | 当前状态 | 预案 |
-|---|---|---|---|
-| 情报上游 API 500/429/超时 | 数据请求失败 | `IMPLEMENTED/PARTIAL` | 子中心返回结构化 `API_FAILED` 和 retryable；票据可配置有限 max_attempts。治理不能把仓库连通误写成数据成功。 |
-| 上游 API 返回 HTTP 200 但无业务数据 | 假成功 | `IMPLEMENTED` | connector response contract 判断 data_present。 |
-| API 返回过大内容 | Artifact/评论爆炸 | `IMPLEMENTED` | 每请求响应字节限制，公开评论分块，完整证据进 Artifact。 |
-| 计算依赖安装失败 | 计算不执行 | `IMPLEMENTED` | `COMPUTE_FAILED`，模型调用 0，Artifact/诊断保留。 |
-| 计算中心网络未隔离 | 数据外泄 | `IMPLEMENTED` | OS network namespace + network assurance。 |
-| 专家票据非法 | 仍触发付费模型 | `IMPLEMENTED` | 独立无效票据拒绝器在模型调用前返回 `EXECUTION_REJECTED`，调用 0。 |
-| 专家任务已经运行又重复命令 | 重复费用 | `IMPLEMENTED` | admission 状态与 retry_id 去重，最大受控重试次数有限。 |
-| 专家执行结果缺审计或 attestation | 假成功 | `IMPLEMENTED` | 只有完整审计、主 Artifact、独立复算和最终 attestation 通过后才能发布成功。 |
+| 场景 | 当前处理 | 状态 |
+|---|---|---|
+| 单次 GitHub API 网络错误 | 继续轮询，成功后连续错误计数归零 | `IMPLEMENTED` |
+| 连续 5 次轮询错误 | 返回 `CONTROL_MONITOR_ERROR`，不宣称业务失败或成功 | `IMPLEMENTED` |
+| 达到 `wait_seconds` 无终态 | 返回 `CONTROL_TIMEOUT`；子 Issue 仍为权威执行位置 | `IMPLEMENTED` |
+| 终态位于第 101–1000 条评论 | 统一分页读取最多 10 页，从最新评论倒序识别 | `IMPLEMENTED` + `DETERMINISTIC_TESTED` |
+| 迟到成功 | 定时对账器更新为 `CONTROL_RECONCILED_LATE_SUCCESS` | `IMPLEMENTED` + `DETERMINISTIC_TESTED` |
+| 迟到失败 | 定时对账器更新为 `CONTROL_RECONCILED_LATE_FAILURE` | `IMPLEMENTED` + `DETERMINISTIC_TESTED` |
+| 终态 Task ID 缺失或不匹配 | 返回 `CONTROL_CHILD_TASK_MISMATCH`，不得绑定结果 | `IMPLEMENTED` + `DETERMINISTIC_TESTED` |
+| 成功终态缺 Artifact | 返回 `CONTROL_CHILD_EVIDENCE_INVALID`，不得发布成功 | `IMPLEMENTED` + `DETERMINISTIC_TESTED` |
+| GitHub 403/429 rate limit | 目前作为监控错误处理 | `P1_REQUIRED` |
 
-### F. 证据、回执与 GPT 交互
+迟到对账器与主 worker 使用同一全局 concurrency group，因此不会在业务任务执行时并发改写同一治理状态。
 
-| 场景 | 风险 | 当前状态 | 预案 |
-|---|---|---|---|
-| Issue 创建成功被误解为任务成功 | 错误报告 | `IMPLEMENTED` | GPT 指令必须区分 created、accepted、dispatched、terminal。 |
-| 子中心受理成功被误解为业务成功 | 错误报告 | `IMPLEMENTED` | 只认终态和 Artifact。 |
-| 用户正文伪造 `CONTROL_COMPLETED` | GPT 被欺骗 | `IMPLEMENTED/PARTIAL` | 治理会拒绝初始伪造；完成后的人工编辑仍需 comments 只读接口验证。 |
-| bot 评论被截断 | 关键证据缺失 | `IMPLEMENTED/PARTIAL` | 完整结果进 Artifact；治理摘要最多保留 12,000 字符。应验证 Artifact 合同。 |
-| Artifact 上传失败 | 结果无法验证 | `IMPLEMENTED` | 子中心成功条件要求 Artifact 上传成功；否则返回失败。 |
-| 用户询问处理中状态 | GPT 无法说明下一步 | `REQUIRED` | 统一状态词典：QUEUED/RUNNING/DISPATCHED/ACCEPTED/COMPLETED/FAILED/TIMEOUT，并给出明确下一动作。 |
-| 用户要求立即取消正在运行的任务 | 误以为关闭 Issue 能停掉模型 | `OUT_OF_SCOPE/OPERATIONAL` | 最小权限 Token 无 Actions write，不能远程取消子 workflow。排队任务可关闭；已运行任务只支持协作式停止设计，不宣称即时取消。 |
+## 七、Artifact 与终态合同
 
-### G. 安全与灾难恢复
+### Compute 成功
 
-| 场景 | 风险 | 当前状态 | 预案 |
-|---|---|---|---|
-| Key 泄露 | Issue 操纵 | `OPERATIONAL` | 立即 revoke、重建最小权限 Key、替换 Secret、审计泄露时间窗内所有 Issue 与 workflow。 |
-| 仓库被错误改为私有/转移/重命名 | 路由失效 | `REQUIRED` | 每日仓库身份健康检查：owner、repo、visibility、default branch。 |
-| main/production 不一致 | 专家执行非正式代码 | `IMPLEMENTED` | 专家 workflow 强制 main=production=checkout SHA。 |
-| 生产 workflow 被修改 | 安全边界漂移 | `IMPLEMENTED` | Actions 固定 SHA、权限合同、完整性 CI；分支保护仍应保持 required checks。 |
-| GitHub 平台级长期故障 | 全系统不可用 | `OPERATIONAL` | 系统进入显式 `PLATFORM_UNAVAILABLE`，禁止本地或无证据绕过；恢复后从开放治理 Issue 继续。 |
-| 证据 Artifact 过期 | 无法长期复核 | `REQUIRED/OPERATIONAL` | 关键生产结果需要外部长期归档或提高保留策略；测试 Artifact 可短期保留。 |
+必须同时存在：
 
-## 四、恢复优先级
+```text
+Task ID = 预期治理 Task ID
+Artifact ID = 数字
+Artifact digest = 64 位小写十六进制
+Artifact URL 末尾 = /artifacts/<Artifact ID>
+```
 
-### P0：生产阻断，必须补齐
+### Intelligence 成功或部分成功
 
-1. 失败任务允许原样重新提交，不能被历史失败永久 duplicate。
-2. comments 全分页读取。
-3. 终态绑定预期 task_id。
-4. 成功终态验证 Artifact/attestation 合同。
-5. 超时与监控错误的迟到终态对账。
-6. 子工作流完全没有启动时只允许一次受控重触发。
-7. GPT Action 增加 comments 只读查询并据此验证机器人终态。
-8. JSON 深度、节点数与秘密字段变体防护。
+`API_COMPLETED` 与 `API_PARTIAL` 均必须满足与 Compute 相同的 Artifact 身份合同。
 
-### P1：高优先级
+### Expert 成功
 
-1. rate limit 感知与退避。
-2. 下一 worker 唤醒有限重试。
-3. Token/仓库身份每日健康检查。
-4. 统一用户状态词典与错误说明。
+必须同时存在：
+
+```text
+Task ID = 预期治理 Task ID
+Primary Artifact ID / digest / URL
+Final attestation Artifact ID / digest / URL
+两个 URL 分别与对应 ID 一致
+```
+
+### 失败与拒绝
+
+失败终态不要求成功 Artifact，但必须包含正确 Task ID。专家无效票据兜底拒绝链必须从正式命令提取 Task ID，模型调用保持 0。
+
+## 八、GPT 交互规范
+
+GPT 必须区分：
+
+```text
+CREATED      仅表示治理 Issue 创建成功
+QUEUED       等待 FIFO
+RUNNING      治理已锁定任务
+DISPATCHED   子 Issue 已确认
+ACCEPTED     子中心已受理
+COMPLETED    可信终态和 Artifact 合同通过
+FAILED       可信失败终态或治理故障
+TIMEOUT      等待窗口结束，子任务可能仍在运行
+RECONCILED   超时/监控错误后取得迟到可信终态
+```
+
+终态查询流程：
+
+1. GET 治理 Issue；
+2. GET 治理 Issue comments；
+3. 只选择 `user.login == github-actions[bot]` 的评论；
+4. 选择最新可信终态；
+5. 核对 Task ID、route、child status 和 Artifact 身份；
+6. 不得把用户编辑的 Issue body 单独作为最终证据。
+
+GPT Action 仍只有三项操作：创建治理 Issue、读取治理 Issue、读取治理 Issue comments。没有 PATCH、PUT、DELETE，也没有子仓库、Contents、PR、Actions、Workflow 或 Secrets 接口。
+
+## 九、子中心自身故障
+
+### 情报中心
+
+- 上游 HTTP 500/429/超时：结构化失败，不把“仓库连通”写成“数据成功”；
+- HTTP 200 但无数据：由 connector contract 判断 `data_present`；
+- 响应过大：票据字节限制、公开评论分块、完整证据进 Artifact；
+- 上游可重试：只使用票据允许的有限 attempts。
+
+### 计算中心
+
+- 依赖安装、执行或 Artifact 失败：返回 `COMPUTE_FAILED`；
+- 网络隔离失效：不得发布正式计算结果；
+- 无上游证据时：结果只能保持实验或决策阻断状态。
+
+### 专家中心
+
+- 非法票据：在模型调用前返回 task-bound `EXECUTION_REJECTED`；
+- 有效任务：只有审计、主 Artifact、独立复算、最终状态和 attestation 完整通过才能成功；
+- main 与 production 不一致：生产工作流失败关闭。
+
+## 十、安全和灾难恢复
+
+| 场景 | 处理 |
+|---|---|
+| Key 泄露 | 立即 revoke；创建相同最小权限 Key；替换 Secret；审计泄露窗口内 Issues 和 Actions；重跑正向 Issues 与负向 403 探针 |
+| 仓库重命名、转移或可见性变化 | 路由失效并返回派发错误；P1 增加每日仓库身份健康检查 |
+| GitHub 平台长期故障 | 显式进入 `PLATFORM_UNAVAILABLE`；禁止无证据本地绕过；恢复后从开放治理 Issue 继续 |
+| Artifact 过期 | 测试证据允许短期保留；关键生产结果需要长期归档策略 |
+| 用户要求立即取消运行中任务 | 当前最小权限 Token 无 Actions write；只能取消排队任务，不能虚报已停止运行中的 workflow |
+
+## 十一、优先级
+
+### P0 候选实现状态
+
+截至本版本，P0-01 至 P0-08 已进入候选生产代码并通过确定性测试：
+
+1. 失败任务重新提交；
+2. comments 全分页；
+3. Task ID 强绑定；
+4. Artifact/attestation 合同；
+5. 迟到终态对账；
+6. 一次性 lost-trigger 恢复；
+7. GPT comments 只读操作；
+8. JSON 复杂度、Secret 变体和执行字段防护。
+
+在合并后的真实零调用验收完成前，整体状态保持：
+
+```text
+P0_IMPLEMENTED_PENDING_PRODUCTION_ACCEPTANCE
+```
+
+### P1
+
+1. rate-limit 感知退避；
+2. 下一 worker 唤醒有限重试；
+3. Token scope 与仓库身份每日健康检查；
+4. 统一用户状态词典及下一动作；
 5. 长期 Issue/Artifact 归档策略。
 
-### P2：运维增强
+### P2
 
-1. 失败率、平均等待时间、超时率与队列长度统计。
-2. 每日零调用健康摘要，仅异常时通知。
-3. 混沌测试矩阵定期运行，但禁止触发付费模型。
-4. 故障演练记录与恢复时间目标。
+1. 失败率、等待时间、超时率、队列长度统计；
+2. 仅异常通知的每日零调用健康摘要；
+3. 定期零费用混沌测试；
+4. 故障演练和恢复时间记录。
 
-## 五、标准恢复动作
+## 十二、最终验收门槛
 
-### 1. 重复提交
+只有同时满足以下条件，才能写成“复杂使用条件下稳定”：
 
-```text
-原任务 open/running/completed：新任务关闭 duplicate，不派发。
-原任务 failed/not_planned：允许新任务，生成新 task_id 和新子 Issue。
-```
-
-### 2. 派发失败
-
-```text
-记录 CONTROL_DISPATCH_ERROR
-→ 子 Issue 未确认则不得宣称创建成功
-→ 15 分钟健康 worker 再检查 Token 与仓库
-→ 用户可原样重新提交
-```
-
-### 3. 子工作流未启动
-
-```text
-派发后无任何 github-actions[bot] 活动
-→ 等待保护窗口
-→ 仅一次 recovery_id
-→ compute/API: close + reopen child Issue
-→ expert: 重发一次正式 run 命令
-→ 仍无活动则失败，不无限重试
-```
-
-### 4. 轮询失败或超时
-
-```text
-CONTROL_MONITOR_ERROR / CONTROL_TIMEOUT
-→ 治理任务关闭为未确认失败
-→ 子任务继续作为权威执行位置
-→ 定时对账器检查迟到终态
-→ 成功则改写为 RECONCILED_LATE_SUCCESS
-→ 失败则改写为 RECONCILED_LATE_FAILURE
-```
-
-### 5. 陈旧子 Issue
-
-```text
-发现可信终态
-→ 自动关闭 child Issue
-→ success = completed
-→ failed/rejected = not_planned
-→ 定时兜底再次扫描
-```
-
-### 6. Key 失效
-
-```text
-禁止扩大权限临时绕过
-→ revoke 旧 Key
-→ 重新创建相同最小权限 Key
-→ 更新对应 Secret
-→ 运行 Issues 正向测试 + 代码/PR/Secrets/Workflow 负向 403 测试
-```
-
-## 六、验收门槛
-
-只有同时满足以下条件，才能宣称“复杂使用条件下稳定”：
-
-1. 30+ 类异常测试均有明确终态；
+1. 至少 30 类异常均有明确终态；
 2. 所有非法输入子派发为 0；
-3. 所有 duplicate 子派发为 0；
-4. FIFO 顺序在突发队列中保持；
-5. 运行中和排队期篡改不能改变冻结任务；
-6. 三中心终态子 Issue 自动回收；
-7. 超时迟到结果可以自动对账；
-8. 历史失败允许正常重新提交；
-9. 1000 条评论规模下仍能找到终态；
-10. 成功状态与 task_id、Artifact、digest、子 Issue 一致；
-11. Key 权限负向测试持续为 403；
-12. 模型调用与费用测试必须按任务要求明确回执。
+3. 所有 active/success duplicate 子派发为 0；
+4. 历史失败任务可以生成新 Task ID 再次执行；
+5. FIFO 在突发混合队列中保持；
+6. 排队期和运行中篡改不能改变冻结任务；
+7. 三中心终态 Issue 自动回收；
+8. 迟到终态可自动对账；
+9. 第 101–1000 条评论中的终态仍可发现；
+10. Task ID、子 Issue、Artifact ID、digest、URL 一致；
+11. 专家无效票据拒绝带 Task ID 且模型调用为 0；
+12. Key 权限负向测试对代码、分支、PR、Workflow、Secrets 持续为 403；
+13. 自定义 GPT 已导入新版 Action schema，并能读取可信 comments；
+14. 所有测试和费用回执如实记录。
 
-## 七、当前结论
-
-截至 2026-08-04：
+## 十三、当前结论
 
 ```text
-最小权限与越权防护：通过
-三中心正式派发：通过
-FIFO 与突发队列：通过
-重复成功任务去重：通过
-非法输入隔离：通过
-运行中篡改防护：通过
-排队期篡改防护：通过
-三中心终态 Issue 自动回收：通过
-
-完整灾难恢复与交互韧性：尚未全部完成
-生产韧性状态：CONDITIONAL_PASS
+最小权限与越权防护：LIVE_ACCEPTED
+三中心正式派发：LIVE_ACCEPTED
+FIFO 与突发队列：LIVE_ACCEPTED
+输入攻击与运行中篡改防护：LIVE_ACCEPTED
+三中心终态 Issue 自动回收：LIVE_ACCEPTED
+P0-01 至 P0-08 代码：IMPLEMENTED
+P0 确定性测试：PASSED
+P0 合并后真实验收：PENDING
+自定义 GPT 新 schema 导入：OPERATIONAL / PENDING
+P1 与 P2：未作为本轮生产阻断
 ```
 
-在 P0 八项全部实现并复测前，不得写成“所有复杂意外情况都已全面解决”。
+不得把 GitHub 平台级不可用、运行中 workflow 的即时取消、隐藏 PAT 配置反向读取或自定义 GPT schema 自动同步，描述成系统能够完全自动控制的能力。
