@@ -1,0 +1,73 @@
+name: Generate Governance 4.0.2 Manifest
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Generate exact final-tree manifest
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          manifest_path = Path("governance-release-manifest.json")
+          excluded = {
+              manifest_path.as_posix(),
+              ".github/workflows/generate-402-manifest.yml",
+          }
+          paths = sorted(
+              path.as_posix()
+              for path in Path(".").rglob("*")
+              if path.is_file()
+              and ".git" not in path.parts
+              and path.as_posix() not in excluded
+          )
+          rows = []
+          total = 0
+          for relative in paths:
+              data = Path(relative).read_bytes()
+              total += len(data)
+              rows.append(
+                  {
+                      "path": relative,
+                      "size_bytes": len(data),
+                      "sha256": hashlib.sha256(data).hexdigest(),
+                  }
+              )
+          manifest = {
+              "schema_version": "governance-release-manifest-v1",
+              "governance_version": "4.0.2",
+              "migration_source_repository": "a15280020511/test",
+              "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
+              "file_count": len(rows),
+              "total_bytes": total,
+              "files": rows,
+          }
+          manifest_path.write_text(
+              json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps({"file_count": len(rows), "total_bytes": total}))
+          PY
+
+      - name: Upload exact manifest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: governance-402-manifest-${{ github.run_id }}
+          path: governance-release-manifest.json
+          if-no-files-found: error
+          retention-days: 1
