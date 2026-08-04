@@ -6,8 +6,18 @@
     "default_repository_name": "compute-numeric-baselines",
     "visibility": "private",
     "remote_root": "numeric-baselines/v1/data",
+    "exclusive_purpose": "compute-center-numeric-baseline",
+    "exclusive_beneficiary": "a15280020511/compute-simulation-center",
     "payload_scope": "pure-numeric-parquet-only",
-    "control_metadata_uploaded": false
+    "control_metadata_uploaded": false,
+    "forbidden_uses": [
+      "intelligence-library",
+      "knowledge-base",
+      "knowledge-graph",
+      "document-archive",
+      "expert-evidence-source",
+      "general-file-storage"
+    ]
   },
   "operations": [
     "health",
@@ -46,6 +56,7 @@
     "gpts_is_only_external_controller": true,
     "child_centers_direct_communication_allowed": false,
     "compute_direct_huggingface_access_allowed": false,
+    "other_business_center_use_allowed": false,
     "knowledge_base_storage_allowed": false,
     "knowledge_graph_storage_allowed": false,
     "raw_text_storage_allowed": false,
