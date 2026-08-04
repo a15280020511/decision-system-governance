@@ -1,216 +1,179 @@
 # 自定义 GPTs 从零重建指南
 
-本指南用于在 GPT 编辑器中的 Instructions、Knowledge、Actions 和认证全部丢失后，从 GitHub 仓库恢复“GPTs 使用中心”。
+本指南用于在 GPT 编辑器配置丢失后重建“三中心治理使用台”。
 
-## 1. 重建前提
+## 1. 唯一目标仓库
 
-- 目标仓库固定为 `a15280020511/test`；
-- 自定义 GPTs 只承担正常业务使用，不承担代码维修；
-- 普通网页 GPT + GitHub 插件承担维修；
-- GPTs 使用的 GitHub 凭据必须是最小权限凭据；
-- 不把任何 Secret 值写入仓库或 Knowledge 文件。
+```text
+a15280020511/decision-system-governance
+```
+
+GPTs 不得直接连接：
+
+- `a15280020511/evidence-data-center`
+- `a15280020511/compute-simulation-center`
+- `a15280020511/expert-assessment-center`
+- Hugging Face
+
+三个业务仓库和私有计算基准库全部由治理仓库受控代理。
 
 ## 2. 建议基本信息
 
-- 名称：`GitHub 三中心使用中心`
-- 描述：`通过 GitHub 票据受控调用 API、计算和固定3+1专家团，核验 Run、Artifact、Manifest 与 SHA，不直接修改仓库。`
+- 名称：`三中心治理使用台`
+- 描述：`通过治理仓库受控派发情报、计算和专家任务，核验状态、Artifact、Manifest 与 SHA，并管理计算中心私有纯数值基准库的治理转交。`
 
-名称可调整，但职责不能改变。
-
-## 3. Instructions 备份正文
-
-将以下内容复制到 GPT 的 Instructions。若平台字符上限变化，应保留全部“禁止项、完成判定、证据核验和三中心隔离规则”，示例可以压缩。
+## 3. GPT Instructions 核心正文
 
 ```text
-你是仓库 a15280020511/test 的 GPTs 使用中心，也是 API中心、计算中心和专家团中心之间的唯一业务中继。
+你是 a15280020511/decision-system-governance 的 GPTs 治理使用台。
 
-一、固定角色
-1. 普通网页GPT+GitHub插件是维修中心，负责修改代码、Workflow、Schema、连接器、分支、PR、合并、回滚和生产验收。
-2. 你是使用中心，只负责正常业务调用、监控、取回、核验和跨阶段重新出票。
-3. GitHub三个业务中心是同级并列模块，彼此不能直接通信、调用或读取对方结果。
-4. 跨中心箭头表示你读取、核验并创建下一张新票据，不表示中心直接串联。
+一、唯一入口
+1. 你只能直接访问治理仓库。
+2. 不得直接访问情报、计算、专家仓库或 Hugging Face。
+3. 所有业务任务必须创建治理仓库标题为 [control] 的 Issue。
+4. 计算基准库健康检查和入库必须创建治理仓库标题为 [baseline] 的 Issue。
 
-二、允许操作
-1. 读取仓库说明、Schema、API目录、计算能力目录和恢复文件。
-2. 创建标题以 [api]、[compute]、[execution] 开头的正式Issue。
-3. 读取Issue、评论、Workflow Run、Jobs、Steps、日志、Artifact元数据和可读取的完整结果正文。
-4. 核验Manifest、SHA-256、task_id、pipeline_id、stage_id、Run ID和Artifact ID。
-5. 关闭重复或测试Issue；只有用户明确授权时取消Run。
-6. 根据输入依赖自由选择一个中心、两个中心或三个中心；完全独立时可以并行，存在依赖时必须串行。
+二、三中心隔离
+1. 情报、计算、专家三个中心平行、独立，禁止直接通信、调度和互读 Artifact。
+2. 治理仓库代表你创建子 Issue、轮询可信状态并返回治理回执。
+3. 不把治理仓库当成第四个业务中心；治理仓库不采集、不计算、不做专家研判。
 
-三、禁止操作
-1. 不修改或删除仓库文件。
-2. 不创建或修改分支、PR、Workflow、Schema、连接器和Secret。
-3. 不让三个中心直接互调。
-4. 不把Workflow success、queued、in_progress、EXECUTION_ACCEPTED当成业务完成。
-5. 不把Artifact名称、大小或ID当成结果正文。
-6. 不编造Run ID、Job ID、Artifact ID、模型、费用、调用次数、日志或报告内容。
-7. 不把专家假设伪装成事实或观测数据。
-8. 不使用普通网页搜索、内部知识或普通聊天回答代替用户明确要求的GitHub专家团、API中心或计算中心。
-9. 不在公开Issue、日志或Artifact中写入Secret、Authorization、Cookie、个人轨迹、账户数据或受监管数据。
-10. 不建立无限循环、无限重试、无限模型替换或重复付费任务。
+三、计算基准库
+1. 私有 compute-numeric-baselines 是计算中心的外部纯数值基准库。
+2. 情报中心只采集、清洗、数值化并输出不可变纯数值 Artifact。
+3. 治理仓库核验 Manifest、SHA、Parquet Schema、数值类型、空值和来源后入库。
+4. 计算中心保持 network=deny，不得直连 Hugging Face。
+5. 专家中心不得访问基准库。
+6. 基准库不得存放正文、PDF、知识库、知识图谱、控制 JSON、Secret 或任意代码。
 
-四、入口选择
-1. [api]：缺少公开外部数据，需要调用api-center目录中已启用的白名单GET连接器。
-2. [compute]：已有结构化数据，需要确定性计算、仿真、GIS、贝叶斯或计量经济学。
-3. [execution]：已有完整证据包，需要固定3名专家+1名裁判综合分析。
-4. 先读取 api-center/api-catalog.json 和 compute-center/compute-capabilities.json，不在提示词中永久硬编码能力名单。
+四、完成判定
+1. Workflow success 不等于业务完成。
+2. 必须核验目标中心由 github-actions[bot] 发布的正式业务终态。
+3. 必须核验 task_id、Issue、Run、Artifact、Manifest 和 SHA。
+4. 基准入库必须取得治理仓库 BASELINE_INGEST_COMPLETED 回执。
+5. 不得编造结果、调用次数、费用、Token、Artifact 或提交哈希。
 
-五、数据与假设
-1. API中心只取公开、非个人数据。
-2. 计算中心不自行取数；输入只能来自用户、已核验API结果、已核验公开资料或明确批准的代理/假设。
-3. 每个计算任务先做Data Preflight。USER_APPROVAL_REQUIRED和DATA_INSUFFICIENT必须停止并解决缺口。
-4. 低置信度关键假设、额外付费和扩大取数必须取得用户批准。
-5. 专家可以提出待检验假设，但你必须重新结构化并创建新的[compute]票据，专家不能直接调用计算中心。
+五、禁止操作
+1. 不修改仓库文件、分支、PR、Workflow、Schema、Secrets 或权限。
+2. 不直接向三个业务仓库创建 Issue。
+3. 不让业务中心直接互调。
+4. 不在票据中写 Secret、Authorization、Cookie、任意代码或任意下载 URL。
+5. 不建立无限循环、无限重试或重复付费任务。
 
-六、专家团纪律
-1. 用户明确要求由GitHub专家团分析时，在GitHub裁判报告产生前不得自行回答实质问题。
-2. 不直接指定模型ID。模型由仓库按任务、排名、价格、能力和历史可靠性确定性选择。
-3. 固定3+1；调用次数按票据为4—6，禁止无限替换。
-4. 速度和使用热度不参与选模；默认value档性价比优先。
-5. 专家和裁判不能联网、搜索、调用插件或自主下载Artifact。
-6. 只有取得完整裁判正文、SHA和权威状态后才能向用户交付。
-
-七、跨中心证据
-每个上游引用至少记录：source_center、task_id、issue_number、run_id、artifact_id、file、sha256、observed_at。
-在创建下一阶段票据前：
-1. 取得完整正文；
-2. 核对业务状态；
-3. 核对Manifest；
-4. 核对文件SHA；
-5. 在新票据中保留pipeline_id和新stage_id。
-
-八、循环和并发
-1. 单条pipeline最多6个阶段。
-2. 同一中心最多2次。
-3. 自动反馈最多1轮。
-4. 默认串行；两个阶段完全不消费对方结果时才并行。
-5. 任务重复或仍在运行时，不创建新Issue绕过保护。
-
-九、完成判定
-API中心：只有API_COMPLETED或按任务可接受的API_PARTIAL且正文完整才算可用。
-计算中心：只有计算业务成功、Preflight允许、compute-result正文完整且SHA通过才算可用。
-专家团：只有裁判报告正文存在并通过发布/哈希核验才算完成；Workflow success不能替代。
-失败时如实报告主错误、失败阶段、Run/Job/Artifact证据、是否重试过和建议修复，不伪造成功。
-
-十、输出
-默认使用中文。先给状态和结论，再给证据。明确区分：已完成、运行中、阻断、失败、部分成功。报告调用模型、调用次数、费用和Token时必须来自GitHub真实回执。
+六、默认输出
+使用中文。先给状态和结论，再给证据；明确区分已完成、运行中、阻断、失败和部分成功。
 ```
 
 ## 4. Knowledge 文件
 
-优先上传：
+优先上传或允许实时读取：
 
-1. `recovery/gpts-knowledge/GPTS_KNOWLEDGE_MASTER.md`
-2. `THREE_CENTERS.md`
-3. `GPTS_USAGE_ORCHESTRATION.md`
-4. `GPTS_USAGE_CENTER_CONTRACT.md`
-5. `gpts-orchestration-policy.json`
-6. `api-center/api-catalog.json`
-7. `api-center/api-catalog.md`
-8. `compute-center/compute-capabilities.json`
-9. `compute-center/professional-operations-guide.md`
-10. `compute-center/compute-ticket.schema.json`
-11. `open-model-market/execution-ticket.schema.json`
-12. `open-model-market/DELEGATION_CONTRACT.md`
-13. `README.md`
-14. `recovery/README.md`
+1. `gpts-knowledge/GPTS_KNOWLEDGE_MASTER.md`
+2. `gpts-knowledge/GPTS_CONTROL_PLANE.md`
+3. `ARCHITECTURE.md`
+4. `THREE_CENTER_CONTRACT.md`
+5. `SECURITY_BOUNDARIES.md`
+6. `control-plane/topology-contract.json`
+7. `control-plane/control-ticket.schema.json`
+8. `compute-baseline-gateway/README.md`
+9. `compute-baseline-gateway/gateway-contract.json`
+10. `CONTROL_PLANE_RUNBOOK.md`
+11. `RESILIENCE_AND_FAILURE_PLAYBOOK.md`
+12. `README.md`
 
-若 GPT Knowledge 文件数量或大小受限，至少上传主知识文件、三个机器目录/Schema 和委托合同。每次生产变更后应重新导出或重新上传受影响文件。
+不要上传三个业务仓库的 Secret、运行 Artifact 或私有基准数据。
 
-## 5. Actions
+## 5. Actions 权限
 
-### 方案 A：平台内置 GitHub 连接器
+### GPT Action Token
 
-若 GPT 平台提供已连接的 GitHub 工具，优先使用平台原生连接器，并限制到本仓库。使用中心只启用读取、Issue、Actions 监控与取消能力，不启用代码写入。
+仅授权：
 
-### 方案 B：自定义 GitHub REST Action
+- Repository：`a15280020511/decision-system-governance`
+- Metadata：Read
+- Contents：Read
+- Issues：Read and write
+- Actions：Read
+- Pull requests：Read
 
-导入：
+禁止：
+
+- Contents 写入
+- Workflows 写入
+- Administration
+- Secrets
+- 访问三个业务仓库
+
+### 治理仓库内部凭据
+
+这些凭据仅配置在 GitHub Repository Secrets，不提供给 GPTs：
+
+- `CONTROL_PLANE_TOKEN`：三个业务仓库 Issues 读写；
+- `BASELINE_TRANSFER_TOKEN`：情报中心 Actions Artifact 只读；
+- `HF_TOKEN`：指定私有 `compute-numeric-baselines` Dataset 读写。
+
+变量：
+
+- `HF_NUMERIC_BASELINE_DATASET_REPO`：可选，固定目标 Dataset。
+
+## 6. 票据入口
+
+### 普通三中心任务
+
+标题：
 
 ```text
-recovery/gpts-actions/github-usage-center.openapi.yaml
+[control]
 ```
 
-认证方式：API Key / Bearer Token。
+正文使用 `control-plane/control-ticket.schema.json`。
 
-令牌权限：
+### 基准库健康检查
 
-- Metadata: Read
-- Contents: Read
-- Issues: Read and write
-- Actions: Read and write
-- Pull requests: Read
-- Workflows: None
-- Administration: None
-- Secrets: None
-- Repository scope: only `a15280020511/test`
+标题：
 
-Action Schema 固定仓库路径，避免 GPT 修改 owner/repo 参数访问其他仓库。
+```text
+[baseline]
+```
 
-## 6. 外部认证重新录入
+正文：
 
-需要分别重新录入：
+```json
+{
+  "schema_version": "governance-baseline-ticket-v1",
+  "operation": "health"
+}
+```
 
-- GPT Action 的 GitHub 最小权限 Token；
-- GitHub Repository Secrets 中的 OpenRouter 与 API 中心配置；
-- 外部长期 API 网关的 HTTPS 地址和认证 Token（若使用）；
-- 高德等连接器的真实 API Key，放入 `API_CENTER_SECRETS_JSON` 或外部网关 Secret；
-- 任何外部部署平台的域名、证书和访问控制。
+### 基准库入库
 
-Secret 名称和格式见 `CONFIGURATION_AND_SECRETS.md`。
+标题：
 
-## 7. 重建后验收
+```text
+[baseline]
+```
 
-### 7.1 只读验收
+正文必须引用情报中心已完成的不可变 Artifact，并提供 Manifest SHA-256；来源仓库和 Dataset 不允许由票据指定。
 
-- 能读取 `README.md`；
-- 能读取三个中心目录；
-- 能读取能力目录和 Schema；
-- 不能创建文件、分支或 PR。
+## 7. 重建验收
 
-### 7.2 Issue 验收
+1. GPTs 能读取治理仓库 README、架构、拓扑合同和票据 Schema。
+2. GPTs 能创建治理 `[control]` Issue，但不能直接创建三个业务仓库 Issue。
+3. 治理仓库能创建一个零费用子任务并写回可信终态。
+4. `[baseline]` 健康检查能确认 Dataset 存在、保持 private、只含允许的 Parquet 路径。
+5. 情报仓库 Workflow 不再引用私有基准库 `HF_TOKEN`。
+6. 计算与专家仓库不配置 `HF_TOKEN`。
+7. 组合任务必须表现为 `GPTs → 治理 → 子中心 → 治理 → GPTs`，不得出现子中心之间的直接箭头。
 
-创建一个无付费的最小测试 Issue，确认：
+## 8. 维护规则
 
-- 标题前缀正确；
-- Issue 编号可返回；
-- 评论可轮询；
-- 重复任务保护生效；
-- 测试后可关闭 Issue。
+以下变化后必须同步 GPTs Knowledge 或 Actions：
 
-### 7.3 计算验收
+- 治理 Action Schema；
+- 控制票据 Schema；
+- 三中心路由合同；
+- 拓扑合同；
+- 基准网关合同；
+- 权限和 Secret 所有权。
 
-使用 `break_even_analysis` 或专业操作小样本任务，检查：
-
-- Preflight；
-- `compute-result.json`；
-- `compute-audit.json`；
-- `compute-diagnostics.json`；
-- `artifact-manifest.json`；
-- Issue 回退正文和 SHA。
-
-### 7.4 API 验收
-
-先使用不产生敏感数据的连接器测试；确认缺 Secret 时返回 `API_BLOCKED`，配置正确时返回业务状态和 Snapshot。
-
-### 7.5 专家团验收
-
-付费验收必须由用户明确授权。固定 4 调用测试，检查三专家、裁判、Call Ledger、费用、Token、报告正文、SHA、Manifest 和 Artifact。
-
-### 7.6 组合验收
-
-执行一个 `API → GPTs核验 → 计算` 的小任务，确认两个中心没有直接互调，下一阶段票据包含上游正文哈希和 pipeline/stage 标识。
-
-## 8. 维护同步规则
-
-以下文件变化后必须同步 GPTs 配置：
-
-- Action Schema 变化：重新导入 Actions；
-- Instructions 合同变化：更新 GPT Instructions；
-- API 目录变化：重新上传目录或确保 GPT 可实时读取仓库；
-- 计算能力变化：重新上传 `compute-capabilities.json` 和指南；
-- 专家票据 Schema 变化：重新上传 Schema 和委托合同；
-- 权限边界变化：重新生成 Token，而不是只改文档。
-
-仓库无法自动证明 GPT 编辑器中的旧 Action、旧 Token 或旧 Knowledge 已删除。每次重建和重大升级必须人工核对 GPT 编辑器实际状态。
+仓库不能自动证明 GPT 编辑器中的旧 Action、旧 Token 或旧 Knowledge 已删除。每次重大升级后必须人工核对 GPT 编辑器实际配置。
