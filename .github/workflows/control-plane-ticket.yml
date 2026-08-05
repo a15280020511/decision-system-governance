@@ -56,10 +56,12 @@ jobs:
             echo "No owned open [control] Issue is waiting."
           fi
 
-      - name: Parse and validate selected ticket before classification
+      - name: Parse validate and govern selected ticket
         id: prepare
         if: steps.select.outputs.has_task == 'true'
         continue-on-error: true
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           python control-plane/resilient_control.py prepare \
             --event-path control-artifacts/selected-event.json \
