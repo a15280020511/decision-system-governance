@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """True asynchronous governance reconciliation for open dispatched tasks.
 
-The dispatch worker never waits for a child terminal.  This reconciler polls
+The dispatch worker never waits for a child terminal. This reconciler polls
 only the oldest open CONTROL_DISPATCHED Issue, preserves the single global slot,
 validates trusted bot and Artifact contracts, and wakes the next FIFO task only
 after the current Issue reaches a terminal state.
@@ -41,10 +41,10 @@ CONTROL._github_request = HTTP.github_request
 CONTROL._trusted_terminal = DEFERRED.trusted_terminal
 
 
-def _parse_time(value: Any) -> datetime:
+def _parse_time(value: Any, name: str) -> datetime:
     text = str(value or "").strip()
     if not text:
-        raise ValueError("issue updated_at is missing")
+        raise ValueError(f"{name} is missing")
     return datetime.fromisoformat(text.replace("Z", "+00:00")).astimezone(timezone.utc)
 
 
@@ -78,16 +78,15 @@ def candidate(issue: Mapping[str, Any]) -> dict[str, Any] | None:
         "child_repository": child_repository,
         "child_issue_number": child_issue_number,
         "child_issue_url": f"https://github.com/{child_repository}/issues/{child_issue_number}",
-        "updated_at": _parse_time(issue.get("updated_at")),
     }
 
 
 def age_seconds(item: Mapping[str, Any], now: datetime | None = None) -> int:
     observed = now or datetime.now(timezone.utc)
-    updated_at = item["updated_at"]
-    if not isinstance(updated_at, datetime):
-        raise TypeError("candidate updated_at must be datetime")
-    return max(0, int((observed - updated_at).total_seconds()))
+    dispatched_at = item.get("dispatched_at")
+    if not isinstance(dispatched_at, datetime):
+        raise TypeError("candidate dispatched_at must be datetime")
+    return max(0, int((observed - dispatched_at).total_seconds()))
 
 
 def render_terminal(item: Mapping[str, Any], terminal: tuple[str, str, bool]) -> str:
@@ -102,6 +101,7 @@ def render_terminal(item: Mapping[str, Any], terminal: tuple[str, str, bool]) ->
         "- Reconciliation mode: `asynchronous scheduled polling`",
         f"- Poll interval target: `{POLL_INTERVAL_SECONDS} seconds`",
         "- Runner-held waiting: `false`",
+        "- Deadline anchor: `child Issue created_at`",
         "- Authoritative result: `trusted github-actions[bot] terminal comment and validated child Artifact`",
         "",
         "<details><summary>Trusted terminal excerpt</summary>",
@@ -122,6 +122,7 @@ def render_deadline(item: Mapping[str, Any], elapsed: int) -> str:
         f"- Child Issue: {item['child_issue_url']}",
         f"- Elapsed seconds: `{elapsed}`",
         f"- Route deadline seconds: `{ROUTE_DEADLINES[item['route']]}`",
+        "- Deadline anchor: `child Issue created_at`",
         "- Reconciliation mode: `asynchronous scheduled polling`",
         "- Runner-held waiting: `false`",
         "- Late trusted terminal reconciliation: `enabled`",
@@ -177,6 +178,14 @@ def reconcile(repository: str, *, now: datetime | None = None) -> dict[str, Any]
         return {"status": "NO_ASYNC_TASK", "checked": 0, "finalized": 0, "waiting": 0}
 
     item = sorted(candidates, key=lambda row: int(row["governance_issue_number"]))[0]
+    child_issue = CONTROL._github_request(
+        "GET",
+        f"/repos/{item['child_repository']}/issues/{item['child_issue_number']}",
+        token=child_token,
+    )
+    if not isinstance(child_issue, Mapping):
+        raise RuntimeError("child Issue metadata response must be an object")
+    item["dispatched_at"] = _parse_time(child_issue.get("created_at"), "child Issue created_at")
     comments = CONTROL._list_comments(
         child_token,
         str(item["child_repository"]),
