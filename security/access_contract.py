@@ -58,17 +58,18 @@ def validate_access_contract(openapi: str, workflow: str) -> None:
         r"(?mi)^    (get|post|patch|put|delete|options|head|trace):\s*$",
         openapi,
     )
-    if methods != ["post", "get", "get"]:
+    if methods != ["post", "get", "get", "get"]:
         errors.append(
-            "GPT Action methods must be exactly ['post', 'get', 'get']; "
+            "GPT Action methods must be exactly ['post', 'get', 'get', 'get']; "
             f"got {methods}"
         )
 
-    if openapi.count("operationId:") != 3:
-        errors.append("GPT Action must expose exactly three operations")
+    if openapi.count("operationId:") != 4:
+        errors.append("GPT Action must expose exactly four operations")
 
     required_operations = {
         "operationId: submitDecisionTask",
+        "operationId: findDecisionTaskByClientRequestId",
         "operationId: getDecisionTaskStatus",
         "operationId: getDecisionTaskReceipts",
     }
