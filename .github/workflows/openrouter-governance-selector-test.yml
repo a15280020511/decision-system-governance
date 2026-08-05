@@ -1,16 +1,29 @@
-name: Test OpenRouter Paid Governance Flagship Selection
+name: Validate OpenRouter Governance Flagship Selector
 
 on:
   push:
     branches:
+      - main
+      - production
       - test/openrouter-high-level-price-selection
+    paths:
+      - "governance-copilot/**"
+      - ".github/workflows/openrouter-governance-selector-test.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "governance-copilot/**"
+      - ".github/workflows/openrouter-governance-selector-test.yml"
+  schedule:
+    - cron: "17 1 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: openrouter-paid-governance-selector-test-${{ github.ref }}
+  group: openrouter-governance-selector-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -137,7 +150,7 @@ jobs:
       - name: Upload selection and stability evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: openrouter-paid-governance-flagship-stability-${{ github.run_id }}
+          name: openrouter-governance-flagship-stability-${{ github.run_id }}
           path: openrouter-selection/
           if-no-files-found: error
           retention-days: 14
