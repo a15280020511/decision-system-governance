@@ -1,0 +1,222 @@
+name: Validate OpenRouter Governance Selector Resilience
+
+on:
+  push:
+    branches:
+      - main
+      - test/openrouter-high-level-price-selection
+    paths:
+      - "governance-copilot/**"
+      - "tests/test_openrouter_governance_selector.py"
+      - "tests/test_openrouter_selector_static_safety.py"
+      - "tests/stress_openrouter_governance_selector.py"
+      - ".github/workflows/openrouter-selector-resilience.yml"
+      - ".github/workflows/openrouter-selector-security.yml"
+      - "MODEL_ORCHESTRATION_POLICY.md"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "governance-copilot/**"
+      - "tests/test_openrouter_governance_selector.py"
+      - "tests/test_openrouter_selector_static_safety.py"
+      - "tests/stress_openrouter_governance_selector.py"
+      - ".github/workflows/openrouter-selector-resilience.yml"
+      - ".github/workflows/openrouter-selector-security.yml"
+      - "MODEL_ORCHESTRATION_POLICY.md"
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openrouter-selector-resilience-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offline-validation:
+    name: offline-${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-22.04
+          - ubuntu-24.04
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - name: Checkout pinned source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - name: Compile selector and tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python --version
+          python -m compileall -q governance-copilot tests/test_openrouter_governance_selector.py tests/test_openrouter_selector_static_safety.py tests/stress_openrouter_governance_selector.py
+
+      - name: Run deterministic regression suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tests/test_openrouter_governance_selector.py
+
+      - name: Run randomized complex-environment stress test
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p selector-validation
+          python tests/stress_openrouter_governance_selector.py \
+            --iterations 750 \
+            --seed 20260805 | tee selector-validation/stress-${{ matrix.os }}.json
+
+      - name: Verify missing key fails closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if env -u OPENROUTER_API_KEY python governance-copilot/select_paid_governance_flagship_model.py \
+            --output-dir selector-validation/no-key; then
+            echo "selector unexpectedly succeeded without OPENROUTER_API_KEY" >&2
+            exit 1
+          fi
+
+      - name: Upload offline evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: openrouter-selector-offline-${{ matrix.os }}-${{ github.run_id }}
+          path: selector-validation/
+          if-no-files-found: error
+          retention-days: 14
+
+  live-contract-validation:
+    name: live-openrouter-contract
+    needs: offline-validation
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - name: Checkout pinned source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - name: Verify secret is configured
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${OPENROUTER_API_KEY:-}"
+
+      - name: Run three independent live catalog selections
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            python governance-copilot/select_paid_governance_flagship_model.py \
+              --output-dir "live-selection/${attempt}"
+          done
+
+      - name: Validate live schemas safety and repeatability
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          from pathlib import Path
+
+          required = {
+              "schema_version",
+              "status",
+              "selected_model",
+              "cheapest_paid_flagship_candidates",
+              "paid_flagship_count",
+              "model_calls",
+              "estimated_model_cost_usd",
+              "secret_values_exposed",
+          }
+          specialized = (
+              "coder", "code-", "-code", "content-safety", "safety",
+              "guard", "embedding", "embed", "rerank", "moderation",
+          )
+          snapshots = []
+          receipts = []
+          for attempt in (1, 2, 3):
+              path = Path("live-selection") / str(attempt) / "selection.json"
+              payload = json.loads(path.read_text("utf-8"))
+              missing = sorted(required - payload.keys())
+              if missing:
+                  raise SystemExit(f"attempt {attempt}: missing fields {missing}")
+              candidates = payload["cheapest_paid_flagship_candidates"]
+              if not isinstance(candidates, list) or not candidates:
+                  raise SystemExit(f"attempt {attempt}: empty candidate list")
+              selected = payload["selected_model"]
+              if selected != candidates[0]:
+                  raise SystemExit(f"attempt {attempt}: selected model is not first candidate")
+              if payload["paid_flagship_count"] != len(candidates):
+                  raise SystemExit(f"attempt {attempt}: candidate count mismatch")
+              if payload["model_calls"] != 0 or payload["estimated_model_cost_usd"] != 0:
+                  raise SystemExit(f"attempt {attempt}: unexpected model inference or cost")
+              if payload["secret_values_exposed"] is not False:
+                  raise SystemExit(f"attempt {attempt}: secret exposure flag is not false")
+              prompt = selected.get("prompt_usd_per_million")
+              completion = selected.get("completion_usd_per_million")
+              if not any(isinstance(value, (int, float)) and value > 0 for value in (prompt, completion)):
+                  raise SystemExit(f"attempt {attempt}: selected model is not paid")
+              ids = [str(row.get("model_id") or "") for row in candidates]
+              if any(any(marker in model_id.lower() for marker in specialized) for model_id in ids):
+                  raise SystemExit(f"attempt {attempt}: specialized model leaked")
+              stable_view = {
+                  "selected_model": selected.get("model_id"),
+                  "candidate_ids": ids,
+                  "candidate_prices": [
+                      [row.get("prompt_usd_per_million"), row.get("completion_usd_per_million")]
+                      for row in candidates
+                  ],
+                  "benchmark_meta": payload.get("benchmark_meta"),
+                  "models_catalog_count": payload.get("models_catalog_count"),
+                  "benchmark_catalog_count": payload.get("benchmark_catalog_count"),
+              }
+              encoded = json.dumps(stable_view, sort_keys=True, separators=(",", ":")).encode()
+              snapshots.append(hashlib.sha256(encoded).hexdigest())
+              receipts.append(stable_view)
+          if len(set(snapshots)) != 1:
+              Path("live-selection/repeatability-diff.json").write_text(
+                  json.dumps(receipts, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+                  "utf-8",
+              )
+              raise SystemExit("three immediate live catalog selections were not identical")
+          Path("live-selection/validation-summary.json").write_text(
+              json.dumps(
+                  {
+                      "status": "LIVE_CONTRACT_REPEATABILITY_PASS",
+                      "attempts": 3,
+                      "snapshot_sha256": snapshots[0],
+                      "selected_model": receipts[0]["selected_model"],
+                      "candidate_count": len(receipts[0]["candidate_ids"]),
+                      "model_calls": 0,
+                      "estimated_model_cost_usd": 0,
+                  },
+                  ensure_ascii=False,
+                  indent=2,
+                  sort_keys=True,
+              ) + "\n",
+              "utf-8",
+          )
+          print(Path("live-selection/validation-summary.json").read_text("utf-8"))
+          PY
+
+      - name: Upload live evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: openrouter-selector-live-${{ github.run_id }}
+          path: live-selection/
+          if-no-files-found: error
+          retention-days: 14

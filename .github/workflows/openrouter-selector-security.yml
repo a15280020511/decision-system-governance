@@ -1,0 +1,52 @@
+name: Validate OpenRouter Selector Security
+
+on:
+  push:
+    branches:
+      - main
+      - test/openrouter-high-level-price-selection
+    paths:
+      - "governance-copilot/**"
+      - "tests/test_openrouter_selector_static_safety.py"
+      - ".github/workflows/openrouter-selector-resilience.yml"
+      - ".github/workflows/openrouter-selector-security.yml"
+      - "MODEL_ORCHESTRATION_POLICY.md"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "governance-copilot/**"
+      - "tests/test_openrouter_selector_static_safety.py"
+      - ".github/workflows/openrouter-selector-resilience.yml"
+      - ".github/workflows/openrouter-selector-security.yml"
+      - "MODEL_ORCHESTRATION_POLICY.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openrouter-selector-security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security-and-upstream-failures:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout pinned source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - name: Compile security tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q governance-copilot tests/test_openrouter_selector_static_safety.py
+
+      - name: Validate HTTP failures permissions and zero-inference boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tests/test_openrouter_selector_static_safety.py
