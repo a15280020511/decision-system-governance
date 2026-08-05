@@ -1,0 +1,19 @@
+{
+  "schema_version": "external-integration-installation-v1",
+  "id": "cisa-kev",
+  "display_name": "CISA Known Exploited Vulnerabilities",
+  "installation_status": "installed",
+  "activation_status": "enabled",
+  "implementation_status": "implemented",
+  "runtime_entrypoints": [
+    ".github/workflows/supply-chain-audit.yml",
+    "tools/supply_chain_audit.py"
+  ],
+  "required_secrets": [],
+  "network_endpoints": [
+    "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+  ],
+  "access_mode": "read_only",
+  "data_sent": [],
+  "policy": "Downloads the public KEV catalog and correlates CVE identifiers locally. No repository or user data is submitted to CISA."
+}
