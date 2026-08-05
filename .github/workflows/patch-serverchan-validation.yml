@@ -21,85 +21,16 @@ jobs:
           ref: upgrade/security-observability-20260805
           persist-credentials: true
 
-      - name: Replace legacy disabled-integration assertion
+      - name: Apply and commit one-shot patch
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path('.github/workflows/control-plane-validate.yml')
-          text = path.read_text(encoding='utf-8')
-          old = '''      - name: Validate disabled ServerChan installation
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          data = json.loads(Path("integrations/serverchan/integration.json").read_text(encoding="utf-8"))
-          expected = {"id":"serverchan","installation_status":"installed","activation_status":"disabled","implementation_status":"not_designed"}
-          for key, value in expected.items():
-              if data.get(key) != value:
-                  raise SystemExit(f"ServerChan installation field mismatch: {key}")
-          for key in ("runtime_entrypoints", "required_secrets", "network_endpoints"):
-              if data.get(key) != []:
-                  raise SystemExit(f"ServerChan must have no active {key}")
-          PY
-'''
-          new = '''      - name: Validate governed external integrations
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          serverchan = json.loads(Path("integrations/serverchan/integration.json").read_text(encoding="utf-8"))
-          expected = {
-              "id": "serverchan",
-              "installation_status": "installed",
-              "activation_status": "enabled",
-              "implementation_status": "implemented",
-          }
-          for key, value in expected.items():
-              if serverchan.get(key) != value:
-                  raise SystemExit(f"ServerChan integration field mismatch: {key}")
-          if serverchan.get("required_secrets") != ["SERVERCHAN_SENDKEY"]:
-              raise SystemExit("ServerChan must require exactly SERVERCHAN_SENDKEY")
-          required_entries = {
-              ".github/workflows/governance-failure-notify.yml",
-              "tools/serverchan_notify.py",
-          }
-          if set(serverchan.get("runtime_entrypoints") or []) != required_entries:
-              raise SystemExit("ServerChan runtime entrypoints mismatch")
-          if not serverchan.get("network_endpoints"):
-              raise SystemExit("ServerChan endpoint templates missing")
-
-          expected_integrations = {
-              "osv": ("enabled", []),
-              "depsdev": ("enabled", []),
-              "cisa-kev": ("enabled", []),
-              "healthchecks": ("pending_secret", ["HEALTHCHECKS_PING_URL"]),
-          }
-          for integration_id, (activation, secrets) in expected_integrations.items():
-              data = json.loads(Path(f"integrations/{integration_id}/integration.json").read_text(encoding="utf-8"))
-              if data.get("id") != integration_id:
-                  raise SystemExit(f"integration id mismatch: {integration_id}")
-              if data.get("installation_status") != "installed":
-                  raise SystemExit(f"integration not installed: {integration_id}")
-              if data.get("activation_status") != activation:
-                  raise SystemExit(f"activation mismatch: {integration_id}")
-              if data.get("implementation_status") != "implemented":
-                  raise SystemExit(f"implementation mismatch: {integration_id}")
-              if data.get("required_secrets") != secrets:
-                  raise SystemExit(f"secret contract mismatch: {integration_id}")
-          PY
-'''
-          if old not in text:
-              raise SystemExit('legacy ServerChan validation block not found')
-          path.write_text(text.replace(old, new, 1), encoding='utf-8')
-          PY
-
+          python3 tools/patch_serverchan_validation.py
+          rm tools/patch_serverchan_validation.py
           rm .github/workflows/patch-serverchan-validation.yml
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add .github/workflows/control-plane-validate.yml .github/workflows/patch-serverchan-validation.yml
+          git add .github/workflows/control-plane-validate.yml
+          git add -u .github/workflows/patch-serverchan-validation.yml tools/patch_serverchan_validation.py
           git commit -m "test: validate active governed integrations"
           git push origin HEAD:upgrade/security-observability-20260805
