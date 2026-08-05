@@ -3,12 +3,29 @@ name: Validate OpenRouter Governance Selector Resilience
 on:
   push:
     branches:
+      - main
       - test/openrouter-high-level-price-selection
     paths:
       - "governance-copilot/**"
       - "tests/test_openrouter_governance_selector.py"
+      - "tests/test_openrouter_selector_static_safety.py"
       - "tests/stress_openrouter_governance_selector.py"
       - ".github/workflows/openrouter-selector-resilience.yml"
+      - ".github/workflows/openrouter-selector-security.yml"
+      - "MODEL_ORCHESTRATION_POLICY.md"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "governance-copilot/**"
+      - "tests/test_openrouter_governance_selector.py"
+      - "tests/test_openrouter_selector_static_safety.py"
+      - "tests/stress_openrouter_governance_selector.py"
+      - ".github/workflows/openrouter-selector-resilience.yml"
+      - ".github/workflows/openrouter-selector-security.yml"
+      - "MODEL_ORCHESTRATION_POLICY.md"
+  schedule:
+    - cron: "17 3 * * 1"
   workflow_dispatch:
 
 permissions:
@@ -40,7 +57,7 @@ jobs:
         run: |
           set -euo pipefail
           python --version
-          python -m compileall -q governance-copilot tests/test_openrouter_governance_selector.py tests/stress_openrouter_governance_selector.py
+          python -m compileall -q governance-copilot tests/test_openrouter_governance_selector.py tests/test_openrouter_selector_static_safety.py tests/stress_openrouter_governance_selector.py
 
       - name: Run deterministic regression suite
         shell: bash
@@ -78,6 +95,7 @@ jobs:
   live-contract-validation:
     name: live-openrouter-contract
     needs: offline-validation
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
