@@ -37,7 +37,8 @@ jobs:
           set -euo pipefail
           rm .github/workflows/finalize-async-manifest.yml
           python tools/generate_governance_release_manifest.py \
-            --output governance-release-manifest.json
+            --output governance-release-manifest.json \
+            --version 4.2.2
           python - <<'PY'
           import json
           from pathlib import Path
