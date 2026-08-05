@@ -1,0 +1,71 @@
+name: Supply Chain Risk Audit
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "**/requirements*.txt"
+      - "**/requirements*.in"
+      - ".github/workflows/**"
+      - "tools/supply_chain_audit.py"
+      - "integrations/osv/**"
+      - "integrations/depsdev/**"
+      - "integrations/cisa-kev/**"
+  schedule:
+    - cron: "11 4 * * 1"
+  workflow_dispatch:
+    inputs:
+      fail_on_kev:
+        description: Fail when a dependency correlates with CISA KEV
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  attestations: write
+  id-token: write
+
+concurrency:
+  group: supply-chain-risk-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Query OSV deps.dev and CISA KEV
+        run: |
+          set -euo pipefail
+          args=(--root . --output-dir supply-chain-audit --deps-limit 150)
+          if [[ "${{ inputs.fail_on_kev || false }}" == "true" ]]; then
+            args+=(--fail-on-kev)
+          fi
+          python tools/supply_chain_audit.py "${args[@]}"
+      - name: Package audit evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          test -d supply-chain-audit
+          tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner \
+            -czf "supply-chain-audit-${GITHUB_RUN_ID}.tar.gz" supply-chain-audit
+      - name: Upload audit artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: supply-chain-audit-${{ github.run_id }}
+          path: supply-chain-audit-${{ github.run_id }}.tar.gz
+          if-no-files-found: error
+          retention-days: 30
+      - name: Attest audit artifact provenance
+        if: success() && github.event_name != 'pull_request'
+        uses: actions/attest@v4
+        with:
+          subject-path: supply-chain-audit-${{ github.run_id }}.tar.gz
