@@ -63,10 +63,11 @@ jobs:
           source = Path('governance-canary/run_paid_governance_copilot_canary.py').read_text('utf-8').lower()
           if 'permissions:\n  contents: read' not in workflow:
               raise SystemExit('canary workflow is not read-only')
-          for marker in (
-              'contents: write', 'actions: write', 'issues: write',
-              'pull-requests: write', 'id-token: write',
-          ):
+          forbidden = tuple(
+              f'{scope}: ' + 'write'
+              for scope in ('contents', 'actions', 'issues', 'pull-requests', 'id-token')
+          )
+          for marker in forbidden:
               if marker in workflow:
                   raise SystemExit(f'forbidden workflow permission: {marker}')
           if source.count('method="post"') != 1:
