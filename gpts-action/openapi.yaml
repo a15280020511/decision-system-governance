@@ -78,9 +78,9 @@ paths:
       operationId: submitDecisionTask
       summary: Submit one asynchronous decision-system task
       description: >
-        Call once only after both diagnostic GET operations return 200. Use the
-        exact v4 schema and one allowed route. After approval, never call this
-        operation again for the same task. On non-201, stop without POST retry.
+        Call once after both diagnostic GET operations return 200. Use the exact
+        v4 schema and one allowed route. After approval, never call this operation
+        again for the same task. On non-201, stop without retrying the POST.
       x-openai-isConsequential: true
       security:
         - githubBearer: []
