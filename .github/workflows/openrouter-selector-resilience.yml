@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - test/openrouter-high-level-price-selection
     paths:
       - "governance-copilot/**"
       - "tests/test_openrouter_governance_selector.py"
