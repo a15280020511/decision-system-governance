@@ -1,0 +1,61 @@
+name: ServerChan Connectivity Test
+
+on:
+  push:
+    branches:
+      - test/serverchan-connectivity-20260805
+    paths:
+      - .github/workflows/serverchan-connectivity-test.yml
+
+permissions:
+  contents: read
+
+jobs:
+  send-test-message:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SERVERCHAN_SENDKEY: ${{ secrets.SERVERCHAN_SENDKEY }}
+    steps:
+      - name: Send one test notification
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${SERVERCHAN_SENDKEY:-}" ]]; then
+            echo "::error::Repository secret SERVERCHAN_SENDKEY is missing or unavailable"
+            exit 2
+          fi
+
+          if [[ "$SERVERCHAN_SENDKEY" == SCT* ]]; then
+            endpoint="https://sctapi.ftqq.com/${SERVERCHAN_SENDKEY}.send"
+          elif [[ "$SERVERCHAN_SENDKEY" =~ ^sctp([0-9]+)t ]]; then
+            uid="${BASH_REMATCH[1]}"
+            endpoint="https://${uid}.push.ft07.com/send/${SERVERCHAN_SENDKEY}.send"
+          else
+            echo "::error::Unsupported ServerChan SendKey prefix"
+            exit 3
+          fi
+
+          http_status="$(curl --silent --show-error --retry 2 --max-time 30 \
+            --output response.json --write-out '%{http_code}' \
+            --request POST "$endpoint" \
+            --data-urlencode 'title=治理中心 Server酱连接测试' \
+            --data-urlencode 'desp=这是一条真实连通性测试消息。收到此消息表示 SERVERCHAN_SENDKEY、GitHub Actions 与 Server酱推送链路均正常。')"
+
+          echo "ServerChan HTTP status: ${http_status}"
+          if [[ "$http_status" != "200" ]]; then
+            echo "::error::ServerChan returned non-200 HTTP status"
+            exit 4
+          fi
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path("response.json").read_text(encoding="utf-8"))
+          code = payload.get("code")
+          print(f"ServerChan response code: {code}")
+          if code != 0:
+              raise SystemExit("ServerChan rejected the test notification")
+          PY
