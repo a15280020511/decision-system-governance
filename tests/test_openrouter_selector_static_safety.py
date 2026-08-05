@@ -5,7 +5,6 @@ import io
 import json
 import unittest
 from pathlib import Path
-from typing import Any
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -106,6 +105,13 @@ class StaticSafetyTests(unittest.TestCase):
             for path in sorted((ROOT / "governance-copilot").glob("*.py"))
         )
 
+    def workflow_texts(self) -> dict[str, str]:
+        paths = (
+            ROOT / ".github" / "workflows" / "openrouter-selector-resilience.yml",
+            ROOT / ".github" / "workflows" / "openrouter-selector-security.yml",
+        )
+        return {path.name: path.read_text("utf-8").lower() for path in paths}
+
     def test_selector_contains_no_inference_endpoint_or_post_request(self):
         source = self.selector_sources().lower()
         forbidden = (
@@ -123,10 +129,6 @@ class StaticSafetyTests(unittest.TestCase):
         self.assertIn("https://openrouter.ai/api/v1/benchmarks", source)
 
     def test_selector_workflows_have_read_only_repository_permission(self):
-        workflows = (
-            ROOT / ".github" / "workflows" / "openrouter-selector-resilience.yml",
-            ROOT / ".github" / "workflows" / "openrouter-selector-security.yml",
-        )
         forbidden = (
             "contents: write",
             "actions: write",
@@ -135,11 +137,33 @@ class StaticSafetyTests(unittest.TestCase):
             "packages: write",
             "id-token: write",
         )
-        for path in workflows:
-            text = path.read_text("utf-8").lower()
+        for text in self.workflow_texts().values():
             self.assertIn("permissions:\n  contents: read", text)
             for marker in forbidden:
                 self.assertNotIn(marker, text)
+
+    def test_long_term_gates_cover_main_pr_schedule_and_concurrency(self):
+        workflows = self.workflow_texts()
+        resilience = workflows["openrouter-selector-resilience.yml"]
+        security = workflows["openrouter-selector-security.yml"]
+        self.assertIn("pull_request:", resilience)
+        self.assertIn("pull_request:", security)
+        self.assertIn("- main", resilience)
+        self.assertIn("- main", security)
+        self.assertIn("schedule:", resilience)
+        self.assertIn('cron: "17 3 * * 1"', resilience)
+        self.assertIn("concurrency:", resilience)
+        self.assertIn("cancel-in-progress: true", resilience)
+        self.assertIn("concurrency:", security)
+        self.assertIn("cancel-in-progress: true", security)
+
+    def test_live_check_is_blocked_until_offline_matrix_passes(self):
+        resilience = self.workflow_texts()["openrouter-selector-resilience.yml"]
+        self.assertIn("needs: offline-validation", resilience)
+        self.assertIn("ubuntu-22.04", resilience)
+        self.assertIn("ubuntu-24.04", resilience)
+        self.assertIn("run three independent live catalog selections", resilience)
+        self.assertIn("attempts\": 3", resilience)
 
     def test_secret_is_only_read_from_environment_and_never_serialized(self):
         source = self.selector_sources()
