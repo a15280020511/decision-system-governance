@@ -38,6 +38,51 @@ GPTs 只拥有治理仓库 Issues 读写权限，不直接访问三个业务仓�
 
 情报、计算和专家仓库不得持有私有基准库的 `HF_TOKEN`。Hugging Face Dataset 只允许纯数值 Parquet，不得存放知识库、知识图谱、正文、PDF、自然语言材料、控制 JSON 或 Secret。
 
+## 治理集成
+
+- `integrations/serverchan/`：关键治理工作流失败的元数据通知，Secret 为 `SERVERCHAN_SENDKEY`。
+- `integrations/osv/`：按公开软件包名称和锁定版本执行漏洞复核，无 Key、只读。
+- `integrations/depsdev/`：读取依赖元数据、许可证和公告键，无 Key、只读。
+- `integrations/cisa-kev/`：下载公开 KEV 目录并在 Runner 本地按 CVE 关联，无 Key、只读。
+- `integrations/healthchecks/`：外部失联检测；实现已安装，配置 `HEALTHCHECKS_PING_URL` 后激活。
+
+供应链审计入口：
+
+- `.github/workflows/supply-chain-audit.yml`
+- `tools/supply_chain_audit.py`
+
+## 日志与自动诊断
+
+四个仓库均使用统一的 `Workflow Diagnostic Sweep`。该工作流定时读取本仓库近期 Actions Run，对失败、取消、超时和启动失败运行下载完整日志，脱敏后生成：
+
+```text
+diagnostic-index.json
+runs/<run_id>/run.json
+runs/<run_id>/jobs.jsonl
+runs/<run_id>/key-lines.jsonl
+runs/<run_id>/failure.json
+runs/<run_id>/redacted-logs/
+manifest.json
+summary.md
+```
+
+诊断器识别权限或 Secret、限流、超时、网络、依赖、Schema、Artifact、模型 Provider、测试、资源耗尽、运行时异常和未知错误，并输出失败 Step、失败指纹、重试建议和 SHA-256 Manifest。正式定时或手动诊断包生成 GitHub Artifact Attestation。
+
+治理中心入口：
+
+- `.github/workflows/diagnostic-sweep.yml`
+- `tools/workflow_diagnostics.py`
+- `DIAGNOSTICS_IMPLEMENTATION.md`
+
+## 安全分析
+
+- CodeQL：`.github/workflows/codeql.yml`
+- Dependabot：`.github/dependabot.yml`
+- 外部存活检测：`.github/workflows/governance-heartbeat.yml`
+- Server酱失败告警：`.github/workflows/governance-failure-notify.yml`
+
+所有外部通知和心跳只允许最小元数据，不得发送 Issue 正文、Artifact 内容、日志、提示词、业务数据、个人数据或 Secret。
+
 ## 权威文件
 
 - `ARCHITECTURE.md`
@@ -51,5 +96,3 @@ GPTs 只拥有治理仓库 Issues 读写权限，不直接访问三个业务仓�
 - `GLOBAL_RECOVERY_CHECKLIST.md`
 - `INTERFACE_VERSION_MATRIX.json`
 - `contracts/`
-
-Server酱当前仅完成仓库登记，状态为 `installed / disabled / not_designed`，没有发送代码、Secret、端点或工作流。
