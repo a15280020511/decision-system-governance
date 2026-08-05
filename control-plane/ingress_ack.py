@@ -59,6 +59,82 @@ def _event(path: str) -> tuple[dict[str, Any], int, str, str]:
     )
 
 
+def _issue_readback_verified(
+    reread_issue: Any,
+    *,
+    issue_number: int,
+    expected_body: str,
+    client_request_id: str,
+) -> bool:
+    if not isinstance(reread_issue, Mapping):
+        return False
+    if int(reread_issue.get("number") or 0) != issue_number:
+        return False
+    if str(reread_issue.get("title") or "") != "[control]":
+        return False
+    reread_body = str(reread_issue.get("body") or "").strip()
+    if reread_body != expected_body.strip():
+        return False
+    return not client_request_id or client_request_id in reread_body
+
+
+def _machine_status(
+    *,
+    client_request_id: str,
+    issue_number: int,
+    route: str,
+    fingerprint: str,
+    schema_valid: bool,
+    read_after_write_verified: bool,
+    observed_at: str,
+) -> dict[str, Any]:
+    return {
+        "schema_version": "governance-machine-status-v1",
+        "client_request_id": client_request_id or None,
+        "issue_number": issue_number,
+        "task_id": None,
+        "state": "RECEIVED",
+        "route": route or None,
+        "child_issue_number": None,
+        "body_fingerprint": fingerprint or None,
+        "read_after_write_verified": read_after_write_verified,
+        "retryable": False,
+        "error_code": None if schema_valid else "CONTROL_SCHEMA_REJECTED",
+        "updated_at": observed_at,
+    }
+
+
+def _receipt(
+    *,
+    client_request_id: str,
+    issue_number: int,
+    schema_version: str,
+    schema_valid: bool,
+    fingerprint: str,
+    machine: Mapping[str, Any],
+) -> str:
+    return "\n".join(
+        [
+            "## CONTROL_RECEIVED",
+            "",
+            f"- Client request ID: `{client_request_id or 'legacy-v3-unavailable'}`",
+            f"- Governance Issue: `#{issue_number}`",
+            f"- Schema version: `{schema_version or 'missing'}`",
+            f"- Schema precheck valid: `{str(schema_valid).lower()}`",
+            f"- Request fingerprint: `{fingerprint or 'unavailable'}`",
+            f"- Read-after-write verified: `{str(bool(machine.get('read_after_write_verified'))).lower()}`",
+            "- Queue admission pending: `true`",
+            "- Business calls caused by acknowledgement: `0`",
+            "",
+            "<!-- governance-machine-status:start -->",
+            "```json",
+            json.dumps(machine, ensure_ascii=False, indent=2, sort_keys=True),
+            "```",
+            "<!-- governance-machine-status:end -->",
+        ]
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--event-path", required=True)
@@ -84,62 +160,50 @@ def main() -> int:
     )
     fingerprint = _fingerprint(packet) if packet else ""
     observed_at = datetime.now(timezone.utc).isoformat()
-    machine = {
-        "schema_version": "governance-machine-status-v1",
-        "client_request_id": client_request_id or None,
-        "issue_number": issue_number,
-        "task_id": None,
-        "state": "RECEIVED",
-        "route": str(packet.get("route") or "") or None,
-        "child_issue_number": None,
-        "body_fingerprint": fingerprint or None,
-        "read_after_write_verified": False,
-        "retryable": False,
-        "error_code": None if schema_valid else "CONTROL_SCHEMA_REJECTED",
-        "updated_at": observed_at,
-    }
-    receipt = "\n".join(
-        [
-            "## CONTROL_RECEIVED",
-            "",
-            f"- Client request ID: `{client_request_id or 'legacy-v3-unavailable'}`",
-            f"- Governance Issue: `#{issue_number}`",
-            f"- Schema version: `{schema_version or 'missing'}`",
-            f"- Schema precheck valid: `{str(schema_valid).lower()}`",
-            f"- Request fingerprint: `{fingerprint or 'unavailable'}`",
-            "- Queue admission pending: `true`",
-            "- Business calls caused by acknowledgement: `0`",
-            "",
-            "<!-- governance-machine-status:start -->",
-            "```json",
-            json.dumps(machine, ensure_ascii=False, indent=2, sort_keys=True),
-            "```",
-            "<!-- governance-machine-status:end -->",
-        ]
+    token = os.getenv("GITHUB_TOKEN", "")
+
+    reread_issue = HTTP.github_request(
+        "GET",
+        f"/repos/{args.repository}/issues/{issue_number}",
+        token=token,
+    )
+    issue_readback_verified = _issue_readback_verified(
+        reread_issue,
+        issue_number=issue_number,
+        expected_body=body,
+        client_request_id=client_request_id,
+    )
+    machine = _machine_status(
+        client_request_id=client_request_id,
+        issue_number=issue_number,
+        route=str(packet.get("route") or ""),
+        fingerprint=fingerprint,
+        schema_valid=schema_valid,
+        read_after_write_verified=issue_readback_verified,
+        observed_at=observed_at,
+    )
+    receipt = _receipt(
+        client_request_id=client_request_id,
+        issue_number=issue_number,
+        schema_version=schema_version,
+        schema_valid=schema_valid,
+        fingerprint=fingerprint,
+        machine=machine,
     )
 
-    token = os.getenv("GITHUB_TOKEN", "")
     created = HTTP.github_request(
         "POST",
         f"/repos/{args.repository}/issues/{issue_number}/comments",
         token=token,
         payload={"body": receipt},
     )
-    reread_issue = HTTP.github_request(
-        "GET",
-        f"/repos/{args.repository}/issues/{issue_number}",
-        token=token,
-    )
     comments = HTTP.github_request(
         "GET",
         f"/repos/{args.repository}/issues/{issue_number}/comments?per_page=100",
         token=token,
     )
-    readback_verified = (
+    comment_readback_verified = (
         isinstance(created, Mapping)
-        and isinstance(reread_issue, Mapping)
-        and int(reread_issue.get("number") or 0) == issue_number
-        and str(reread_issue.get("title") or "") == "[control]"
         and isinstance(comments, list)
         and any(
             isinstance(row, Mapping)
@@ -148,10 +212,7 @@ def main() -> int:
             for row in comments
         )
     )
-    if client_request_id:
-        readback_verified = readback_verified and client_request_id in str(
-            reread_issue.get("body") or ""
-        )
+    readback_verified = issue_readback_verified and comment_readback_verified
 
     result = {
         "schema_version": "governance-ingress-ack-v1",
@@ -160,6 +221,8 @@ def main() -> int:
         "client_request_id": client_request_id,
         "request_fingerprint": fingerprint,
         "schema_valid": schema_valid,
+        "issue_readback_verified": issue_readback_verified,
+        "comment_readback_verified": comment_readback_verified,
         "read_after_write_verified": readback_verified,
         "comment_id": int(created.get("id") or 0) if isinstance(created, Mapping) else 0,
         "observed_at": observed_at,
