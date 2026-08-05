@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/a15280020511/decision-system-governance/contracts/expert-model-selection.schema.json",
+  "title": "Governance Expert Model Selection Plan",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "status",
+    "selection_authority",
+    "source_repository",
+    "task_text",
+    "task_sha256",
+    "approved_total_calls",
+    "approved_recovery_calls",
+    "selected_expert_count",
+    "task_envelope",
+    "catalog",
+    "catalog_sha256",
+    "proposal",
+    "proposal_sha256",
+    "model_calls",
+    "expert_center_selection_allowed",
+    "expert_center_catalog_fetch_allowed",
+    "local_fallback_allowed",
+    "plan_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "governance-expert-model-selection-v1"
+    },
+    "status": {
+      "const": "PASS"
+    },
+    "selection_authority": {
+      "const": "decision-system-governance"
+    },
+    "source_repository": {
+      "const": "a15280020511/decision-system-governance"
+    },
+    "source_commit": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "task_text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100000
+    },
+    "task_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "approved_total_calls": {
+      "type": "integer",
+      "minimum": 4,
+      "maximum": 16
+    },
+    "approved_recovery_calls": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4
+    },
+    "selected_expert_count": {
+      "type": "integer",
+      "minimum": 3,
+      "maximum": 6
+    },
+    "task_envelope": {
+      "type": "object"
+    },
+    "catalog": {
+      "type": "object"
+    },
+    "catalog_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "proposal": {
+      "type": "object"
+    },
+    "proposal_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "selected_models": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 6
+    },
+    "recovery_models": {
+      "type": "array",
+      "maxItems": 4
+    },
+    "model_calls": {
+      "const": 0
+    },
+    "cross_task_history_used": {
+      "const": false
+    },
+    "expert_center_selection_allowed": {
+      "const": false
+    },
+    "expert_center_catalog_fetch_allowed": {
+      "const": false
+    },
+    "local_fallback_allowed": {
+      "const": false
+    },
+    "plan_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}
