@@ -1,0 +1,239 @@
+name: Test OpenRouter Governance Model Selection
+
+on:
+  push:
+    branches:
+      - test/openrouter-high-level-price-selection
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openrouter-governance-selector-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  select:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - name: Verify secret is configured
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${OPENROUTER_API_KEY:-}" ]; then
+            echo "OPENROUTER_API_KEY is not configured" >&2
+            exit 1
+          fi
+
+      - name: Read live catalog and select cheapest high-level model
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p openrouter-selection
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import math
+          import os
+          import time
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+          from typing import Any, Mapping
+
+          API = "https://openrouter.ai/api/v1/models"
+          OUT = Path("openrouter-selection")
+          TOKEN = os.environ.get("OPENROUTER_API_KEY", "").strip()
+
+          if not TOKEN:
+              raise SystemExit("OPENROUTER_API_KEY is empty")
+
+          def fetch_catalog(sort_name: str) -> list[Mapping[str, Any]]:
+              query = urllib.parse.urlencode(
+                  {
+                      "sort": sort_name,
+                      "output_modalities": "text",
+                  }
+              )
+              request = urllib.request.Request(
+                  f"{API}?{query}",
+                  headers={
+                      "Authorization": f"Bearer {TOKEN}",
+                      "Accept": "application/json",
+                      "User-Agent": "decision-system-governance-selector-test/1.0",
+                      "X-Title": "Decision System Governance Selector Test",
+                  },
+              )
+              last_error: Exception | None = None
+              for attempt in range(2):
+                  try:
+                      with urllib.request.urlopen(request, timeout=30) as response:
+                          payload = json.loads(response.read().decode("utf-8"))
+                      rows = payload.get("data") if isinstance(payload, Mapping) else None
+                      if not isinstance(rows, list) or not rows:
+                          raise RuntimeError(f"empty or invalid catalog for {sort_name}")
+                      return [row for row in rows if isinstance(row, Mapping)]
+                  except urllib.error.HTTPError as exc:
+                      last_error = RuntimeError(
+                          f"OpenRouter catalog HTTP {exc.code} for {sort_name}"
+                      )
+                  except Exception as exc:  # noqa: BLE001
+                      last_error = exc
+                  if attempt == 0:
+                      time.sleep(2)
+              raise RuntimeError(f"catalog request failed for {sort_name}: {last_error}")
+
+          def model_id(row: Mapping[str, Any]) -> str:
+              value = row.get("id")
+              return value.strip() if isinstance(value, str) else ""
+
+          def as_mapping(value: Any) -> Mapping[str, Any]:
+              return value if isinstance(value, Mapping) else {}
+
+          def price_per_million(pricing: Mapping[str, Any], key: str) -> float | None:
+              raw = pricing.get(key)
+              if raw in {None, ""}:
+                  return None
+              try:
+                  value = float(raw)
+              except (TypeError, ValueError):
+                  return None
+              if not math.isfinite(value) or value < 0:
+                  return None
+              return value * 1_000_000
+
+          intelligence_rows = fetch_catalog("intelligence-high-to-low")
+          pricing_rows = fetch_catalog("pricing-low-to-high")
+
+          intelligence_rank: dict[str, int] = {}
+          intelligence_metadata: dict[str, Mapping[str, Any]] = {}
+          for rank, row in enumerate(intelligence_rows, 1):
+              mid = model_id(row)
+              if mid and mid not in intelligence_rank:
+                  intelligence_rank[mid] = rank
+                  intelligence_metadata[mid] = row
+
+          candidates: list[dict[str, Any]] = []
+          seen: set[str] = set()
+          for pricing_rank, row in enumerate(pricing_rows, 1):
+              mid = model_id(row)
+              if not mid or mid in seen or mid not in intelligence_rank:
+                  continue
+              seen.add(mid)
+              source = intelligence_metadata.get(mid, row)
+              pricing = as_mapping(row.get("pricing"))
+              top_provider = as_mapping(row.get("top_provider"))
+              architecture = as_mapping(row.get("architecture"))
+              candidate = {
+                  "model_id": mid,
+                  "name": str(row.get("name") or source.get("name") or mid),
+                  "company": mid.split("/", 1)[0],
+                  "pricing_rank": pricing_rank,
+                  "intelligence_rank": intelligence_rank[mid],
+                  "prompt_usd_per_million": price_per_million(pricing, "prompt"),
+                  "completion_usd_per_million": price_per_million(pricing, "completion"),
+                  "request_usd": (
+                      float(pricing["request"])
+                      if pricing.get("request") not in {None, ""}
+                      else None
+                  ),
+                  "context_length": int(
+                      row.get("context_length")
+                      or top_provider.get("context_length")
+                      or 0
+                  ),
+                  "input_modalities": architecture.get("input_modalities", []),
+                  "output_modalities": architecture.get("output_modalities", []),
+              }
+              candidates.append(candidate)
+
+          if not candidates:
+              raise SystemExit(
+                  "no intersection between intelligence-ranked and price-ranked text models"
+              )
+
+          selected = candidates[0]
+          result = {
+              "schema_version": "governance-openrouter-selection-test-v1",
+              "status": "OPENROUTER_SELECTION_COMPLETED",
+              "definition_of_high_level": (
+                  "model appears in OpenRouter intelligence-high-to-low catalog"
+              ),
+              "selection_rule": (
+                  "choose the first pricing-low-to-high model within the complete "
+                  "intelligence-ranked model set"
+              ),
+              "selected_model": selected,
+              "candidate_count": len(candidates),
+              "intelligence_catalog_count": len(intelligence_rank),
+              "pricing_catalog_count": len(
+                  {model_id(row) for row in pricing_rows if model_id(row)}
+              ),
+              "cheapest_high_level_candidates": candidates[:30],
+              "catalog_requests": 2,
+              "model_calls": 0,
+              "estimated_model_cost_usd": 0,
+              "secret_values_exposed": False,
+          }
+          (OUT / "selection.json").write_text(
+              json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+
+          def money(value: Any, suffix: str = "") -> str:
+              if value is None:
+                  return "n/a"
+              return f"${float(value):.6g}{suffix}"
+
+          lines = [
+              "# OpenRouter 治理模型选择测试",
+              "",
+              f"- 状态：`{result['status']}`",
+              "- 高等级定义：出现在 OpenRouter `intelligence-high-to-low` 目录中的模型",
+              "- 选择规则：在全部高等级模型中，按 OpenRouter `pricing-low-to-high` 顺序选择最便宜者",
+              f"- 最终选中：`{selected['model_id']}`",
+              f"- 公司：`{selected['company']}`",
+              f"- 价格榜位置：`{selected['pricing_rank']}`",
+              f"- 智力榜位置：`{selected['intelligence_rank']}`",
+              f"- 输入价：`{money(selected['prompt_usd_per_million'], '/M tokens')}`",
+              f"- 输出价：`{money(selected['completion_usd_per_million'], '/M tokens')}`",
+              f"- 高等级候选数：`{len(candidates)}`",
+              "- 模型调用：`0`",
+              "- 本次模型费用：`$0`",
+              "",
+              "## 价格最低的高等级候选",
+              "",
+              "| 顺序 | 模型 | 公司 | 智力榜 | 输入价/M | 输出价/M |",
+              "|---:|---|---|---:|---:|---:|",
+          ]
+          for index, item in enumerate(candidates[:20], 1):
+              lines.append(
+                  "| {index} | `{model}` | {company} | {intel} | {prompt} | {completion} |".format(
+                      index=index,
+                      model=item["model_id"],
+                      company=item["company"],
+                      intel=item["intelligence_rank"],
+                      prompt=money(item["prompt_usd_per_million"]),
+                      completion=money(item["completion_usd_per_million"]),
+                  )
+              )
+          lines.append("")
+          (OUT / "selection.md").write_text("\n".join(lines), encoding="utf-8")
+          print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+          PY
+
+          cat openrouter-selection/selection.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload selection evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: openrouter-governance-selection-${{ github.run_id }}
+          path: openrouter-selection/
+          if-no-files-found: error
+          retention-days: 7
