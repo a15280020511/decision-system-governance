@@ -1,4 +1,4 @@
-"""Select the cheapest paid model from the data-derived high-level tier.
+"""Select the cheapest paid model from the data-derived elite tier.
 
 The selector is read-only: it fetches the OpenRouter model catalog and official
 Artificial Analysis benchmark feed, performs no model inference, and writes a
@@ -87,6 +87,20 @@ def _not_expired(row: Mapping[str, Any]) -> bool:
         return False
 
 
+def _is_stable_release(
+    row: Mapping[str, Any], model_id: str, canonical_slug: str
+) -> bool:
+    lifecycle_text = " ".join(
+        (
+            model_id,
+            canonical_slug,
+            str(row.get("name") or ""),
+        )
+    ).lower()
+    unstable_markers = ("preview", "experimental", "beta")
+    return not any(marker in lifecycle_text for marker in unstable_markers)
+
+
 def _fetch_json(url: str, token: str) -> Mapping[str, Any]:
     request = urllib.request.Request(
         url,
@@ -133,7 +147,7 @@ def _two_cluster_high_tier(values: list[float]) -> tuple[list[bool], float, floa
 
     This is deterministic 2-means clustering initialized at the observed minimum
     and maximum. It creates a data-derived boundary instead of a fixed benchmark
-    cutoff, context requirement, parameter count, or model-name rule.
+    cutoff, context requirement, parameter count, or model-name tier rule.
     """
     if len(values) < 2:
         raise SelectorError("at least two paid benchmarked models are required")
@@ -220,6 +234,8 @@ def select(token: str) -> dict[str, Any]:
             continue
         if not _is_text_governance_model(row) or not _not_expired(row):
             continue
+        if not _is_stable_release(row, model_id, canonical):
+            continue
         benchmark = benchmark_by_slug.get(canonical) or benchmark_by_slug.get(model_id)
         if benchmark is None:
             continue
@@ -240,38 +256,52 @@ def select(token: str) -> dict[str, Any]:
         )
 
     if len(joined) < 2:
-        raise SelectorError("fewer than two paid general-text benchmarked models")
+        raise SelectorError("fewer than two paid stable general-text benchmarked models")
 
-    assignments, low_center, high_center = _two_cluster_high_tier(
+    first_assignments, first_low_center, first_high_center = _two_cluster_high_tier(
         [float(row["balanced_score"]) for row in joined]
     )
+    first_high_level = [
+        row for row, is_high in zip(joined, first_assignments) if is_high
+    ]
+    if len(first_high_level) < 2:
+        raise SelectorError("first natural high tier contains fewer than two models")
+
+    elite_assignments, elite_low_center, elite_high_center = _two_cluster_high_tier(
+        [float(row["balanced_score"]) for row in first_high_level]
+    )
     high_level = [
-        row for row, is_high in zip(joined, assignments) if is_high
+        row for row, is_high in zip(first_high_level, elite_assignments) if is_high
     ]
     if not high_level:
-        raise SelectorError("no high-level paid models identified")
+        raise SelectorError("no elite paid models identified")
 
-    # `joined` already follows OpenRouter's official pricing-low-to-high order.
+    # `joined` and its filtered descendants preserve OpenRouter's official
+    # pricing-low-to-high order.
     selected = high_level[0]
     benchmark_meta = benchmark_payload.get("meta")
     result = {
-        "schema_version": "governance-openrouter-paid-selection-test-v2",
-        "status": "OPENROUTER_PAID_HIGH_LEVEL_SELECTION_COMPLETED",
+        "schema_version": "governance-openrouter-paid-selection-test-v3",
+        "status": "OPENROUTER_PAID_ELITE_SELECTION_COMPLETED",
         "selection_rule": (
-            "exclude free/non-text/expired/unbenchmarked models; form a balanced "
-            "intelligence-coding-agentic score; split the paid benchmark distribution "
-            "into natural high/regular tiers with deterministic two-cluster grouping; "
-            "choose the first high-tier model in OpenRouter pricing-low-to-high order"
+            "exclude free/non-text/expired/preview/beta/experimental/unbenchmarked "
+            "models; form a balanced intelligence-coding-agentic score; extract "
+            "the upper natural cluster twice without a fixed score cutoff; choose "
+            "the first elite model in OpenRouter pricing-low-to-high order"
         ),
         "high_level_definition": (
-            "upper natural cluster of the geometric mean of OpenRouter Artificial "
-            "Analysis intelligence, coding and agentic indexes"
+            "highest natural cluster after two successive data-derived splits of "
+            "the geometric mean of OpenRouter Artificial Analysis intelligence, "
+            "coding and agentic indexes"
         ),
         "selected_model": selected,
-        "paid_general_text_benchmarked_count": len(joined),
+        "paid_stable_general_text_benchmarked_count": len(joined),
+        "first_stage_high_count": len(first_high_level),
         "paid_high_level_count": len(high_level),
-        "regular_tier_center": low_center,
-        "high_tier_center": high_center,
+        "first_stage_regular_center": first_low_center,
+        "first_stage_high_center": first_high_center,
+        "elite_stage_regular_center": elite_low_center,
+        "elite_stage_high_center": elite_high_center,
         "cheapest_paid_high_level_candidates": high_level[:30],
         "models_catalog_count": len(models),
         "benchmark_catalog_count": len(benchmark_by_slug),
@@ -296,8 +326,9 @@ def write_receipts(result: Mapping[str, Any], output_dir: Path) -> None:
         "",
         f"- 状态：`{result['status']}`",
         "- 付费规则：至少一个 OpenRouter 计费字段大于 0",
-        "- 高等级规则：intelligence、coding、agentic 三项成绩的几何平均值，经数据分布自动分为高等级组和常规组",
-        "- 价格规则：只在高等级付费组内，沿 OpenRouter `pricing-low-to-high` 顺序选择最便宜者",
+        "- 生命周期规则：排除 Preview、Beta、Experimental 和已过期模型",
+        "- 高等级规则：intelligence、coding、agentic 三项成绩取几何平均值，连续两次按实时分布提取上层自然分组",
+        "- 价格规则：只在最终高等级付费组内，沿 OpenRouter `pricing-low-to-high` 顺序选择最便宜者",
         f"- 最终选中：`{selected.get('model_id')}`",
         f"- 公司：`{selected.get('company')}`",
         f"- 输入价/M：`{_money(selected.get('prompt_usd_per_million'))}`",
@@ -306,8 +337,9 @@ def write_receipts(result: Mapping[str, Any], output_dir: Path) -> None:
         f"- Coding：`{selected.get('coding_index')}`",
         f"- Agentic：`{selected.get('agentic_index')}`",
         f"- 综合等级分：`{float(selected.get('balanced_score', 0)):.4f}`",
-        f"- 付费且可比较模型数：`{result['paid_general_text_benchmarked_count']}`",
-        f"- 高等级付费模型数：`{result['paid_high_level_count']}`",
+        f"- 付费、稳定且可比较模型数：`{result['paid_stable_general_text_benchmarked_count']}`",
+        f"- 第一阶段高层模型数：`{result['first_stage_high_count']}`",
+        f"- 最终高等级付费模型数：`{result['paid_high_level_count']}`",
         "- 模型调用：`0`",
         "- 本次模型费用：`$0`",
         "",
