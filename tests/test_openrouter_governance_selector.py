@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import importlib.util
-import io
 import json
 import random
 import tempfile
@@ -11,23 +10,21 @@ from typing import Any
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
-COPILOT = ROOT / "governance-copilot"
+SELECTOR_PATH = (
+    ROOT / "governance-copilot" / "select_paid_governance_flagship_model.py"
+)
 
 
-def load_module(name: str, filename: str):
-    spec = importlib.util.spec_from_file_location(name, COPILOT / filename)
+def load_selector():
+    spec = importlib.util.spec_from_file_location("governance_selector_test", SELECTOR_PATH)
     if spec is None or spec.loader is None:
-        raise RuntimeError(f"cannot load {filename}")
+        raise RuntimeError("cannot load governance selector")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-base = load_module("selector_base_test", "select_paid_high_level_model.py")
-flagship = load_module("selector_flagship_test", "select_paid_flagship_model.py")
-governance = load_module(
-    "selector_governance_test", "select_paid_governance_flagship_model.py"
-)
+selector = load_selector()
 
 
 def per_token(usd_per_million: float) -> str:
@@ -69,7 +66,13 @@ def model(
     return row
 
 
-def benchmark(slug: str, score: float, *, coding: float | None = None, agentic: float | None = None):
+def benchmark(
+    slug: str,
+    score: float,
+    *,
+    coding: float | None = None,
+    agentic: float | None = None,
+) -> dict[str, Any]:
     return {
         "model_permaslug": slug,
         "intelligence_index": score,
@@ -78,29 +81,13 @@ def benchmark(slug: str, score: float, *, coding: float | None = None, agentic: 
     }
 
 
-def run_pipeline(models: list[dict[str, Any]], benchmarks: list[dict[str, Any]]):
-    benchmark_payload = {
-        "data": benchmarks,
-        "meta": {"source": "fixture", "version": "test"},
-    }
-
-    def fake_rows(url: str, token: str):
-        del token
-        if "/models" not in url:
-            raise AssertionError(url)
-        return models
-
-    def fake_json(url: str, token: str):
-        del token
-        if "/benchmarks" not in url:
-            raise AssertionError(url)
-        return benchmark_payload
-
-    with mock.patch.object(base, "_fetch_rows", side_effect=fake_rows), mock.patch.object(
-        base, "_fetch_json", side_effect=fake_json
-    ):
-        first = base.select("fixture-token")
-    return governance.finalize(flagship.refine(first))
+def run_pipeline(
+    models: list[dict[str, Any]], benchmarks: list[dict[str, Any]]
+) -> dict[str, Any]:
+    return selector.select_from_catalog(
+        models,
+        {"data": benchmarks, "meta": {"source": "fixture", "version": "test"}},
+    )
 
 
 class SelectorPipelineTests(unittest.TestCase):
@@ -127,7 +114,7 @@ class SelectorPipelineTests(unittest.TestCase):
         ]
         return models, benchmarks
 
-    def test_end_to_end_selects_cheapest_general_flagship(self):
+    def test_end_to_end_selects_first_general_flagship_in_price_order(self):
         models, benchmarks = self.standard_fixture()
         result = run_pipeline(models, benchmarks)
         self.assertEqual(result["selected_model"]["model_id"], "nex-agi/nex-n2-pro")
@@ -138,7 +125,7 @@ class SelectorPipelineTests(unittest.TestCase):
         ]
         self.assertEqual(rejected[0]["model_id"], "kwaipilot/kat-coder-pro-v2")
 
-    def test_price_drift_changes_winner_without_code_change(self):
+    def test_price_order_drift_changes_winner_without_code_change(self):
         models, benchmarks = self.standard_fixture()
         deep = next(row for row in models if row["id"] == "deepseek/deepseek-v4-pro")
         nex = next(row for row in models if row["id"] == "nex-agi/nex-n2-pro")
@@ -165,31 +152,49 @@ class SelectorPipelineTests(unittest.TestCase):
         benchmarks[4] = benchmark("image/image-pro", 99)
         result = run_pipeline(models, benchmarks)
         ids = {row["model_id"] for row in result["cheapest_paid_flagship_candidates"]}
-        self.assertFalse(any("free" in item for item in ids))
-        self.assertFalse(any("preview" in item for item in ids))
-        self.assertFalse(any("mini" in item for item in ids))
+        self.assertNotIn("free/free-pro", ids)
+        self.assertNotIn("unstable/alpha-pro-preview", ids)
+        self.assertNotIn("economy/vendor-mini-pro", ids)
         self.assertNotIn("expired/old-pro", ids)
         self.assertNotIn("image/image-pro", ids)
 
-    def test_missing_or_invalid_benchmarks_are_ignored(self):
+    def test_incomplete_or_invalid_pricing_is_excluded(self):
         models, benchmarks = self.standard_fixture()
-        models.insert(5, model("bad/missing-pro", prompt=0.05, completion=0.06))
+        bad = model("bad/missing-price-pro", prompt=0.01, completion=0.02)
+        del bad["pricing"]["completion"]
+        models.insert(5, bad)
+        negative = model("bad/negative-price-pro", prompt=0.01, completion=0.02)
+        negative["pricing"]["prompt"] = "-1"
+        models.insert(6, negative)
         benchmarks.extend(
             [
-                {
-                    "model_permaslug": "bad/zero-pro",
-                    "intelligence_index": 0,
-                    "coding_index": 50,
-                    "agentic_index": 50,
-                },
-                {"model_permaslug": "bad/garbled-pro", "intelligence_index": "x"},
+                benchmark("bad/missing-price-pro", 99),
+                benchmark("bad/negative-price-pro", 99),
             ]
         )
         result = run_pipeline(models, benchmarks)
         ids = {row["model_id"] for row in result["cheapest_paid_flagship_candidates"]}
-        self.assertNotIn("bad/missing-pro", ids)
+        self.assertNotIn("bad/missing-price-pro", ids)
+        self.assertNotIn("bad/negative-price-pro", ids)
 
-    def test_generic_marketing_claim_does_not_make_singleton_flagship(self):
+    def test_missing_or_invalid_benchmarks_are_ignored(self):
+        models, benchmarks = self.standard_fixture()
+        models.insert(5, model("bad/missing-pro", prompt=0.05, completion=0.06))
+        models.insert(6, model("bad/zero-pro", prompt=0.05, completion=0.06))
+        benchmarks.append(
+            {
+                "model_permaslug": "bad/zero-pro",
+                "intelligence_index": 0,
+                "coding_index": 50,
+                "agentic_index": 50,
+            }
+        )
+        result = run_pipeline(models, benchmarks)
+        ids = {row["model_id"] for row in result["cheapest_paid_flagship_candidates"]}
+        self.assertNotIn("bad/missing-pro", ids)
+        self.assertNotIn("bad/zero-pro", ids)
+
+    def test_generic_marketing_description_does_not_define_flagship(self):
         models, benchmarks = self.standard_fixture()
         models.insert(
             5,
@@ -197,7 +202,7 @@ class SelectorPipelineTests(unittest.TestCase):
                 "marketing/ordinary",
                 prompt=0.08,
                 completion=0.09,
-                description="A frontier top-tier state-of-the-art general model",
+                description="A flagship frontier top-tier state-of-the-art model",
             ),
         )
         benchmarks.insert(5, benchmark("marketing/ordinary", 43))
@@ -213,10 +218,34 @@ class SelectorPipelineTests(unittest.TestCase):
             "vendor/RERANK-Pro",
             "vendor/moderation-pro",
         ):
-            self.assertFalse(governance.is_general_governance_model({"model_id": model_id}))
+            self.assertFalse(selector._is_general_governance_identity(model_id))
         self.assertTrue(
-            governance.is_general_governance_model({"model_id": "deepseek/deepseek-v4-pro"})
+            selector._is_general_governance_identity("deepseek/deepseek-v4-pro")
         )
+
+    def test_duplicate_model_ids_are_deduplicated_in_first_seen_order(self):
+        models, benchmarks = self.standard_fixture()
+        duplicate = dict(next(row for row in models if row["id"] == "nex-agi/nex-n2-pro"))
+        models.append(duplicate)
+        result = run_pipeline(models, benchmarks)
+        ids = [row["model_id"] for row in result["cheapest_paid_flagship_candidates"]]
+        self.assertEqual(ids.count("nex-agi/nex-n2-pro"), 1)
+
+    def test_equal_score_company_group_is_stable(self):
+        models, benchmarks = self.standard_fixture()
+        models.extend(
+            [
+                model("equal/equal-pro", prompt=2, completion=2),
+                model("equal/equal-max", prompt=3, completion=3),
+            ]
+        )
+        benchmarks.extend(
+            [benchmark("equal/equal-pro", 44), benchmark("equal/equal-max", 44)]
+        )
+        result = run_pipeline(models, benchmarks)
+        ids = {row["model_id"] for row in result["cheapest_paid_flagship_candidates"]}
+        self.assertIn("equal/equal-pro", ids)
+        self.assertIn("equal/equal-max", ids)
 
     def test_deterministic_for_same_snapshot(self):
         models, benchmarks = self.standard_fixture()
@@ -242,20 +271,28 @@ class SelectorPipelineTests(unittest.TestCase):
         self.assertEqual(result["selected_model"]["model_id"], baseline)
 
     def test_no_general_flagship_fails_closed(self):
-        raw = {
-            "cheapest_paid_flagship_candidates": [
-                {"model_id": "vendor/code-pro", "name": "Code Pro"},
-                {"model_id": "vendor/safety-pro", "name": "Safety Pro"},
-            ]
-        }
-        with self.assertRaisesRegex(RuntimeError, "no general-purpose paid flagship"):
-            governance.finalize(raw)
+        models = [
+            model("regular/a", prompt=0.1, completion=0.1),
+            model("regular/b", prompt=0.2, completion=0.2),
+            model("vendor/code-pro", prompt=0.3, completion=0.3),
+            model("vendor/safety-pro", prompt=0.4, completion=0.4),
+        ]
+        benchmarks = [
+            benchmark("regular/a", 10),
+            benchmark("regular/b", 12),
+            benchmark("vendor/code-pro", 45),
+            benchmark("vendor/safety-pro", 46),
+        ]
+        with self.assertRaisesRegex(
+            selector.SelectorError, "no general-purpose paid flagship"
+        ):
+            run_pipeline(models, benchmarks)
 
     def test_receipt_is_valid_json_and_contains_no_token(self):
         models, benchmarks = self.standard_fixture()
         result = run_pipeline(models, benchmarks)
         with tempfile.TemporaryDirectory() as tmp:
-            base.write_receipts(result, Path(tmp))
+            selector.write_receipts(result, Path(tmp))
             payload = json.loads((Path(tmp) / "selection.json").read_text("utf-8"))
             self.assertEqual(payload["model_calls"], 0)
             self.assertFalse(payload["secret_values_exposed"])
@@ -279,34 +316,38 @@ class NetworkAndParserTests(unittest.TestCase):
     def test_temporary_network_failure_is_retried_once(self):
         response = self.FakeResponse({"data": [{"id": "ok"}]})
         with mock.patch.object(
-            base.urllib.request,
+            selector.urllib.request,
             "urlopen",
             side_effect=[OSError("temporary"), response],
-        ) as urlopen, mock.patch.object(base.time, "sleep") as sleep:
-            payload = base._fetch_json("https://example.invalid", "secret")
+        ) as urlopen, mock.patch.object(selector.time, "sleep") as sleep:
+            payload = selector._fetch_json("https://example.invalid", "secret")
         self.assertEqual(payload["data"][0]["id"], "ok")
         self.assertEqual(urlopen.call_count, 2)
         sleep.assert_called_once()
 
     def test_permanent_network_failure_has_bounded_retry(self):
         with mock.patch.object(
-            base.urllib.request, "urlopen", side_effect=OSError("down")
-        ) as urlopen, mock.patch.object(base.time, "sleep"):
-            with self.assertRaises(base.SelectorError):
-                base._fetch_json("https://example.invalid", "secret")
+            selector.urllib.request, "urlopen", side_effect=OSError("down")
+        ) as urlopen, mock.patch.object(selector.time, "sleep"):
+            with self.assertRaises(selector.SelectorError):
+                selector._fetch_json("https://example.invalid", "secret")
         self.assertEqual(urlopen.call_count, 2)
 
     def test_empty_and_malformed_catalogs_fail_closed(self):
         for payload in ({}, {"data": []}, {"data": "wrong"}):
-            with mock.patch.object(base, "_fetch_json", return_value=payload):
-                with self.assertRaises(base.SelectorError):
-                    base._fetch_rows("https://example.invalid", "secret")
+            with mock.patch.object(selector, "_fetch_json", return_value=payload):
+                with self.assertRaises(selector.SelectorError):
+                    selector._fetch_rows("https://example.invalid", "secret")
 
     def test_numeric_parser_rejects_nan_inf_and_negative_price(self):
-        self.assertIsNone(base._number("nan"))
-        self.assertIsNone(base._number("inf"))
-        self.assertIsNone(base._price_per_million({"prompt": "-0.1"}, "prompt"))
-        self.assertEqual(base._price_per_million({"prompt": "0.000001"}, "prompt"), 1.0)
+        self.assertIsNone(selector._number("nan"))
+        self.assertIsNone(selector._number("inf"))
+        self.assertIsNone(
+            selector._price_per_million({"prompt": "-0.1"}, "prompt")
+        )
+        self.assertEqual(
+            selector._price_per_million({"prompt": "0.000001"}, "prompt"), 1.0
+        )
 
 
 if __name__ == "__main__":
