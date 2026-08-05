@@ -1,0 +1,62 @@
+{
+  "schema_version": "governance-hf-asset-gateway-v1",
+  "status": "production-control",
+  "storage_owner": "a15280020511/decision-system-governance",
+  "token_environment_variable": "HF_TOKEN",
+  "repositories": {
+    "evaluation_results": {
+      "repo_type": "dataset",
+      "visibility": "private",
+      "repository_variable": "HF_EVALUATION_RESULTS_DATASET_REPO",
+      "default_repository_name": "evaluation-results",
+      "purpose": "Versioned, structured and sanitized model, data and test evaluation results."
+    },
+    "managed_models": {
+      "repo_type": "model",
+      "visibility": "private",
+      "repository_variable": "HF_MANAGED_MODEL_REPO",
+      "default_repository_name": "managed-model-registry",
+      "purpose": "Version cards and approved user-owned model or adapter assets only."
+    },
+    "readonly_space": {
+      "repo_type": "space",
+      "visibility": "public",
+      "repository_variable": "HF_READONLY_SPACE_REPO",
+      "default_repository_name": "decision-system-readonly-status",
+      "space_sdk": "static",
+      "purpose": "Non-critical read-only status and prototype display without control functions."
+    }
+  },
+  "boundaries": {
+    "gpts_is_only_external_controller": true,
+    "business_centers_direct_huggingface_access_allowed": false,
+    "inference_allowed": false,
+    "training_allowed": false,
+    "jobs_allowed": false,
+    "space_backend_execution_allowed": false,
+    "space_write_or_control_actions_allowed": false,
+    "raw_prompts_allowed": false,
+    "raw_business_data_allowed": false,
+    "personal_data_allowed": false,
+    "secrets_allowed_in_payloads": false,
+    "evaluation_records_structured_only": true,
+    "immutable_commit_required": true,
+    "model_assets_require_separate_approval": true
+  },
+  "required_bootstrap_files": {
+    "evaluation_results": [
+      "README.md",
+      "evaluation-results/v1/schema.json",
+      "evaluation-results/v1/version-ledger.json"
+    ],
+    "managed_models": [
+      "README.md",
+      "registry.json"
+    ],
+    "readonly_space": [
+      "README.md",
+      "index.html",
+      "status.json"
+    ]
+  }
+}
