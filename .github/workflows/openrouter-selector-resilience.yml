@@ -7,6 +7,7 @@ on:
     paths:
       - "governance-copilot/**"
       - "tests/test_openrouter_governance_selector.py"
+      - "tests/test_openrouter_task_cost_ranking.py"
       - "tests/test_openrouter_selector_static_safety.py"
       - "tests/stress_openrouter_governance_selector.py"
       - ".github/workflows/openrouter-selector-resilience.yml"
@@ -18,6 +19,7 @@ on:
     paths:
       - "governance-copilot/**"
       - "tests/test_openrouter_governance_selector.py"
+      - "tests/test_openrouter_task_cost_ranking.py"
       - "tests/test_openrouter_selector_static_safety.py"
       - "tests/stress_openrouter_governance_selector.py"
       - ".github/workflows/openrouter-selector-resilience.yml"
@@ -51,18 +53,29 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Compile selector and tests
+      - name: Compile selector ranker and tests
         shell: bash
         run: |
           set -euo pipefail
           python --version
-          python -m compileall -q governance-copilot tests/test_openrouter_governance_selector.py tests/test_openrouter_selector_static_safety.py tests/stress_openrouter_governance_selector.py
+          python -m compileall -q \
+            governance-copilot \
+            tests/test_openrouter_governance_selector.py \
+            tests/test_openrouter_task_cost_ranking.py \
+            tests/test_openrouter_selector_static_safety.py \
+            tests/stress_openrouter_governance_selector.py
 
-      - name: Run deterministic regression suite
+      - name: Run deterministic selector regression suite
         shell: bash
         run: |
           set -euo pipefail
           python tests/test_openrouter_governance_selector.py
+
+      - name: Run deterministic task-cost regression suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tests/test_openrouter_task_cost_ranking.py
 
       - name: Run randomized complex-environment stress test
         shell: bash
@@ -99,6 +112,8 @@ jobs:
     timeout-minutes: 15
     env:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      GOVERNANCE_EXPECTED_PROMPT_TOKENS: "10000"
+      GOVERNANCE_EXPECTED_COMPLETION_TOKENS: "2000"
     steps:
       - name: Checkout pinned source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -111,16 +126,21 @@ jobs:
           set -euo pipefail
           test -n "${OPENROUTER_API_KEY:-}"
 
-      - name: Run three independent live catalog selections
+      - name: Run three independent live catalog and task-cost selections
         shell: bash
         run: |
           set -euo pipefail
           for attempt in 1 2 3; do
             python governance-copilot/select_paid_governance_flagship_model.py \
-              --output-dir "live-selection/${attempt}"
+              --output-dir "live-selection/${attempt}/flagships"
+            python governance-copilot/rank_flagships_by_task_cost.py \
+              --input "live-selection/${attempt}/flagships/selection.json" \
+              --output-dir "live-selection/${attempt}/task-cost" \
+              --expected-prompt-tokens "${GOVERNANCE_EXPECTED_PROMPT_TOKENS}" \
+              --expected-completion-tokens "${GOVERNANCE_EXPECTED_COMPLETION_TOKENS}"
           done
 
-      - name: Validate live schemas safety and repeatability
+      - name: Validate live schemas safety cost order and repeatability
         shell: bash
         run: |
           set -euo pipefail
@@ -131,11 +151,21 @@ jobs:
           import json
           from pathlib import Path
 
-          required = {
+          raw_required = {
+              "schema_version",
+              "status",
+              "cheapest_paid_flagship_candidates",
+              "paid_flagship_count",
+              "model_calls",
+              "estimated_model_cost_usd",
+              "secret_values_exposed",
+          }
+          cost_required = {
               "schema_version",
               "status",
               "selected_model",
-              "cheapest_paid_flagship_candidates",
+              "ranked_paid_flagship_candidates",
+              "task_cost_profile",
               "paid_flagship_count",
               "model_calls",
               "estimated_model_cost_usd",
@@ -148,42 +178,67 @@ jobs:
           snapshots = []
           receipts = []
           for attempt in (1, 2, 3):
-              path = Path("live-selection") / str(attempt) / "selection.json"
-              payload = json.loads(path.read_text("utf-8"))
-              missing = sorted(required - payload.keys())
-              if missing:
-                  raise SystemExit(f"attempt {attempt}: missing fields {missing}")
-              candidates = payload["cheapest_paid_flagship_candidates"]
-              if not isinstance(candidates, list) or not candidates:
-                  raise SystemExit(f"attempt {attempt}: empty candidate list")
-              selected = payload["selected_model"]
-              if selected != candidates[0]:
-                  raise SystemExit(f"attempt {attempt}: selected model is not first candidate")
-              if payload["paid_flagship_count"] != len(candidates):
-                  raise SystemExit(f"attempt {attempt}: candidate count mismatch")
-              if payload["model_calls"] != 0 or payload["estimated_model_cost_usd"] != 0:
-                  raise SystemExit(f"attempt {attempt}: unexpected model inference or cost")
-              if payload["secret_values_exposed"] is not False:
+              raw_path = Path("live-selection") / str(attempt) / "flagships" / "selection.json"
+              cost_path = Path("live-selection") / str(attempt) / "task-cost" / "cost-selection.json"
+              raw = json.loads(raw_path.read_text("utf-8"))
+              cost = json.loads(cost_path.read_text("utf-8"))
+              raw_missing = sorted(raw_required - raw.keys())
+              cost_missing = sorted(cost_required - cost.keys())
+              if raw_missing or cost_missing:
+                  raise SystemExit(
+                      f"attempt {attempt}: missing raw={raw_missing} cost={cost_missing}"
+                  )
+              raw_candidates = raw["cheapest_paid_flagship_candidates"]
+              ranked = cost["ranked_paid_flagship_candidates"]
+              if not isinstance(raw_candidates, list) or not raw_candidates:
+                  raise SystemExit(f"attempt {attempt}: empty flagship list")
+              if not isinstance(ranked, list) or not ranked:
+                  raise SystemExit(f"attempt {attempt}: empty cost ranking")
+              if raw["paid_flagship_count"] != len(raw_candidates):
+                  raise SystemExit(f"attempt {attempt}: raw candidate count mismatch")
+              if cost["paid_flagship_count"] != len(ranked):
+                  raise SystemExit(f"attempt {attempt}: cost candidate count mismatch")
+              raw_ids = {str(row.get("model_id") or "") for row in raw_candidates}
+              ranked_ids = [str(row.get("model_id") or "") for row in ranked]
+              if raw_ids != set(ranked_ids):
+                  raise SystemExit(f"attempt {attempt}: cost rank changed flagship membership")
+              if cost["selected_model"] != ranked[0]:
+                  raise SystemExit(f"attempt {attempt}: selected model is not cheapest")
+              costs = [float(row["estimated_task_cost_usd"]) for row in ranked]
+              if costs != sorted(costs):
+                  raise SystemExit(f"attempt {attempt}: estimated costs are not ascending")
+              profile = cost["task_cost_profile"]
+              if profile != {
+                  "expected_prompt_tokens": 10000,
+                  "expected_completion_tokens": 2000,
+              }:
+                  raise SystemExit(f"attempt {attempt}: unexpected task cost profile")
+              if raw["model_calls"] != 0 or cost["model_calls"] != 0:
+                  raise SystemExit(f"attempt {attempt}: unexpected model inference")
+              if raw["estimated_model_cost_usd"] != 0 or cost["estimated_model_cost_usd"] != 0:
+                  raise SystemExit(f"attempt {attempt}: selector or ranker incurred cost")
+              if raw["secret_values_exposed"] is not False or cost["secret_values_exposed"] is not False:
                   raise SystemExit(f"attempt {attempt}: secret exposure flag is not false")
-              prompt = selected.get("prompt_usd_per_million")
-              completion = selected.get("completion_usd_per_million")
-              if not any(isinstance(value, (int, float)) and value > 0 for value in (prompt, completion)):
-                  raise SystemExit(f"attempt {attempt}: selected model is not paid")
-              ids = [str(row.get("model_id") or "") for row in candidates]
-              if any(any(marker in model_id.lower() for marker in specialized) for model_id in ids):
+              if any(
+                  any(marker in model_id.lower() for marker in specialized)
+                  for model_id in ranked_ids
+              ):
                   raise SystemExit(f"attempt {attempt}: specialized model leaked")
               stable_view = {
-                  "selected_model": selected.get("model_id"),
-                  "candidate_ids": ids,
-                  "candidate_prices": [
-                      [row.get("prompt_usd_per_million"), row.get("completion_usd_per_million")]
-                      for row in candidates
-                  ],
-                  "benchmark_meta": payload.get("benchmark_meta"),
-                  "models_catalog_count": payload.get("models_catalog_count"),
-                  "benchmark_catalog_count": payload.get("benchmark_catalog_count"),
+                  "selected_model": cost["selected_model"].get("model_id"),
+                  "selected_estimated_task_cost_usd": cost["selected_model"].get(
+                      "estimated_task_cost_usd"
+                  ),
+                  "candidate_ids": ranked_ids,
+                  "candidate_costs": costs,
+                  "task_cost_profile": profile,
+                  "benchmark_meta": raw.get("benchmark_meta"),
+                  "models_catalog_count": raw.get("models_catalog_count"),
+                  "benchmark_catalog_count": raw.get("benchmark_catalog_count"),
               }
-              encoded = json.dumps(stable_view, sort_keys=True, separators=(",", ":")).encode()
+              encoded = json.dumps(
+                  stable_view, sort_keys=True, separators=(",", ":")
+              ).encode()
               snapshots.append(hashlib.sha256(encoded).hexdigest())
               receipts.append(stable_view)
           if len(set(snapshots)) != 1:
@@ -191,25 +246,25 @@ jobs:
                   json.dumps(receipts, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
                   "utf-8",
               )
-              raise SystemExit("three immediate live catalog selections were not identical")
+              raise SystemExit("three immediate task-cost selections were not identical")
+          summary = {
+              "status": "LIVE_TASK_COST_REPEATABILITY_PASS",
+              "attempts": 3,
+              "snapshot_sha256": snapshots[0],
+              "selected_model": receipts[0]["selected_model"],
+              "selected_estimated_task_cost_usd": receipts[0][
+                  "selected_estimated_task_cost_usd"
+              ],
+              "task_cost_profile": receipts[0]["task_cost_profile"],
+              "candidate_count": len(receipts[0]["candidate_ids"]),
+              "model_calls": 0,
+              "estimated_model_cost_usd": 0,
+          }
           Path("live-selection/validation-summary.json").write_text(
-              json.dumps(
-                  {
-                      "status": "LIVE_CONTRACT_REPEATABILITY_PASS",
-                      "attempts": 3,
-                      "snapshot_sha256": snapshots[0],
-                      "selected_model": receipts[0]["selected_model"],
-                      "candidate_count": len(receipts[0]["candidate_ids"]),
-                      "model_calls": 0,
-                      "estimated_model_cost_usd": 0,
-                  },
-                  ensure_ascii=False,
-                  indent=2,
-                  sort_keys=True,
-              ) + "\n",
+              json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
               "utf-8",
           )
-          print(Path("live-selection/validation-summary.json").read_text("utf-8"))
+          print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
           PY
 
       - name: Upload live evidence
