@@ -7,15 +7,45 @@
 
 ## 治理仓库
 
-治理仓库不得持有业务采集 API Key、模型 Key、专家模型凭据或业务中心运行 Secret。仅允许以下三个基础设施凭据：
+治理仓库不得持有业务采集 API Key、专家模型凭据或业务中心运行 Secret。仅允许下列治理基础设施凭据：
 
 1. `CONTROL_PLANE_TOKEN`：仅三个业务仓库 Issues 读写；不得授权 Contents 写入。
 2. `BASELINE_TRANSFER_TOKEN`：仅情报中心 Actions/Artifacts 读取；不得授权业务 Contents 写入或 Issue 写入。
 3. `HF_TOKEN`：仅访问指定私有 `compute-numeric-baselines` Dataset；不得访问模型推理、训练、Spaces 或其他私人仓库。
+4. `OPENROUTER_API_KEY`：仅用于治理辅助模型目录核验和经批准的治理辅助任务；不得接收业务 Secret、私有基准数据、未脱敏日志或三个业务中心的私密载荷。
+5. `SERVERCHAN_SENDKEY`：仅用于治理中心元数据告警；不得进入 Issue、Artifact、日志、通知正文或命令输出。
+6. `HEALTHCHECKS_PING_URL`：可选外部失联检测地址；只允许发送 start、success、fail 信号，不得附带业务数据、日志或 Secret。
+
+GitHub Actions 自动生成的 `GITHUB_TOKEN` 必须按工作流声明最小权限，不作为长期仓库 Secret。OSV.dev、deps.dev 和 CISA KEV 只允许无 Key、只读调用。
 
 `HF_NUMERIC_BASELINE_DATASET_REPO` 作为治理仓库变量保存目标 Dataset ID，不得由票据覆盖。
 
 治理仓库对业务 Artifact 的读取仅限 `compute-baseline-gateway`，来源仓库固定为 `a15280020511/evidence-data-center`，Artifact 名称必须使用固定前缀，且必须通过 Manifest、SHA-256、路径、大小、Parquet Schema、纯数值类型和空值验证。
+
+## 通知与外部存活检测
+
+- Server酱通知仅允许 repository、workflow、conclusion、Run ID、缩短 Commit SHA 和 Run URL。
+- 禁止发送 Issue 正文、Artifact 内容、日志、提示词、模型输入输出、业务数据、个人数据和任何凭据值。
+- SendKey 前缀必须由发送器校验；发送器不得打印完整端点。
+- Server酱只监听明确列出的关键治理工作流，禁止递归监听自身。
+- Healthchecks 心跳未配置时必须显式报告 `pending_secret`，不得伪报外部监控已启用。
+- 外部心跳仅验证治理仓库 GitHub API 可达性，不读取三个业务仓库内容。
+
+## 供应链审计
+
+- OSV.dev 仅接收公开软件包生态、名称和锁定版本。
+- deps.dev 仅接收公开软件包名称和锁定版本。
+- CISA KEV 目录只下载到 Runner 本地并按 CVE 标识符关联。
+- 禁止向上述服务提交源码、Artifact、提示词、业务数据、个人数据或 Secret。
+- 默认仅报告；只有单独批准的策略才能把 KEV 命中升级为阻断门。
+
+## 日志与诊断
+
+- 统一诊断器只读取本仓库 GitHub Actions 元数据和失败日志。
+- 下载日志后必须先脱敏，再进入 Artifact；原始日志 ZIP 不得保留。
+- 禁止收集完整环境变量。
+- 诊断包必须包含 Run/Job/Step 关联、失败分类、失败指纹、Manifest 和 SHA-256。
+- Pull Request 验证阶段不签发 Attestation；定时或手动正式运行才生成来源证明。
 
 ## 业务仓库
 
@@ -23,6 +53,7 @@
 - 计算中心不得配置 `HF_TOKEN`，保持 `network=deny`，只接收治理仓库转交的数据包。
 - 专家中心不得配置 `HF_TOKEN`，继续禁止工具和网络。
 - 三个业务中心不得直接通信、直接读取对方 Artifact 或共享 Secret。
+- 业务仓库中的统一诊断工作流是独立运维面，不赋予业务运行时跨中心通信、模型工具或额外网络能力。
 
 ## 数据载荷
 
@@ -31,5 +62,3 @@
 - 控制平面只信任目标中心 `github-actions[bot]` 发布的正式终态；用户评论不能伪造完成。
 - 计算基准入库批次必须有唯一 `batch_id`；重复批次必须拒绝。
 - Dataset 必须保持 private；出现任何意外非 Parquet 文件时阻断写入。
-
-Server酱当前仅为禁用安装占位：不得配置 SendKey、网络端点、工作流钩子、发送器、消息格式、触发条件或重试策略，直到用户明确设计并批准。
