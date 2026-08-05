@@ -25,6 +25,7 @@ jobs:
           python -m py_compile control-plane/control_plane.py
           python -m py_compile control-plane/resilient_http.py
           python -m py_compile control-plane/resilient_control.py
+          python -m py_compile control-plane/async_reconcile.py
           python -m py_compile control-plane/deferred_poll.py
           python -m py_compile control-plane/deferred_reconcile.py
           python -m py_compile security/governance_health_check.py
@@ -92,6 +93,7 @@ jobs:
           runtime = Path("control-plane/control_plane.py").read_text(encoding="utf-8")
           resilient_http = Path("control-plane/resilient_http.py").read_text(encoding="utf-8")
           resilient_control = Path("control-plane/resilient_control.py").read_text(encoding="utf-8")
+          async_runtime = Path("control-plane/async_reconcile.py").read_text(encoding="utf-8")
           deferred = Path("control-plane/deferred_poll.py").read_text(encoding="utf-8")
           reconcile_runtime = Path("control-plane/deferred_reconcile.py").read_text(encoding="utf-8")
           health_runtime = Path("security/governance_health_check.py").read_text(encoding="utf-8")
@@ -112,8 +114,10 @@ jobs:
               "issues:", "types: [opened]", "workflow_dispatch:", 'cron: "*/15 * * * *"',
               "actions: write", "group: governance-control-global-worker",
               "cancel-in-progress: false", "resilient_control.py select", "resilient_control.py prepare",
-              "governance_issue_guard.py", "resilient_control.py pending", "deferred_poll.py",
+              "governance_issue_guard.py", "resilient_control.py pending",
               "GOVERNANCE_HTTP_AUDIT_FILE", "GOVERNANCE_HTTP_MAX_ATTEMPTS",
+              "Record asynchronous handoff", "runner_held_waiting", "poll_owner",
+              "terminal collection is delegated to asynchronous reconciliation",
               "Wake next FIFO worker with bounded retry", "delays=(0 5 15)",
               "CONTROL_QUEUE_WAKE_DEGRADED", "15-minute scheduled worker",
               "--phase duplicate", "--phase running", "-f state_reason=duplicate",
@@ -123,16 +127,19 @@ jobs:
           if missing: raise SystemExit(f"serial queue workflow entries missing: {missing}")
           if "python control-plane/control_plane.py" in workflow:
               raise SystemExit("direct non-resilient control entrypoint remains")
+          if "deferred_poll.py" in workflow or "steps.monitor" in workflow:
+              raise SystemExit("dispatch workflow must not hold a Runner for child polling")
 
           required_reconcile = (
-              "Governance Late Terminal Reconciliation", "types: [closed]",
-              "group: governance-control-global-worker", "deferred_reconcile.py",
-              "CONTROL_PLANE_TOKEN:", "persist-credentials: false",
+              "Governance Async Terminal Reconciliation", 'cron: "*/5 * * * *"',
+              "group: governance-control-global-worker", "async_reconcile.py",
+              "deferred_reconcile.py", "CONTROL_PLANE_TOKEN:",
+              "persist-credentials: false",
           )
           missing = [item for item in required_reconcile if item not in reconcile]
           if missing: raise SystemExit(f"reconcile workflow entries missing: {missing}")
-          if reconcile.count("CONTROL_PLANE_TOKEN:") != 1:
-              raise SystemExit("reconcile workflow must reference CONTROL_PLANE_TOKEN exactly once")
+          if reconcile.count("CONTROL_PLANE_TOKEN:") != 2:
+              raise SystemExit("async reconcile workflow must isolate two child-token step scopes")
 
           required_runtime = (
               "MAX_EXECUTION_ATTEMPTS = 3", "MAX_COMMENT_SCAN_PAGES = 10",
@@ -141,11 +148,23 @@ jobs:
               "def _artifact_contract_error(", "CONTROL_CHILD_TASK_MISMATCH",
               "CONTROL_CHILD_EVIDENCE_INVALID", "def _perform_one_recovery(", "def reconcile(",
               "CONTROL_RECONCILED_LATE_SUCCESS", "CONTROL_RECONCILED_LATE_FAILURE",
-              "def select(", "def pending(",
+              "def select(", "def pending(", "in_flight",
               'choices=["duplicate", "exhausted", "running", "rejected", "dispatched", "final"]',
           )
           missing = [item for item in required_runtime if item not in runtime]
           if missing: raise SystemExit(f"P0 runtime entries missing: {missing}")
+
+          required_async_runtime = (
+              "POLL_INTERVAL_SECONDS = 300", "RECOVERY_AFTER_SECONDS = 900",
+              "ROUTE_DEADLINES", "def candidate(", "def render_terminal(",
+              "def render_deadline(", "def _wake_next(", "ASYNC_WAITING",
+              "CONTROL_ASYNC_DEADLINE_EXCEEDED",
+              "CONTROL._trusted_terminal = DEFERRED.trusted_terminal",
+              "CONTROL._github_request = HTTP.github_request",
+              "Runner-held waiting: `false`",
+          )
+          missing = [item for item in required_async_runtime if item not in async_runtime]
+          if missing: raise SystemExit(f"asynchronous reconciliation entries missing: {missing}")
 
           required_resilient_http = (
               "RETRYABLE_HTTP = {429, 502, 503, 504}", "X-RateLimit-Reset",
@@ -168,7 +187,7 @@ jobs:
               "CONTROL._github_request = HTTP.github_request", "CONTROL.poll(args)",
           )
           missing = [item for item in required_deferred if item not in deferred]
-          if missing: raise SystemExit(f"deferred terminal entries missing: {missing}")
+          if missing: raise SystemExit(f"deferred terminal validator entries missing: {missing}")
 
           required_reconcile_runtime = (
               "def reconciliation_candidate(", "CONTROL._is_owned_control_issue",
@@ -177,7 +196,7 @@ jobs:
               "CONTROL._github_request = HTTP.github_request",
           )
           missing = [item for item in required_reconcile_runtime if item not in reconcile_runtime]
-          if missing: raise SystemExit(f"identity-hardened reconciliation entries missing: {missing}")
+          if missing: raise SystemExit(f"identity-hardened late reconciliation entries missing: {missing}")
 
           required_health_workflow = (
               "Governance Token and Repository Health", 'cron: "23 2 * * *"',
@@ -212,9 +231,9 @@ jobs:
 
           required_statuses = (
               '"CONTROL_COMPLETED"', '"CONTROL_FAILED"', '"CONTROL_TIMEOUT"',
-              '"CONTROL_MONITOR_ERROR"', '"CONTROL_RECONCILED_LATE_SUCCESS"',
-              '"CONTROL_RECONCILED_LATE_FAILURE"', '"CONTROL_QUEUE_WAKE_DEGRADED"',
-              '"PLATFORM_UNAVAILABLE"', '"next_action"',
+              '"CONTROL_MONITOR_ERROR"', '"CONTROL_ASYNC_DEADLINE_EXCEEDED"',
+              '"CONTROL_RECONCILED_LATE_SUCCESS"', '"CONTROL_RECONCILED_LATE_FAILURE"',
+              '"CONTROL_QUEUE_WAKE_DEGRADED"', '"PLATFORM_UNAVAILABLE"', '"next_action"',
           )
           missing = [item for item in required_statuses if item not in status_dictionary]
           if missing: raise SystemExit(f"status dictionary entries missing: {missing}")
@@ -227,6 +246,7 @@ jobs:
           found = [item for item in forbidden if item in openapi or item in workflow]
           if found: raise SystemExit(f"legacy or unsafe interface content remains: {found}")
           if openapi.count("operationId:") != 3: raise SystemExit("GPT Action must expose exactly three operations")
-          if workflow.count("group: governance-control-global-worker") != 1: raise SystemExit("governance must expose exactly one global execution slot")
+          if workflow.count("group: governance-control-global-worker") != 1: raise SystemExit("dispatch workflow must expose exactly one global execution slot")
+          if reconcile.count("group: governance-control-global-worker") != 1: raise SystemExit("reconcile workflow must share exactly one global execution slot")
           if runtime.count("hashlib.sha256") != 1: raise SystemExit("request identity must use one canonical SHA-256 path")
           PY
