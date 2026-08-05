@@ -5,14 +5,23 @@ The governance control plane separates dispatch from terminal collection.
 1. `Governance Control Plane` validates and dispatches the oldest FIFO task.
 2. After `CONTROL_DISPATCHED`, that workflow exits and releases its Runner.
 3. The open governance Issue remains the single global-slot lock.
-4. `Governance Async Terminal Reconciliation` polls every five minutes.
-5. Only a matching `github-actions[bot]` terminal with the route-specific Artifact contract can close the task.
-6. Closing the task wakes the next FIFO worker.
+4. Completion of the dispatch workflow starts a separate asynchronous monitor.
+5. The monitor performs bounded 30-second polls for at most ten minutes.
+6. A five-minute scheduled reconciliation remains the independent fallback.
+7. Only a matching `github-actions[bot]` terminal with the route-specific Artifact contract can close the task.
+8. Closing the task wakes the next FIFO worker.
 
-This is scheduled polling, not a permanent socket or live connection. GitHub may
-delay a cron run, so the five-minute interval is a target rather than a strict
-real-time SLA. A delay affects result delivery latency, not the child center's
-calculation quality.
+This is not a permanent socket or live connection. The user-facing dispatch
+request and its Runner finish before monitoring begins. A separate monitor
+handles the common short-running case; scheduled polling protects against
+monitor interruption, GitHub queue delays and longer child executions.
+
+The event-driven monitor may occupy its own Runner for a bounded period, but it
+does not hold the dispatch request open and cannot bypass the single-task lock.
+Monitor timeout changes only result-delivery latency. It does not alter the child
+center's model call, numerical calculation, random seed, Artifact or expert
+output. The five-minute cron interval is a target rather than a strict real-time
+SLA because GitHub can delay scheduled runs.
 
 Deadlines are anchored to the child Issue's immutable `created_at` timestamp,
 not the governance Issue's mutable `updated_at`. Comments or status refreshes

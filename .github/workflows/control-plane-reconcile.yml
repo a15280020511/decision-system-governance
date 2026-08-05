@@ -1,6 +1,10 @@
 name: Governance Async Terminal Reconciliation
 
 on:
+  workflow_run:
+    workflows:
+      - Governance Control Plane
+    types: [completed]
   workflow_dispatch:
   schedule:
     - cron: "*/5 * * * *"
@@ -16,8 +20,11 @@ concurrency:
 
 jobs:
   reconcile:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
       - name: Checkout governance control plane
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -35,9 +42,32 @@ jobs:
           CONTROL_PLANE_TOKEN: ${{ secrets.CONTROL_PLANE_TOKEN }}
           GOVERNANCE_HTTP_AUDIT_FILE: async-reconcile-http-audit.jsonl
           GOVERNANCE_HTTP_MAX_ATTEMPTS: "4"
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          python control-plane/async_reconcile.py \
-            --repository "$GITHUB_REPOSITORY"
+          set -euo pipefail
+          attempts=1
+          interval=0
+          if [ "$EVENT_NAME" = "workflow_run" ]; then
+            attempts=20
+            interval=30
+          fi
+          for attempt in $(seq 1 "$attempts"); do
+            echo "Asynchronous reconciliation attempt ${attempt}/${attempts}"
+            output=$(python control-plane/async_reconcile.py \
+              --repository "$GITHUB_REPOSITORY")
+            echo "$output"
+            status=$(printf '%s\n' "$output" | tail -n 1 | python -c 'import json,sys; print(json.load(sys.stdin)["status"])')
+            case "$status" in
+              ASYNC_WAITING)
+                if [ "$attempt" -lt "$attempts" ]; then
+                  sleep "$interval"
+                fi
+                ;;
+              *)
+                break
+                ;;
+            esac
+          done
 
       - name: Reconcile closed late terminal results
         env:
