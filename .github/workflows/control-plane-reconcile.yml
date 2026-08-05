@@ -1,15 +1,14 @@
-name: Governance Late Terminal Reconciliation
+name: Governance Async Terminal Reconciliation
 
 on:
-  issues:
-    types: [closed]
   workflow_dispatch:
   schedule:
-    - cron: "7,22,37,52 * * * *"
+    - cron: "*/5 * * * *"
 
 permissions:
   contents: read
   issues: write
+  actions: write
 
 concurrency:
   group: governance-control-global-worker
@@ -18,22 +17,34 @@ concurrency:
 jobs:
   reconcile:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - name: Checkout governance control plane
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
         with:
           python-version: "3.12"
 
-      - name: Reconcile owner-bound late trusted child terminal results
+      - name: Reconcile oldest open asynchronous task
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CONTROL_PLANE_TOKEN: ${{ secrets.CONTROL_PLANE_TOKEN }}
+          GOVERNANCE_HTTP_AUDIT_FILE: async-reconcile-http-audit.jsonl
+          GOVERNANCE_HTTP_MAX_ATTEMPTS: "4"
+        run: |
+          python control-plane/async_reconcile.py \
+            --repository "$GITHUB_REPOSITORY"
+
+      - name: Reconcile closed late terminal results
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CONTROL_PLANE_TOKEN: ${{ secrets.CONTROL_PLANE_TOKEN }}
+          GOVERNANCE_HTTP_AUDIT_FILE: late-reconcile-http-audit.jsonl
+          GOVERNANCE_HTTP_MAX_ATTEMPTS: "4"
         run: |
           python control-plane/deferred_reconcile.py \
             --repository "$GITHUB_REPOSITORY"
