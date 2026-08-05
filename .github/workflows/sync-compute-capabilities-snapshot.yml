@@ -1,0 +1,53 @@
+name: Sync Compute Capability Snapshot
+
+on:
+  push:
+    branches:
+      - feature/true-async-control-polling-20260805
+    paths:
+      - tools/sync_compute_capabilities_snapshot.py
+      - .github/workflows/sync-compute-capabilities-snapshot.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-compute-capability-snapshot
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.actor == github.repository_owner
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - name: Checkout governance maintenance branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: feature/true-async-control-polling-20260805
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - name: Synchronize and validate public compute catalog
+        run: |
+          set -euo pipefail
+          python tools/sync_compute_capabilities_snapshot.py
+          python -m json.tool contracts/compute-capabilities.snapshot.json >/dev/null
+          git diff --check
+      - name: Commit synchronized snapshot
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add contracts/compute-capabilities.snapshot.json
+          if git diff --cached --quiet; then
+            echo "Snapshot already current"
+            exit 0
+          fi
+          git commit -m "chore: synchronize accepted compute capability catalog"
+          git push origin HEAD:feature/true-async-control-polling-20260805
