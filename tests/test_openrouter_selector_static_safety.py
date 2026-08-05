@@ -8,13 +8,15 @@ from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
-BASE_PATH = ROOT / "governance-copilot" / "select_paid_high_level_model.py"
+BASE_PATH = (
+    ROOT / "governance-copilot" / "select_paid_governance_flagship_model.py"
+)
 
 
 def load_base():
     spec = importlib.util.spec_from_file_location("selector_static_base", BASE_PATH)
     if spec is None or spec.loader is None:
-        raise RuntimeError("cannot load base selector")
+        raise RuntimeError("cannot load selector")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
