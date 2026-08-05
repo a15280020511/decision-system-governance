@@ -18,7 +18,9 @@ def _load(name: str, path: Path):
 
 CONTROL = _load("governance_resilient_control_runtime", ROOT / "control_plane.py")
 HTTP = _load("governance_resilient_http_runtime", ROOT / "resilient_http.py")
+RELIABILITY = _load("governance_gpts_reliability_runtime", ROOT / "gpts_reliability.py")
 CONTROL._github_request = HTTP.github_request
+RELIABILITY.patch(CONTROL)
 
 
 def main() -> int:

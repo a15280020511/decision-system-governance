@@ -2,10 +2,12 @@ openapi: 3.1.0
 
 info:
   title: Decision System Governance Gateway
-  version: 3.2.0
+  version: 4.0.0
   description: >
-    Minimal three-operation interface for submitting tasks and reading trusted
-    governance receipts. Tasks use one global FIFO execution slot.
+    Minimal recoverable interface for submitting tasks and reading trusted
+    governance receipts. New submissions use a client-generated UUID so a GPT
+    can recover a task after an ambiguous POST result without submitting twice.
+    Tasks use one global FIFO execution slot.
 
 servers:
   - url: https://api.github.com
@@ -16,8 +18,13 @@ paths:
       operationId: submitDecisionTask
       summary: Submit one asynchronous decision-system task
       description: >
-        Create one [control] Issue containing a governance-control-ticket-v3 JSON
-        string. Do not include task_id or secrets. Save the returned Issue number.
+        Generate a UUID before calling this operation. Create one [control] Issue
+        whose body is a governance-control-ticket-v4 JSON string containing that
+        UUID as client_request_id. Save both the UUID and returned Issue number.
+        A legacy governance-control-ticket-v3 body remains temporarily accepted.
+        After a 201 response, immediately call getDecisionTaskStatus to verify a
+        read-after-write. If the POST result is missing or ambiguous, do not
+        submit again until findDecisionTaskByClientRequestId has been used.
       requestBody:
         required: true
         content:
@@ -37,13 +44,15 @@ paths:
                   type: string
                   maxLength: 100000
                   description: >
-                    JSON string containing schema_version, route, ticket and
-                    optional wait_seconds. The nested ticket must omit task_id.
+                    JSON string containing schema_version, client_request_id,
+                    route, ticket and optional wait_seconds. For v4,
+                    client_request_id must be a canonical UUID generated before
+                    submission. The nested ticket must omit task_id and secrets.
                   examples:
-                    - '{"schema_version":"governance-control-ticket-v3","route":"compute","ticket":{"operation":"descriptive_statistics","inputs":{"data":[1,2,3]}}}'
+                    - '{"schema_version":"governance-control-ticket-v4","client_request_id":"8beae650-3676-4a76-b8a4-e45f76ccf822","route":"compute","ticket":{"operation":"descriptive_statistics","inputs":{"data":[1,2,3]}}}'
       responses:
         "201":
-          description: Governance Issue created and queued
+          description: Governance Issue created; read-after-write is still required
           content:
             application/json:
               schema:
@@ -64,19 +73,97 @@ paths:
                   comments:
                     type: integer
 
+    get:
+      operationId: findDecisionTaskByClientRequestId
+      summary: Recover a task after an ambiguous submission result
+      description: >
+        List recent governance Issues and find the one whose body contains the
+        exact client_request_id generated before submission. Search open and
+        closed Issues. When a matching canonical Issue exists, reuse its number
+        and do not submit a second task. If more than one match exists, prefer
+        the lowest Issue number and inspect trusted receipts for duplicate or
+        conflict status. This operation is read-only.
+      parameters:
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [open, closed, all]
+            default: all
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [created, updated, comments]
+            default: created
+        - name: direction
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: per_page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 100
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+      responses:
+        "200":
+          description: Governance Issues to scan for the exact client_request_id
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    number:
+                      type: integer
+                    title:
+                      type: string
+                    body:
+                      type: string
+                    state:
+                      type: string
+                    state_reason:
+                      type: string
+                    html_url:
+                      type: string
+                    comments:
+                      type: integer
+                    created_at:
+                      type: string
+                    updated_at:
+                      type: string
+
   /repos/a15280020511/decision-system-governance/issues/{issue_number}:
     get:
       operationId: getDecisionTaskStatus
-      summary: Read task status
+      summary: Read task status and verify submission readback
       description: >
-        Read the governance Issue state and status block. For a terminal claim,
-        also call getDecisionTaskReceipts and verify the matching bot receipt,
-        Task ID, child status and Artifact identity.
+        Immediately after submission, read the Issue and verify its number,
+        client_request_id and request body fingerprint. For a terminal claim,
+        also call getDecisionTaskReceipts and verify the matching trusted bot
+        receipt, Task ID, child status and Artifact identity. Prefer the embedded
+        governance-machine-status JSON over guessing from prose.
       parameters:
         - name: issue_number
           in: path
           required: true
-          description: Governance Issue number returned by submitDecisionTask
+          description: Governance Issue number returned or recovered for the request
           schema:
             type: integer
             minimum: 1
@@ -109,13 +196,14 @@ paths:
       summary: Read trusted workflow receipts
       description: >
         Read governance Issue comments. Trust only comments whose user.login is
-        github-actions[bot]. Require the terminal receipt Task ID to match the
-        governance Issue status.
+        github-actions[bot]. CONTROL_RECEIVED proves ingress and readback, not
+        business acceptance. Require the terminal receipt Task ID and machine
+        status to match the governance Issue before reporting completion.
       parameters:
         - name: issue_number
           in: path
           required: true
-          description: Governance Issue number returned by submitDecisionTask
+          description: Governance Issue number returned or recovered for the request
           schema:
             type: integer
             minimum: 1

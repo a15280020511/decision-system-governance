@@ -1,0 +1,50 @@
+name: GPTs Ingress Acknowledgement
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: gpts-ingress-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  acknowledge:
+    if: github.event.issue.title == '[control]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      GOVERNANCE_HTTP_AUDIT_FILE: ingress-artifacts/http-retry-audit.jsonl
+      GOVERNANCE_HTTP_MAX_ATTEMPTS: "4"
+    steps:
+      - name: Checkout governance source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+
+      - name: Publish and verify immediate ingress receipt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python control-plane/ingress_ack.py \
+            --event-path "$GITHUB_EVENT_PATH" \
+            --repository "$GITHUB_REPOSITORY" \
+            --output ingress-artifacts/ingress-ack.json
+
+      - name: Upload ingress evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: gpts-ingress-${{ github.event.issue.number }}-${{ github.run_id }}
+          path: ingress-artifacts/
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,49 @@
+name: GPTs Ingress Canary
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: gpts-ingress-canary
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GOVERNANCE_HTTP_AUDIT_FILE: canary-artifacts/http-retry-audit.jsonl
+      GOVERNANCE_HTTP_MAX_ATTEMPTS: "4"
+    steps:
+      - name: Checkout governance source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+
+      - name: Run zero-business write-read canary
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python security/gpts_ingress_canary.py \
+            --repository "$GITHUB_REPOSITORY" \
+            --output canary-artifacts/gpts-ingress-canary.json
+
+      - name: Upload canary evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: gpts-ingress-canary-${{ github.run_id }}
+          path: canary-artifacts/
+          if-no-files-found: error
+          retention-days: 30

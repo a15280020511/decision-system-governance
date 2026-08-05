@@ -48,9 +48,9 @@ class P1OperationalContractTests(unittest.TestCase):
         self.assertIn("15-minute scheduled worker", CONTROL_WORKFLOW)
         self.assertIn("Model/API/compute calls caused by wake retries: `0`", CONTROL_WORKFLOW)
 
-    def test_health_check_is_daily_zero_business_call_and_single_issue(self) -> None:
+    def test_health_check_is_hourly_zero_business_call_and_single_issue(self) -> None:
         required = (
-            'cron: "23 2 * * *"',
+            'cron: "23 * * * *"',
             "CONTROL_PLANE_TOKEN:",
             "governance_health_check.py",
             "[health] Governance Control Plane",
@@ -82,7 +82,9 @@ class P1OperationalContractTests(unittest.TestCase):
 
     def test_status_dictionary_has_required_user_states(self) -> None:
         required = {
+            "RECEIVED",
             "CREATED",
+            "SUBMISSION_AMBIGUOUS",
             "QUEUED",
             "CONTROL_RUNNING",
             "CONTROL_DISPATCHED",
@@ -90,7 +92,10 @@ class P1OperationalContractTests(unittest.TestCase):
             "CONTROL_COMPLETED",
             "CONTROL_FAILED",
             "CONTROL_REJECTED",
+            "DUPLICATE_REUSED",
+            "REQUEST_ID_CONFLICT",
             "CONTROL_DUPLICATE",
+            "TARGET_NOT_READY",
             "CONTROL_TIMEOUT",
             "CONTROL_MONITOR_ERROR",
             "CONTROL_ASYNC_DEADLINE_EXCEEDED",

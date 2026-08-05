@@ -11,7 +11,15 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "governance-control-ticket-v3"
+      "enum": [
+        "governance-control-ticket-v3",
+        "governance-control-ticket-v4"
+      ]
+    },
+    "client_request_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Client-generated idempotency key required for v4 and created before POST."
     },
     "route": {
       "enum": [
@@ -30,5 +38,24 @@
       "maximum": 2700,
       "default": 2400
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "const": "governance-control-ticket-v4"
+          }
+        },
+        "required": [
+          "schema_version"
+        ]
+      },
+      "then": {
+        "required": [
+          "client_request_id"
+        ]
+      }
+    }
+  ]
 }

@@ -25,10 +25,13 @@ jobs:
           python -m py_compile control-plane/control_plane.py
           python -m py_compile control-plane/resilient_http.py
           python -m py_compile control-plane/resilient_control.py
+          python -m py_compile control-plane/gpts_reliability.py
+          python -m py_compile control-plane/ingress_ack.py
           python -m py_compile control-plane/async_reconcile.py
           python -m py_compile control-plane/deferred_poll.py
           python -m py_compile control-plane/deferred_reconcile.py
           python -m py_compile security/governance_health_check.py
+          python -m py_compile security/gpts_ingress_canary.py
           python -m py_compile security/governance_issue_guard.py
           python -m py_compile security/access_contract.py
 
@@ -88,23 +91,29 @@ jobs:
           from pathlib import Path
           openapi = Path("gpts-action/openapi.yaml").read_text(encoding="utf-8")
           workflow = Path(".github/workflows/control-plane-ticket.yml").read_text(encoding="utf-8")
+          ingress_workflow = Path(".github/workflows/gpts-ingress-ack.yml").read_text(encoding="utf-8")
+          canary_workflow = Path(".github/workflows/gpts-ingress-canary.yml").read_text(encoding="utf-8")
           reconcile = Path(".github/workflows/control-plane-reconcile.yml").read_text(encoding="utf-8")
           health_workflow = Path(".github/workflows/governance-health-check.yml").read_text(encoding="utf-8")
           runtime = Path("control-plane/control_plane.py").read_text(encoding="utf-8")
+          reliability = Path("control-plane/gpts_reliability.py").read_text(encoding="utf-8")
+          ingress_runtime = Path("control-plane/ingress_ack.py").read_text(encoding="utf-8")
           resilient_http = Path("control-plane/resilient_http.py").read_text(encoding="utf-8")
           resilient_control = Path("control-plane/resilient_control.py").read_text(encoding="utf-8")
           async_runtime = Path("control-plane/async_reconcile.py").read_text(encoding="utf-8")
           deferred = Path("control-plane/deferred_poll.py").read_text(encoding="utf-8")
           reconcile_runtime = Path("control-plane/deferred_reconcile.py").read_text(encoding="utf-8")
           health_runtime = Path("security/governance_health_check.py").read_text(encoding="utf-8")
+          canary_runtime = Path("security/gpts_ingress_canary.py").read_text(encoding="utf-8")
           guard = Path("security/governance_issue_guard.py").read_text(encoding="utf-8")
           status_dictionary = Path("control-plane/status-dictionary.json").read_text(encoding="utf-8")
 
           required_openapi = (
-              "openapi: 3.1.0", "version: 3.2.0",
-              "operationId: submitDecisionTask", "operationId: getDecisionTaskStatus",
-              "operationId: getDecisionTaskReceipts", "/issues/{issue_number}/comments:",
-              "github-actions[bot]", "governance-control-ticket-v3",
+              "openapi: 3.1.0", "version: 4.0.0",
+              "operationId: submitDecisionTask", "operationId: findDecisionTaskByClientRequestId",
+              "operationId: getDecisionTaskStatus", "operationId: getDecisionTaskReceipts",
+              "/issues/{issue_number}/comments:", "github-actions[bot]",
+              "governance-control-ticket-v4", "client_request_id", "read-after-write",
               '"inputs":{"data":[1,2,3]}', "FIFO",
           )
           missing = [item for item in required_openapi if item not in openapi]
@@ -130,6 +139,21 @@ jobs:
           if "deferred_poll.py" in workflow or "steps.monitor" in workflow:
               raise SystemExit("dispatch workflow must not hold a Runner for child polling")
 
+          required_ingress = (
+              "GPTs Ingress Acknowledgement", "issues:", "types: [opened]",
+              "gpts-ingress-${{ github.event.issue.number }}", "cancel-in-progress: false",
+              "ingress_ack.py", "GITHUB_TOKEN:", "persist-credentials: false",
+          )
+          missing = [item for item in required_ingress if item not in ingress_workflow]
+          if missing: raise SystemExit(f"ingress acknowledgement entries missing: {missing}")
+
+          required_canary = (
+              "GPTs Ingress Canary", 'cron: "17 */6 * * *"',
+              "gpts_ingress_canary.py", "issues: write", "persist-credentials: false",
+          )
+          missing = [item for item in required_canary if item not in canary_workflow]
+          if missing: raise SystemExit(f"ingress canary entries missing: {missing}")
+
           required_reconcile = (
               "Governance Async Terminal Reconciliation", 'cron: "*/5 * * * *"',
               "group: governance-control-global-worker", "async_reconcile.py",
@@ -154,6 +178,22 @@ jobs:
           missing = [item for item in required_runtime if item not in runtime]
           if missing: raise SystemExit(f"P0 runtime entries missing: {missing}")
 
+          required_reliability = (
+              'V4 = "governance-control-ticket-v4"', "CLIENT_REQUEST_ID_RE",
+              "def _client_request_id(", "def _prior_with_request_id(",
+              "REQUEST_ID_CONFLICT", "DUPLICATE_REUSED", "TARGET_NOT_READY",
+              "governance-machine-status-v1", "target_preflight_verified",
+          )
+          missing = [item for item in required_reliability if item not in reliability]
+          if missing: raise SystemExit(f"GPTs reliability adapter entries missing: {missing}")
+
+          required_ingress_runtime = (
+              "CONTROL_RECEIVED", "read_after_write_verified", "client_request_id",
+              "governance-machine-status-v1", "external_business_data_calls",
+          )
+          missing = [item for item in required_ingress_runtime if item not in ingress_runtime]
+          if missing: raise SystemExit(f"ingress acknowledgement runtime entries missing: {missing}")
+
           required_async_runtime = (
               "POLL_INTERVAL_SECONDS = 300", "RECOVERY_AFTER_SECONDS = 900",
               "ROUTE_DEADLINES", "def candidate(", "def render_terminal(",
@@ -177,7 +217,8 @@ jobs:
               raise SystemExit("resilient HTTP authentication contract missing")
 
           required_resilient_control = (
-              "CONTROL._github_request = HTTP.github_request", "CONTROL.parser().parse_args()",
+              "CONTROL._github_request = HTTP.github_request", "RELIABILITY.patch(CONTROL)",
+              "CONTROL.parser().parse_args()",
           )
           missing = [item for item in required_resilient_control if item not in resilient_control]
           if missing: raise SystemExit(f"resilient control entries missing: {missing}")
@@ -199,7 +240,7 @@ jobs:
           if missing: raise SystemExit(f"identity-hardened late reconciliation entries missing: {missing}")
 
           required_health_workflow = (
-              "Governance Token and Repository Health", 'cron: "23 2 * * *"',
+              "Governance Token and Repository Health", 'cron: "23 * * * *"',
               "governance_health_check.py", "Reconcile single health Issue",
               "[health] Governance Control Plane", "CONTROL_PLANE_TOKEN:",
               "External business data calls: `0`", "Secret values recorded: `false`",
@@ -220,6 +261,14 @@ jobs:
           missing = [item for item in required_health_runtime if item not in health_runtime]
           if missing: raise SystemExit(f"health runtime entries missing: {missing}")
 
+          required_canary_runtime = (
+              "GPTS_INGRESS_CANARY", "read_after_write_verified",
+              "business_dispatch", '"model_calls": 0',
+              '"external_business_data_calls": 0',
+          )
+          missing = [item for item in required_canary_runtime if item not in canary_runtime]
+          if missing: raise SystemExit(f"ingress canary runtime entries missing: {missing}")
+
           required_guard = (
               'TRUSTED_AUTHOR = "github-actions[bot]"', "MAX_COMMENT_PAGES = 10",
               "def _fetch_paginated_comments(", "CONTROL_RECONCILED_LATE_SUCCESS",
@@ -230,6 +279,8 @@ jobs:
           if missing: raise SystemExit(f"governance status guard entries missing: {missing}")
 
           required_statuses = (
+              '"RECEIVED"', '"SUBMISSION_AMBIGUOUS"', '"DUPLICATE_REUSED"',
+              '"REQUEST_ID_CONFLICT"', '"TARGET_NOT_READY"',
               '"CONTROL_COMPLETED"', '"CONTROL_FAILED"', '"CONTROL_TIMEOUT"',
               '"CONTROL_MONITOR_ERROR"', '"CONTROL_ASYNC_DEADLINE_EXCEEDED"',
               '"CONTROL_RECONCILED_LATE_SUCCESS"', '"CONTROL_RECONCILED_LATE_FAILURE"',
@@ -245,8 +296,8 @@ jobs:
           )
           found = [item for item in forbidden if item in openapi or item in workflow]
           if found: raise SystemExit(f"legacy or unsafe interface content remains: {found}")
-          if openapi.count("operationId:") != 3: raise SystemExit("GPT Action must expose exactly three operations")
+          if openapi.count("operationId:") != 4: raise SystemExit("GPT Action must expose exactly four operations")
           if workflow.count("group: governance-control-global-worker") != 1: raise SystemExit("dispatch workflow must expose exactly one global execution slot")
           if reconcile.count("group: governance-control-global-worker") != 1: raise SystemExit("reconcile workflow must share exactly one global execution slot")
-          if runtime.count("hashlib.sha256") != 1: raise SystemExit("request identity must use one canonical SHA-256 path")
+          if runtime.count("hashlib.sha256") != 1: raise SystemExit("legacy request identity must use one canonical SHA-256 path")
           PY
