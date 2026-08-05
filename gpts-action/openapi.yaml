@@ -2,24 +2,88 @@ openapi: 3.1.0
 
 info:
   title: Decision System Governance Gateway
-  version: 4.0.0
+  version: 4.1.0
   description: >
-    Recoverable interface for submitting governance tasks and reading trusted
-    receipts. New requests use a client-generated UUID and one global FIFO slot.
+    Diagnostic and recoverable interface for governance tasks. It separates
+    public transport, bearer authentication, task submission, and readback.
 
 servers:
   - url: https://api.github.com
 
 paths:
+  /repos/a15280020511/decision-system-governance:
+    get:
+      operationId: checkGovernanceGatewayPublic
+      summary: Test the public GitHub Action transport
+      description: >
+        Call this first when diagnosing connectivity. It requires no credential
+        and performs no write. A 200 response proves the GPT Action can reach
+        GitHub. On failure, stop and report ACTION_TRANSPORT_UNAVAILABLE.
+      x-openai-isConsequential: false
+      security: []
+      responses:
+        "200":
+          description: Public GitHub repository metadata returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  full_name:
+                    type: string
+                  archived:
+                    type: boolean
+                  disabled:
+                    type: boolean
+                  has_issues:
+                    type: boolean
+                  default_branch:
+                    type: string
+        default:
+          description: Public transport failed; do not attempt task submission
+
+  /user:
+    get:
+      operationId: checkGitHubAuthentication
+      summary: Test the configured GitHub bearer token
+      description: >
+        Call after the public transport check. A 200 response proves the bearer
+        token is accepted by GitHub. On 401 or 403, stop, report the exact status,
+        and never call submitDecisionTask in the same turn.
+      x-openai-isConsequential: false
+      security:
+        - githubBearer: []
+      responses:
+        "200":
+          description: Authenticated GitHub identity returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  login:
+                    type: string
+                  id:
+                    type: integer
+                  type:
+                    type: string
+        "401":
+          description: Bearer token missing, malformed, expired, or invalid
+        "403":
+          description: Token accepted but access is restricted
+
   /repos/a15280020511/decision-system-governance/issues:
     post:
       operationId: submitDecisionTask
       summary: Submit one asynchronous decision-system task
       description: >
-        Generate a UUID before this call. Create one [control] Issue with a v4
-        JSON body containing client_request_id. Save the UUID and returned Issue
-        number. After a 201 response, call getDecisionTaskStatus. If the POST
-        result is missing, recover by client_request_id before retrying.
+        Call once only after both diagnostic GET operations return 200. Generate
+        one UUID and create one [control] Issue. After approval, never call this
+        operation again for the same task. On any non-201 result, stop and report
+        the exact status without retrying the POST.
+      x-openai-isConsequential: true
+      security:
+        - githubBearer: []
       requestBody:
         required: true
         content:
@@ -67,6 +131,14 @@ paths:
                     type: string
                   comments:
                     type: integer
+        "401":
+          description: Bearer token missing, malformed, expired, or invalid
+        "403":
+          description: Token lacks Issues write access or GitHub blocked the request
+        "422":
+          description: Request validation failed; do not retry automatically
+        default:
+          description: Submission failed; report the exact status and stop
 
     get:
       operationId: findDecisionTaskByClientRequestId
@@ -74,8 +146,10 @@ paths:
       description: >
         List recent open and closed governance Issues and find the exact
         client_request_id. Reuse the lowest matching Issue number and do not
-        submit again. If multiple matches exist, inspect trusted bot receipts
-        for duplicate or conflict status. This operation is read-only.
+        submit again. If multiple matches exist, inspect trusted bot receipts.
+      x-openai-isConsequential: false
+      security:
+        - githubBearer: []
       parameters:
         - name: state
           in: query
@@ -141,6 +215,10 @@ paths:
                       type: string
                     updated_at:
                       type: string
+        "401":
+          description: Bearer token invalid
+        "403":
+          description: Token lacks Issues read access
 
   /repos/a15280020511/decision-system-governance/issues/{issue_number}:
     get:
@@ -149,8 +227,10 @@ paths:
       description: >
         Read the governance Issue after submission and verify its number and
         client_request_id. For terminal status, also read trusted bot receipts
-        and confirm the Task ID, child status and Artifact identity. Use
-        governance-machine-status JSON instead of inferring state from prose.
+        and confirm the Task ID, child status and Artifact identity.
+      x-openai-isConsequential: false
+      security:
+        - githubBearer: []
       parameters:
         - name: issue_number
           in: path
@@ -181,16 +261,24 @@ paths:
                     type: string
                   comments:
                     type: integer
+        "401":
+          description: Bearer token invalid
+        "403":
+          description: Token lacks Issues read access
+        "404":
+          description: Governance Issue was not found
 
   /repos/a15280020511/decision-system-governance/issues/{issue_number}/comments:
     get:
       operationId: getDecisionTaskReceipts
       summary: Read trusted workflow receipts
       description: >
-        Read governance Issue comments. Trust only comments from
-        github-actions[bot]. CONTROL_RECEIVED proves ingress and readback, not
-        business completion. Report completion only when the terminal Task ID
-        and machine status match the governance Issue.
+        Read governance Issue comments. Trust only github-actions[bot].
+        CONTROL_RECEIVED proves ingress and readback, not business completion.
+        Report completion only when terminal Task ID and machine status match.
+      x-openai-isConsequential: false
+      security:
+        - githubBearer: []
       parameters:
         - name: issue_number
           in: path
@@ -239,6 +327,12 @@ paths:
                       type: string
                     created_at:
                       type: string
+        "401":
+          description: Bearer token invalid
+        "403":
+          description: Token lacks Issues read access
+        "404":
+          description: Governance Issue was not found
 
 components:
   schemas: {}

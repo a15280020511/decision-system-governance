@@ -32,6 +32,22 @@
       "ambiguous_post_recovery": "find_before_retry"
     },
     "read_after_write_required": true,
+    "connection_preflight": {
+      "required_at_new_chat_or_after_action_failure": true,
+      "public_transport_operation": "checkGovernanceGatewayPublic",
+      "authenticated_identity_operation": "checkGitHubAuthentication",
+      "public_transport_requires_authentication": false,
+      "authenticated_identity_requires_bearer": true,
+      "both_must_return_http_200_before_post": true,
+      "failure_must_stop_before_write": true
+    },
+    "confirmation_policy": {
+      "consequential_operation": "submitDecisionTask",
+      "maximum_write_approvals_per_logical_task": 1,
+      "read_operations_are_non_consequential": true,
+      "post_non_201_retry_allowed": false,
+      "missing_post_result_second_approval_allowed": false
+    },
     "machine_status_schema": "governance-machine-status-v1",
     "allowed_routes": [
       "intelligence",
@@ -39,6 +55,8 @@
       "expert"
     ],
     "gpt_operations": [
+      "checkGovernanceGatewayPublic",
+      "checkGitHubAuthentication",
       "submitDecisionTask",
       "findDecisionTaskByClientRequestId",
       "getDecisionTaskStatus",

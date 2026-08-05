@@ -109,12 +109,14 @@ jobs:
           status_dictionary = Path("control-plane/status-dictionary.json").read_text(encoding="utf-8")
 
           required_openapi = (
-              "openapi: 3.1.0", "version: 4.0.0",
+              "openapi: 3.1.0", "version: 4.1.0",
+              "operationId: checkGovernanceGatewayPublic", "operationId: checkGitHubAuthentication",
               "operationId: submitDecisionTask", "operationId: findDecisionTaskByClientRequestId",
               "operationId: getDecisionTaskStatus", "operationId: getDecisionTaskReceipts",
+              "x-openai-isConsequential: true", "x-openai-isConsequential: false", "security: []",
               "/issues/{issue_number}/comments:", "github-actions[bot]",
               "governance-control-ticket-v4", "client_request_id", "read-after-write",
-              '"inputs":{"data":[1,2,3]}', "FIFO",
+              '"inputs":{"data":[1,2,3]}',
           )
           missing = [item for item in required_openapi if item not in openapi]
           if missing: raise SystemExit(f"OpenAPI required entries missing: {missing}")
@@ -296,7 +298,9 @@ jobs:
           )
           found = [item for item in forbidden if item in openapi or item in workflow]
           if found: raise SystemExit(f"legacy or unsafe interface content remains: {found}")
-          if openapi.count("operationId:") != 4: raise SystemExit("GPT Action must expose exactly four operations")
+          if openapi.count("operationId:") != 6: raise SystemExit("GPT Action must expose exactly six operations")
+          if openapi.count("x-openai-isConsequential: true") != 1: raise SystemExit("exactly one write operation must require confirmation")
+          if openapi.count("x-openai-isConsequential: false") != 5: raise SystemExit("all five read operations must be non-consequential")
           if workflow.count("group: governance-control-global-worker") != 1: raise SystemExit("dispatch workflow must expose exactly one global execution slot")
           if reconcile.count("group: governance-control-global-worker") != 1: raise SystemExit("reconcile workflow must share exactly one global execution slot")
           if runtime.count("hashlib.sha256") != 1: raise SystemExit("legacy request identity must use one canonical SHA-256 path")

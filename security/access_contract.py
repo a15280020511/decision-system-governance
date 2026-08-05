@@ -10,6 +10,8 @@ CHILD_REPOSITORIES = {
     "a15280020511/expert-assessment-center",
 }
 EXPECTED_PATHS = {
+    f"/repos/{GOVERNANCE_REPOSITORY}:",
+    "/user:",
     f"/repos/{GOVERNANCE_REPOSITORY}/issues:",
     f"/repos/{GOVERNANCE_REPOSITORY}/issues/{{issue_number}}:",
     f"/repos/{GOVERNANCE_REPOSITORY}/issues/{{issue_number}}/comments:",
@@ -42,7 +44,7 @@ def validate_access_contract(openapi: str, workflow: str) -> None:
     actual_paths = {
         line.strip()
         for line in openapi.splitlines()
-        if re.fullmatch(r"/repos/[^:]+:", line.strip())
+        if re.fullmatch(r"  /[^:]+:", line)
     }
     if actual_paths != EXPECTED_PATHS:
         errors.append(
@@ -58,16 +60,18 @@ def validate_access_contract(openapi: str, workflow: str) -> None:
         r"(?mi)^    (get|post|patch|put|delete|options|head|trace):\s*$",
         openapi,
     )
-    if methods != ["post", "get", "get", "get"]:
+    expected_methods = ["get", "get", "post", "get", "get", "get"]
+    if methods != expected_methods:
         errors.append(
-            "GPT Action methods must be exactly ['post', 'get', 'get', 'get']; "
-            f"got {methods}"
+            f"GPT Action methods must be exactly {expected_methods}; got {methods}"
         )
 
-    if openapi.count("operationId:") != 4:
-        errors.append("GPT Action must expose exactly four operations")
+    if openapi.count("operationId:") != 6:
+        errors.append("GPT Action must expose exactly six operations")
 
     required_operations = {
+        "operationId: checkGovernanceGatewayPublic",
+        "operationId: checkGitHubAuthentication",
         "operationId: submitDecisionTask",
         "operationId: findDecisionTaskByClientRequestId",
         "operationId: getDecisionTaskStatus",
@@ -76,6 +80,17 @@ def validate_access_contract(openapi: str, workflow: str) -> None:
     missing_operations = sorted(item for item in required_operations if item not in openapi)
     if missing_operations:
         errors.append(f"GPT Action operations missing: {missing_operations}")
+
+    if openapi.count("x-openai-isConsequential: true") != 1:
+        errors.append("exactly one consequential Action operation is required")
+    if openapi.count("x-openai-isConsequential: false") != 5:
+        errors.append("all five read-only Action operations must be non-consequential")
+
+    public_probe = openapi.split(
+        f"/repos/{GOVERNANCE_REPOSITORY}:", 1
+    )[1].split("\n  /user:", 1)[0]
+    if "security: []" not in public_probe:
+        errors.append("public transport probe must override bearer authentication")
 
     if "type: http" not in openapi or "scheme: bearer" not in openapi:
         errors.append("GPT Action must use bearer-token authentication")
