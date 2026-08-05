@@ -33,6 +33,19 @@ class AccessContractTests(unittest.TestCase):
         self.assertIn("    get:", comments_section)
         self.assertNotIn("    post:", comments_section)
 
+    def test_recovery_operation_is_read_only(self) -> None:
+        self.assertIn("operationId: findDecisionTaskByClientRequestId", OPENAPI)
+        issue_collection = OPENAPI.split(
+            "/repos/a15280020511/decision-system-governance/issues:", 1
+        )[1].split(
+            "/repos/a15280020511/decision-system-governance/issues/{issue_number}:",
+            1,
+        )[0]
+        self.assertEqual(issue_collection.count("    post:"), 1)
+        self.assertEqual(issue_collection.count("    get:"), 1)
+        self.assertNotIn("    patch:", issue_collection)
+        self.assertNotIn("    delete:", issue_collection)
+
     def test_rejects_direct_child_repository_path(self) -> None:
         mutated = OPENAPI.replace(
             "paths:\n",
