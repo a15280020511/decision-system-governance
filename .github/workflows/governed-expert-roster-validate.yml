@@ -10,7 +10,9 @@ on:
       - ".github/workflows/control-plane-ticket.yml"
       - ".github/workflows/governed-expert-roster-validate.yml"
   push:
-    branches: [main]
+    branches:
+      - main
+      - refactor/governed-expert-roster
     paths:
       - "control-plane/governed_expert_roster.py"
       - "control-plane/resilient_control.py"
