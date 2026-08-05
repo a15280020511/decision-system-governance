@@ -1,4 +1,4 @@
-name: Test OpenRouter Paid Flagship Model Selection
+name: Test OpenRouter Paid Governance Flagship Selection
 
 on:
   push:
@@ -34,18 +34,18 @@ jobs:
             exit 1
           fi
 
-      - name: Select cheapest paid flagship model
+      - name: Select cheapest paid governance flagship model
         shell: bash
         run: |
           set -euo pipefail
-          python governance-copilot/select_paid_flagship_model.py \
+          python governance-copilot/select_paid_governance_flagship_model.py \
             --output-dir openrouter-selection
           cat openrouter-selection/selection.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload selection evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: openrouter-paid-flagship-selection-${{ github.run_id }}
+          name: openrouter-paid-governance-flagship-selection-${{ github.run_id }}
           path: openrouter-selection/
           if-no-files-found: error
           retention-days: 7
