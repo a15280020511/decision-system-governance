@@ -124,8 +124,8 @@ class StaticSafetyTests(unittest.TestCase):
 
     def test_selector_workflows_have_read_only_repository_permission(self):
         workflows = (
-            ROOT / ".github" / "workflows" / "openrouter-governance-selector-test.yml",
             ROOT / ".github" / "workflows" / "openrouter-selector-resilience.yml",
+            ROOT / ".github" / "workflows" / "openrouter-selector-security.yml",
         )
         forbidden = (
             "contents: write",
