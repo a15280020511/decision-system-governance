@@ -1,4 +1,4 @@
-"""Select the cheapest paid model from the data-derived elite tier.
+"""Select the cheapest paid model from the data-derived high-level tier.
 
 The selector is read-only: it fetches the OpenRouter model catalog and official
 Artificial Analysis benchmark feed, performs no model inference, and writes a
@@ -143,7 +143,7 @@ def _geometric_mean(scores: tuple[float, float, float]) -> float:
 
 
 def _two_cluster_high_tier(values: list[float]) -> tuple[list[bool], float, float]:
-    """Split one-dimensional scores into natural low/high groups.
+    """Split one-dimensional scores into natural regular/high groups.
 
     This is deterministic 2-means clustering initialized at the observed minimum
     and maximum. It creates a data-derived boundary instead of a fixed benchmark
@@ -258,51 +258,39 @@ def select(token: str) -> dict[str, Any]:
     if len(joined) < 2:
         raise SelectorError("fewer than two paid stable general-text benchmarked models")
 
-    first_assignments, first_low_center, first_high_center = _two_cluster_high_tier(
+    assignments, regular_center, high_center = _two_cluster_high_tier(
         [float(row["balanced_score"]) for row in joined]
     )
-    first_high_level = [
-        row for row, is_high in zip(joined, first_assignments) if is_high
-    ]
-    if len(first_high_level) < 2:
-        raise SelectorError("first natural high tier contains fewer than two models")
-
-    elite_assignments, elite_low_center, elite_high_center = _two_cluster_high_tier(
-        [float(row["balanced_score"]) for row in first_high_level]
-    )
-    high_level = [
-        row for row, is_high in zip(first_high_level, elite_assignments) if is_high
-    ]
+    high_level = [row for row, is_high in zip(joined, assignments) if is_high]
     if not high_level:
-        raise SelectorError("no elite paid models identified")
+        raise SelectorError("no paid high-level models identified")
 
-    # `joined` and its filtered descendants preserve OpenRouter's official
-    # pricing-low-to-high order.
+    # `joined` is built from OpenRouter's official pricing-low-to-high catalog,
+    # so its filtered high-level subset preserves the same price order.
     selected = high_level[0]
+    boundary = (regular_center + high_center) / 2
     benchmark_meta = benchmark_payload.get("meta")
     result = {
-        "schema_version": "governance-openrouter-paid-selection-test-v3",
-        "status": "OPENROUTER_PAID_ELITE_SELECTION_COMPLETED",
+        "schema_version": "governance-openrouter-paid-selection-test-v4",
+        "status": "OPENROUTER_PAID_HIGH_LEVEL_SELECTION_COMPLETED",
         "selection_rule": (
             "exclude free/non-text/expired/preview/beta/experimental/unbenchmarked "
-            "models; form a balanced intelligence-coding-agentic score; extract "
-            "the upper natural cluster twice without a fixed score cutoff; choose "
-            "the first elite model in OpenRouter pricing-low-to-high order"
+            "models; form a balanced intelligence-coding-agentic score; split the "
+            "eligible paid distribution once into natural regular/high tiers; choose "
+            "price rank 1 inside the complete high-level tier"
         ),
         "high_level_definition": (
-            "highest natural cluster after two successive data-derived splits of "
-            "the geometric mean of OpenRouter Artificial Analysis intelligence, "
-            "coding and agentic indexes"
+            "upper natural cluster from one data-derived split of the geometric mean "
+            "of OpenRouter Artificial Analysis intelligence, coding and agentic indexes"
         ),
         "selected_model": selected,
+        "selected_is_first_priced_high_level": True,
         "paid_stable_general_text_benchmarked_count": len(joined),
-        "first_stage_high_count": len(first_high_level),
         "paid_high_level_count": len(high_level),
-        "first_stage_regular_center": first_low_center,
-        "first_stage_high_center": first_high_center,
-        "elite_stage_regular_center": elite_low_center,
-        "elite_stage_high_center": elite_high_center,
-        "cheapest_paid_high_level_candidates": high_level[:30],
+        "regular_tier_center": regular_center,
+        "high_tier_center": high_center,
+        "derived_high_level_boundary": boundary,
+        "cheapest_paid_high_level_candidates": high_level[:50],
         "models_catalog_count": len(models),
         "benchmark_catalog_count": len(benchmark_by_slug),
         "benchmark_meta": benchmark_meta if isinstance(benchmark_meta, Mapping) else {},
@@ -327,37 +315,40 @@ def write_receipts(result: Mapping[str, Any], output_dir: Path) -> None:
         f"- 状态：`{result['status']}`",
         "- 付费规则：至少一个 OpenRouter 计费字段大于 0",
         "- 生命周期规则：排除 Preview、Beta、Experimental 和已过期模型",
-        "- 高等级规则：intelligence、coding、agentic 三项成绩取几何平均值，连续两次按实时分布提取上层自然分组",
-        "- 价格规则：只在最终高等级付费组内，沿 OpenRouter `pricing-low-to-high` 顺序选择最便宜者",
+        "- 高等级规则：intelligence、coding、agentic 三项成绩取几何平均值，只进行一次自然分层",
+        "- 价格规则：保留完整高等级组，沿 OpenRouter `pricing-low-to-high` 顺序选择第 1 名",
         f"- 最终选中：`{selected.get('model_id')}`",
         f"- 公司：`{selected.get('company')}`",
+        f"- OpenRouter 全目录价格位置：`{selected.get('pricing_rank')}`",
         f"- 输入价/M：`{_money(selected.get('prompt_usd_per_million'))}`",
         f"- 输出价/M：`{_money(selected.get('completion_usd_per_million'))}`",
         f"- Intelligence：`{selected.get('intelligence_index')}`",
         f"- Coding：`{selected.get('coding_index')}`",
         f"- Agentic：`{selected.get('agentic_index')}`",
         f"- 综合等级分：`{float(selected.get('balanced_score', 0)):.4f}`",
+        f"- 数据推导高等级边界：`{float(result.get('derived_high_level_boundary', 0)):.4f}`",
         f"- 付费、稳定且可比较模型数：`{result['paid_stable_general_text_benchmarked_count']}`",
-        f"- 第一阶段高层模型数：`{result['first_stage_high_count']}`",
-        f"- 最终高等级付费模型数：`{result['paid_high_level_count']}`",
+        f"- 高等级付费模型数：`{result['paid_high_level_count']}`",
+        f"- 是否为高等级组价格第 1 名：`{str(result['selected_is_first_priced_high_level']).lower()}`",
         "- 模型调用：`0`",
         "- 本次模型费用：`$0`",
         "",
-        "## 价格最低的付费高等级候选",
+        "## 价格从低到高的付费高等级候选",
         "",
-        "| 顺序 | 模型 | 公司 | 输入价/M | 输出价/M | Intelligence | Coding | Agentic | 综合分 |",
-        "|---:|---|---|---:|---:|---:|---:|---:|---:|",
+        "| 高等级价格名次 | 模型 | 公司 | 全目录价格位 | 输入价/M | 输出价/M | Intelligence | Coding | Agentic | 综合分 |",
+        "|---:|---|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     candidates = result.get("cheapest_paid_high_level_candidates")
     if isinstance(candidates, list):
-        for index, item in enumerate(candidates[:20], 1):
+        for index, item in enumerate(candidates[:30], 1):
             if not isinstance(item, Mapping):
                 continue
             lines.append(
-                "| {index} | `{model}` | {company} | {prompt} | {completion} | {intel:.2f} | {coding:.2f} | {agentic:.2f} | {balanced:.2f} |".format(
+                "| {index} | `{model}` | {company} | {pricing_rank} | {prompt} | {completion} | {intel:.2f} | {coding:.2f} | {agentic:.2f} | {balanced:.2f} |".format(
                     index=index,
                     model=item.get("model_id"),
                     company=item.get("company"),
+                    pricing_rank=item.get("pricing_rank"),
                     prompt=_money(item.get("prompt_usd_per_million")),
                     completion=_money(item.get("completion_usd_per_million")),
                     intel=float(item.get("intelligence_index", 0)),
