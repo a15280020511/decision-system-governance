@@ -1,8 +1,7 @@
-"""Select the cheapest paid model from the data-derived high-level tier.
+"""Select the cheapest paid flagship model from the live OpenRouter catalog.
 
-The selector is read-only: it fetches the OpenRouter model catalog and official
-Artificial Analysis benchmark feed, performs no model inference, and writes a
-JSON/Markdown receipt.
+The selector is read-only. It uses OpenRouter pricing plus its Artificial Analysis
+benchmark feed, performs no inference call, and writes auditable receipts.
 """
 from __future__ import annotations
 
@@ -10,11 +9,13 @@ import argparse
 import json
 import math
 import os
+import re
 import statistics
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections import defaultdict
 from datetime import date
 from pathlib import Path
 from typing import Any, Mapping
@@ -22,9 +23,26 @@ from typing import Any, Mapping
 MODELS_API = "https://openrouter.ai/api/v1/models"
 BENCHMARKS_API = "https://openrouter.ai/api/v1/benchmarks"
 
+ECONOMY_TIER = re.compile(
+    r"(?:^|[-_ /])(flash|mini|nano|micro|small|lite|fast|instant|turbo|haiku)(?:$|[-_ /0-9])",
+    re.IGNORECASE,
+)
+UNSTABLE_TIER = re.compile(
+    r"(?:^|[-_ /])(preview|experimental|beta)(?:$|[-_ /0-9])",
+    re.IGNORECASE,
+)
+FLAGSHIP_WORDS = re.compile(
+    r"(?:^|[-_ /])(pro|max|opus|ultra|premier|flagship)(?:$|[-_ /0-9])",
+    re.IGNORECASE,
+)
+FLAGSHIP_DESCRIPTION = re.compile(
+    r"\b(flagship|most capable|frontier|top[- ]tier|state[- ]of[- ]the[- ]art)\b",
+    re.IGNORECASE,
+)
+
 
 class SelectorError(RuntimeError):
-    """Raised when the live catalog cannot produce a valid selection."""
+    pass
 
 
 def _mapping(value: Any) -> Mapping[str, Any]:
@@ -43,9 +61,7 @@ def _number(value: Any) -> float | None:
 
 def _price_per_million(pricing: Mapping[str, Any], key: str) -> float | None:
     value = _number(pricing.get(key))
-    if value is None or value < 0:
-        return None
-    return value * 1_000_000
+    return None if value is None or value < 0 else value * 1_000_000
 
 
 def _request_price(pricing: Mapping[str, Any]) -> float | None:
@@ -54,27 +70,20 @@ def _request_price(pricing: Mapping[str, Any]) -> float | None:
 
 
 def _is_paid(pricing: Mapping[str, Any]) -> bool:
-    billable = (
-        "prompt",
-        "completion",
-        "request",
-        "internal_reasoning",
-        "image",
-        "web_search",
-    )
-    values = [_number(pricing.get(key)) for key in billable]
-    return any(value is not None and value > 0 for value in values)
+    keys = ("prompt", "completion", "request", "internal_reasoning", "image", "web_search")
+    return any((_number(pricing.get(key)) or 0) > 0 for key in keys)
 
 
-def _is_text_governance_model(row: Mapping[str, Any]) -> bool:
+def _is_general_text(row: Mapping[str, Any]) -> bool:
     architecture = _mapping(row.get("architecture"))
     inputs = architecture.get("input_modalities")
     outputs = architecture.get("output_modalities")
-    if not isinstance(inputs, list) or "text" not in inputs:
-        return False
-    if not isinstance(outputs, list) or outputs != ["text"]:
-        return False
-    return True
+    return (
+        isinstance(inputs, list)
+        and "text" in inputs
+        and isinstance(outputs, list)
+        and outputs == ["text"]
+    )
 
 
 def _not_expired(row: Mapping[str, Any]) -> bool:
@@ -87,28 +96,14 @@ def _not_expired(row: Mapping[str, Any]) -> bool:
         return False
 
 
-def _is_stable_release(
-    row: Mapping[str, Any], model_id: str, canonical_slug: str
-) -> bool:
-    lifecycle_text = " ".join(
-        (
-            model_id,
-            canonical_slug,
-            str(row.get("name") or ""),
-        )
-    ).lower()
-    unstable_markers = ("preview", "experimental", "beta")
-    return not any(marker in lifecycle_text for marker in unstable_markers)
-
-
 def _fetch_json(url: str, token: str) -> Mapping[str, Any]:
     request = urllib.request.Request(
         url,
         headers={
             "Authorization": f"Bearer {token}",
             "Accept": "application/json",
-            "User-Agent": "decision-system-governance-paid-selector/1.0",
-            "X-Title": "Decision System Governance Paid Selector",
+            "User-Agent": "decision-system-governance-flagship-selector/1.0",
+            "X-Title": "Decision System Governance Flagship Selector",
         },
     )
     last_error: Exception | None = None
@@ -142,47 +137,36 @@ def _geometric_mean(scores: tuple[float, float, float]) -> float:
     return (scores[0] * scores[1] * scores[2]) ** (1 / 3)
 
 
-def _two_cluster_high_tier(values: list[float]) -> tuple[list[bool], float, float]:
-    """Split one-dimensional scores into natural regular/high groups.
-
-    This is deterministic 2-means clustering initialized at the observed minimum
-    and maximum. It creates a data-derived boundary instead of a fixed benchmark
-    cutoff, context requirement, parameter count, or model-name tier rule.
-    """
+def _two_cluster_high(values: list[float]) -> tuple[list[bool], float, float]:
     if len(values) < 2:
-        raise SelectorError("at least two paid benchmarked models are required")
-    low_center = min(values)
-    high_center = max(values)
+        raise SelectorError("at least two values are required for natural grouping")
+    low_center, high_center = min(values), max(values)
     assignments = [False] * len(values)
     for _ in range(100):
         next_assignments = [
-            abs(value - high_center) <= abs(value - low_center)
-            for value in values
+            abs(value - high_center) <= abs(value - low_center) for value in values
         ]
-        low_values = [
-            value for value, is_high in zip(values, next_assignments) if not is_high
-        ]
-        high_values = [
-            value for value, is_high in zip(values, next_assignments) if is_high
-        ]
-        if not low_values or not high_values:
-            raise SelectorError("benchmark distribution cannot be split into two tiers")
-        next_low = statistics.fmean(low_values)
-        next_high = statistics.fmean(high_values)
-        if next_assignments == assignments and math.isclose(
+        low = [v for v, high in zip(values, next_assignments) if not high]
+        high = [v for v, is_high in zip(values, next_assignments) if is_high]
+        if not low or not high:
+            raise SelectorError("score distribution cannot be split")
+        next_low, next_high = statistics.fmean(low), statistics.fmean(high)
+        stable = next_assignments == assignments and math.isclose(
             next_low, low_center, rel_tol=0, abs_tol=1e-12
-        ) and math.isclose(next_high, high_center, rel_tol=0, abs_tol=1e-12):
-            assignments = next_assignments
-            low_center = next_low
-            high_center = next_high
+        ) and math.isclose(next_high, high_center, rel_tol=0, abs_tol=1e-12)
+        assignments, low_center, high_center = next_assignments, next_low, next_high
+        if stable:
             break
-        assignments = next_assignments
-        low_center = next_low
-        high_center = next_high
     if low_center > high_center:
-        assignments = [not value for value in assignments]
+        assignments = [not item for item in assignments]
         low_center, high_center = high_center, low_center
     return assignments, low_center, high_center
+
+
+def _tier_text(row: Mapping[str, Any], model_id: str, canonical: str) -> str:
+    return " ".join(
+        (model_id, canonical, str(row.get("name") or ""), str(row.get("description") or ""))
+    )
 
 
 def _money(value: Any) -> str:
@@ -190,13 +174,11 @@ def _money(value: Any) -> str:
 
 
 def select(token: str) -> dict[str, Any]:
-    models_query = urllib.parse.urlencode(
+    model_query = urllib.parse.urlencode(
         {"sort": "pricing-low-to-high", "output_modalities": "text"}
     )
-    benchmark_query = urllib.parse.urlencode(
-        {"source": "artificial-analysis"}
-    )
-    models = _fetch_rows(f"{MODELS_API}?{models_query}", token)
+    benchmark_query = urllib.parse.urlencode({"source": "artificial-analysis"})
+    models = _fetch_rows(f"{MODELS_API}?{model_query}", token)
     benchmark_payload = _fetch_json(f"{BENCHMARKS_API}?{benchmark_query}", token)
     benchmark_rows = benchmark_payload.get("data")
     if not isinstance(benchmark_rows, list) or not benchmark_rows:
@@ -214,32 +196,33 @@ def select(token: str) -> dict[str, Any]:
             continue
         if intelligence is None or coding is None or agentic is None:
             continue
-        if min(intelligence, coding, agentic) <= 0:
+        scores = (float(intelligence), float(coding), float(agentic))
+        if min(scores) <= 0:
             continue
         benchmark_by_slug[slug.strip()] = {
-            "intelligence_index": intelligence,
-            "coding_index": coding,
-            "agentic_index": agentic,
-            "balanced_score": _geometric_mean((intelligence, coding, agentic)),
+            "intelligence_index": scores[0],
+            "coding_index": scores[1],
+            "agentic_index": scores[2],
+            "balanced_score": _geometric_mean(scores),
         }
 
-    joined: list[dict[str, Any]] = []
+    eligible: list[dict[str, Any]] = []
     for pricing_rank, row in enumerate(models, 1):
         model_id = row.get("id")
         canonical = row.get("canonical_slug") or model_id
         if not isinstance(model_id, str) or not isinstance(canonical, str):
             continue
         pricing = _mapping(row.get("pricing"))
-        if not _is_paid(pricing):
+        if not _is_paid(pricing) or not _is_general_text(row) or not _not_expired(row):
             continue
-        if not _is_text_governance_model(row) or not _not_expired(row):
-            continue
-        if not _is_stable_release(row, model_id, canonical):
+        text = _tier_text(row, model_id, canonical)
+        if UNSTABLE_TIER.search(text) or ECONOMY_TIER.search(text):
             continue
         benchmark = benchmark_by_slug.get(canonical) or benchmark_by_slug.get(model_id)
         if benchmark is None:
             continue
-        joined.append(
+        explicit_flagship = bool(FLAGSHIP_WORDS.search(text) or FLAGSHIP_DESCRIPTION.search(text))
+        eligible.append(
             {
                 "model_id": model_id,
                 "canonical_slug": canonical,
@@ -247,59 +230,82 @@ def select(token: str) -> dict[str, Any]:
                 "company": model_id.split("/", 1)[0],
                 "pricing_rank": pricing_rank,
                 "prompt_usd_per_million": _price_per_million(pricing, "prompt"),
-                "completion_usd_per_million": _price_per_million(
-                    pricing, "completion"
-                ),
+                "completion_usd_per_million": _price_per_million(pricing, "completion"),
                 "request_usd": _request_price(pricing),
+                "explicit_flagship_tier": explicit_flagship,
                 **benchmark,
             }
         )
 
-    if len(joined) < 2:
-        raise SelectorError("fewer than two paid stable general-text benchmarked models")
+    if len(eligible) < 2:
+        raise SelectorError("fewer than two eligible paid benchmarked models")
 
-    assignments, regular_center, high_center = _two_cluster_high_tier(
-        [float(row["balanced_score"]) for row in joined]
+    global_assignments, global_regular_center, global_high_center = _two_cluster_high(
+        [float(row["balanced_score"]) for row in eligible]
     )
-    high_level = [row for row, is_high in zip(joined, assignments) if is_high]
-    if not high_level:
-        raise SelectorError("no paid high-level models identified")
+    globally_high = [row for row, is_high in zip(eligible, global_assignments) if is_high]
 
-    # `joined` is built from OpenRouter's official pricing-low-to-high catalog,
-    # so its filtered high-level subset preserves the same price order.
-    selected = high_level[0]
-    boundary = (regular_center + high_center) / 2
-    benchmark_meta = benchmark_payload.get("meta")
-    result = {
-        "schema_version": "governance-openrouter-paid-selection-test-v4",
-        "status": "OPENROUTER_PAID_HIGH_LEVEL_SELECTION_COMPLETED",
+    by_company: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in globally_high:
+        by_company[str(row["company"])].append(row)
+
+    flagship_ids: set[str] = set()
+    company_evidence: dict[str, Any] = {}
+    for company, rows in by_company.items():
+        explicit = [row for row in rows if row["explicit_flagship_tier"]]
+        if len(rows) == 1:
+            chosen = explicit or rows
+            company_evidence[company] = {
+                "eligible_high_count": 1,
+                "method": "single globally-high stable full-tier model",
+            }
+        else:
+            assignments, lower_center, flagship_center = _two_cluster_high(
+                [float(row["balanced_score"]) for row in rows]
+            )
+            natural_top = [row for row, high in zip(rows, assignments) if high]
+            chosen_by_id = {row["model_id"]: row for row in natural_top + explicit}
+            chosen = list(chosen_by_id.values())
+            company_evidence[company] = {
+                "eligible_high_count": len(rows),
+                "lower_center": lower_center,
+                "flagship_center": flagship_center,
+                "method": "company-local natural top layer plus explicit flagship tier",
+            }
+        for row in chosen:
+            flagship_ids.add(str(row["model_id"]))
+
+    flagships = [row for row in eligible if row["model_id"] in flagship_ids]
+    if not flagships:
+        raise SelectorError("no paid flagship models identified")
+    selected = flagships[0]
+
+    return {
+        "schema_version": "governance-openrouter-paid-flagship-selection-test-v4",
+        "status": "OPENROUTER_PAID_FLAGSHIP_SELECTION_COMPLETED",
         "selection_rule": (
-            "exclude free/non-text/expired/preview/beta/experimental/unbenchmarked "
-            "models; form a balanced intelligence-coding-agentic score; split the "
-            "eligible paid distribution once into natural regular/high tiers; choose "
-            "price rank 1 inside the complete high-level tier"
-        ),
-        "high_level_definition": (
-            "upper natural cluster from one data-derived split of the geometric mean "
-            "of OpenRouter Artificial Analysis intelligence, coding and agentic indexes"
+            "exclude free/non-text/expired/preview/beta/experimental and economy-tier "
+            "flash/mini/nano/micro/small/lite/fast models; identify globally high models "
+            "from the live intelligence-coding-agentic distribution; identify each "
+            "company's natural highest product layer, augmented by explicit flagship "
+            "tier wording; choose the first flagship in OpenRouter pricing-low-to-high order"
         ),
         "selected_model": selected,
-        "selected_is_first_priced_high_level": True,
-        "paid_stable_general_text_benchmarked_count": len(joined),
-        "paid_high_level_count": len(high_level),
-        "regular_tier_center": regular_center,
-        "high_tier_center": high_center,
-        "derived_high_level_boundary": boundary,
-        "cheapest_paid_high_level_candidates": high_level[:50],
+        "paid_stable_full_tier_benchmarked_count": len(eligible),
+        "globally_high_count": len(globally_high),
+        "paid_flagship_count": len(flagships),
+        "global_regular_center": global_regular_center,
+        "global_high_center": global_high_center,
+        "cheapest_paid_flagship_candidates": flagships[:40],
+        "company_flagship_evidence": company_evidence,
         "models_catalog_count": len(models),
         "benchmark_catalog_count": len(benchmark_by_slug),
-        "benchmark_meta": benchmark_meta if isinstance(benchmark_meta, Mapping) else {},
+        "benchmark_meta": benchmark_payload.get("meta") if isinstance(benchmark_payload.get("meta"), Mapping) else {},
         "catalog_requests": 2,
         "model_calls": 0,
         "estimated_model_cost_usd": 0,
         "secret_values_exposed": False,
     }
-    return result
 
 
 def write_receipts(result: Mapping[str, Any], output_dir: Path) -> None:
@@ -310,45 +316,40 @@ def write_receipts(result: Mapping[str, Any], output_dir: Path) -> None:
     )
     selected = _mapping(result["selected_model"])
     lines = [
-        "# OpenRouter 付费高等级治理模型筛选",
+        "# OpenRouter 付费旗舰治理模型筛选",
         "",
         f"- 状态：`{result['status']}`",
-        "- 付费规则：至少一个 OpenRouter 计费字段大于 0",
-        "- 生命周期规则：排除 Preview、Beta、Experimental 和已过期模型",
-        "- 高等级规则：intelligence、coding、agentic 三项成绩取几何平均值，只进行一次自然分层",
-        "- 价格规则：保留完整高等级组，沿 OpenRouter `pricing-low-to-high` 顺序选择第 1 名",
-        f"- 最终选中：`{selected.get('model_id')}`",
+        "- 定义：排除免费、预览和 Flash/Mini/Nano/Small 等经济层；再识别每家公司实时能力分布中的最高产品层",
+        "- 价格：在所有公司旗舰模型的合集中，沿 OpenRouter `pricing-low-to-high` 选择第一个",
+        f"- 最终第 1 名：`{selected.get('model_id')}`",
         f"- 公司：`{selected.get('company')}`",
-        f"- OpenRouter 全目录价格位置：`{selected.get('pricing_rank')}`",
         f"- 输入价/M：`{_money(selected.get('prompt_usd_per_million'))}`",
         f"- 输出价/M：`{_money(selected.get('completion_usd_per_million'))}`",
         f"- Intelligence：`{selected.get('intelligence_index')}`",
         f"- Coding：`{selected.get('coding_index')}`",
         f"- Agentic：`{selected.get('agentic_index')}`",
-        f"- 综合等级分：`{float(selected.get('balanced_score', 0)):.4f}`",
-        f"- 数据推导高等级边界：`{float(result.get('derived_high_level_boundary', 0)):.4f}`",
-        f"- 付费、稳定且可比较模型数：`{result['paid_stable_general_text_benchmarked_count']}`",
-        f"- 高等级付费模型数：`{result['paid_high_level_count']}`",
-        f"- 是否为高等级组价格第 1 名：`{str(result['selected_is_first_priced_high_level']).lower()}`",
+        f"- 综合分：`{float(selected.get('balanced_score', 0)):.4f}`",
+        f"- 付费稳定全尺寸可比较模型：`{result['paid_stable_full_tier_benchmarked_count']}`",
+        f"- 全球高等级模型：`{result['globally_high_count']}`",
+        f"- 最终旗舰模型：`{result['paid_flagship_count']}`",
         "- 模型调用：`0`",
         "- 本次模型费用：`$0`",
         "",
-        "## 价格从低到高的付费高等级候选",
+        "## 价格从低到高的付费旗舰模型",
         "",
-        "| 高等级价格名次 | 模型 | 公司 | 全目录价格位 | 输入价/M | 输出价/M | Intelligence | Coding | Agentic | 综合分 |",
-        "|---:|---|---|---:|---:|---:|---:|---:|---:|---:|",
+        "| 名次 | 模型 | 公司 | 输入价/M | 输出价/M | Intelligence | Coding | Agentic | 综合分 |",
+        "|---:|---|---|---:|---:|---:|---:|---:|---:|",
     ]
-    candidates = result.get("cheapest_paid_high_level_candidates")
+    candidates = result.get("cheapest_paid_flagship_candidates")
     if isinstance(candidates, list):
-        for index, item in enumerate(candidates[:30], 1):
+        for index, item in enumerate(candidates, 1):
             if not isinstance(item, Mapping):
                 continue
             lines.append(
-                "| {index} | `{model}` | {company} | {pricing_rank} | {prompt} | {completion} | {intel:.2f} | {coding:.2f} | {agentic:.2f} | {balanced:.2f} |".format(
+                "| {index} | `{model}` | {company} | {prompt} | {completion} | {intel:.2f} | {coding:.2f} | {agentic:.2f} | {balanced:.2f} |".format(
                     index=index,
                     model=item.get("model_id"),
                     company=item.get("company"),
-                    pricing_rank=item.get("pricing_rank"),
                     prompt=_money(item.get("prompt_usd_per_million")),
                     completion=_money(item.get("completion_usd_per_million")),
                     intel=float(item.get("intelligence_index", 0)),
@@ -369,8 +370,7 @@ def main() -> int:
     if not token:
         raise SystemExit("OPENROUTER_API_KEY is empty")
     result = select(token)
-    output_dir = Path(args.output_dir)
-    write_receipts(result, output_dir)
+    write_receipts(result, Path(args.output_dir))
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     return 0
 
