@@ -20,7 +20,10 @@ def _load(name: str, path: Path):
 
 CONTROL = _load("governance_resilient_control_runtime", ROOT / "control_plane.py")
 HTTP = _load("governance_resilient_http_runtime", ROOT / "resilient_http.py")
-ROSTER = _load("governance_expert_roster_runtime", ROOT / "governed_expert_roster.py")
+ROSTER = _load(
+    "governance_expert_admission_runtime",
+    ROOT / "governed_expert_admission.py",
+)
 CONTROL._github_request = HTTP.github_request
 
 
@@ -65,6 +68,11 @@ def _prepare_with_governed_roster(arguments) -> int:
                 "expert_roster_sha256": roster["roster_sha256"],
                 "expert_team_size": roster["team_size"],
                 "expert_recovery_size": roster["recovery_size"],
+                "expert_zdr_filter_required": roster["zdr_filter_required"],
+                "expert_zdr_snapshot_sha256": roster["zdr_snapshot_sha256"],
+                "expert_zdr_eligible_flagship_count": roster[
+                    "zdr_eligible_flagship_count"
+                ],
                 "expert_selection_model_calls": 0,
                 "expert_selection_cost_usd": 0,
             }
@@ -75,6 +83,9 @@ def _prepare_with_governed_roster(arguments) -> int:
             "expert_roster_sha256",
             "expert_team_size",
             "expert_recovery_size",
+            "expert_zdr_filter_required",
+            "expert_zdr_snapshot_sha256",
+            "expert_zdr_eligible_flagship_count",
             "expert_selection_model_calls",
             "expert_selection_cost_usd",
         ):
