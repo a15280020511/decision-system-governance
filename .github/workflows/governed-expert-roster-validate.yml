@@ -1,0 +1,93 @@
+name: Validate Governed Expert Roster
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "control-plane/governed_expert_roster.py"
+      - "control-plane/resilient_control.py"
+      - "tests/test_governed_expert_roster.py"
+      - ".github/workflows/control-plane-ticket.yml"
+      - ".github/workflows/governed-expert-roster-validate.yml"
+  push:
+    branches: [main]
+    paths:
+      - "control-plane/governed_expert_roster.py"
+      - "control-plane/resilient_control.py"
+      - "tests/test_governed_expert_roster.py"
+      - ".github/workflows/control-plane-ticket.yml"
+      - ".github/workflows/governed-expert-roster-validate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: governed-expert-roster-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout pinned source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+
+      - name: Compile governed roster path
+        run: |
+          set -euo pipefail
+          python -m py_compile control-plane/governed_expert_roster.py
+          python -m py_compile control-plane/resilient_control.py
+          python -m py_compile governance-copilot/select_paid_governance_flagship_model.py
+          python -m py_compile governance-copilot/rank_flagships_by_task_cost.py
+
+      - name: Run deterministic roster tests
+        run: python tests/test_governed_expert_roster.py
+
+      - name: Enforce zero-inference selection boundary
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          roster = Path("control-plane/governed_expert_roster.py").read_text("utf-8")
+          entry = Path("control-plane/resilient_control.py").read_text("utf-8")
+          workflow = Path(".github/workflows/control-plane-ticket.yml").read_text("utf-8")
+          lowered = (roster + entry).lower()
+          forbidden = (
+              "/chat/completions",
+              "/responses",
+              "requests.post",
+              "httpx.post",
+              "while true",
+          )
+          for marker in forbidden:
+              if marker in lowered:
+                  raise SystemExit(f"forbidden selection behavior: {marker}")
+          required = (
+              "all_companies_unique",
+              "model_calls_for_selection",
+              "selection_cost_usd",
+              "roster_sha256",
+              "team_plan_sha256",
+              "enrich_expert_ticket_live",
+          )
+          for marker in required:
+              if marker not in roster + entry:
+                  raise SystemExit(f"missing governed roster marker: {marker}")
+          if workflow.count("OPENROUTER_API_KEY:") != 1:
+              raise SystemExit("control-plane workflow must scope OPENROUTER_API_KEY exactly once")
+          if "Parse validate and govern selected ticket" not in workflow:
+              raise SystemExit("governed expert admission step is missing")
+          if "contents: write" in workflow or "id-token: write" in workflow:
+              raise SystemExit("unexpected repository or identity-token write permission")
+          print("GOVERNED_EXPERT_ROSTER_CONTRACT_PASS")
+          PY
