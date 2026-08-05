@@ -30,7 +30,9 @@ class P1OperationalContractTests(unittest.TestCase):
             CONTROL_WORKFLOW.count("python control-plane/resilient_control.py"),
             10,
         )
-        self.assertIn("python control-plane/deferred_poll.py", CONTROL_WORKFLOW)
+        self.assertNotIn("python control-plane/deferred_poll.py", CONTROL_WORKFLOW)
+        self.assertIn("poll_owner", CONTROL_WORKFLOW)
+        self.assertIn("runner_held_waiting", CONTROL_WORKFLOW)
         self.assertIn("GOVERNANCE_HTTP_AUDIT_FILE", CONTROL_WORKFLOW)
 
     def test_queue_wake_is_bounded_and_has_degradation_receipt(self) -> None:
@@ -91,6 +93,7 @@ class P1OperationalContractTests(unittest.TestCase):
             "CONTROL_DUPLICATE",
             "CONTROL_TIMEOUT",
             "CONTROL_MONITOR_ERROR",
+            "CONTROL_ASYNC_DEADLINE_EXCEEDED",
             "CONTROL_RECONCILED_LATE_SUCCESS",
             "CONTROL_RECONCILED_LATE_FAILURE",
             "CONTROL_QUEUE_WAKE_DEGRADED",

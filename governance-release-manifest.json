@@ -3,108 +3,523 @@
   "governance_version": "4.2.2",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
-  "file_count": 100,
-  "total_bytes": 596503,
+  "file_count": 103,
+  "total_bytes": 631579,
   "files": [
-    {"path":".github/dependabot.yml","size_bytes":848,"sha256":"c5b2fc80966466cbf9c82bf2a60d149a3350dbedd23eb0e4150fad9bad97ed37"},
-    {"path":".github/workflows/codeql.yml","size_bytes":924,"sha256":"dd72e0bccf690755321ef0640aa41abed0d07df68dcd232574ad5feabdb95a23"},
-    {"path":".github/workflows/compute-baseline-gateway.yml","size_bytes":7305,"sha256":"8fd6689cb7c454466cd325ea7ecceaeb69abc0440d2e2efba9c3639ecc76a27d"},
-    {"path":".github/workflows/control-plane-reconcile.yml","size_bytes":1020,"sha256":"b116e80c6b29a274794eaf9e3484157d58678a210cbc42a1014f9ce01e69c50a"},
-    {"path":".github/workflows/control-plane-ticket.yml","size_bytes":15279,"sha256":"d5706d0a0ae1671e8ebb77b56dccccc6516195ffd5677883ca605c9e5a250dc0"},
-    {"path":".github/workflows/control-plane-validate.yml","size_bytes":13063,"sha256":"14babba8ca918c742b0da64697fc0e5e1f056582bdce99296edb9f9d1e67dad7"},
-    {"path":".github/workflows/diagnostic-sweep.yml","size_bytes":2636,"sha256":"f10d6fccc1f4890f2203601ff874d795901a798d765bf497c928a342e2042862"},
-    {"path":".github/workflows/governance-failure-notify.yml","size_bytes":2339,"sha256":"87a0522dc6e76d384be42a8035535a58d9cabe18dab62259b2559e0a1c2e77c0"},
-    {"path":".github/workflows/governance-health-check.yml","size_bytes":3820,"sha256":"acdf12d769dd2b02ba2f7ea70883925b18baa37dc4b192810d80e9d69cd5bd3a"},
-    {"path":".github/workflows/governance-heartbeat.yml","size_bytes":2127,"sha256":"72b1c7026fdc964ef621753170db2dfe20194e7a2bef942d4e07ae68cf20d761"},
-    {"path":".github/workflows/governance-manifest-preview.yml","size_bytes":1277,"sha256":"c3ab3f43542f5255a3bc5e65aed598b52b16cd4702984190effed9d58d073bf6"},
-    {"path":".github/workflows/governance-validate.yml","size_bytes":4331,"sha256":"936a3a272eb5301945220ee40130bd17bbbee89386a629d6de30d53b53d31394"},
-    {"path":".github/workflows/gpts-access-contract.yml","size_bytes":838,"sha256":"39e5c37bf8c0e3c1d74ebe98aafa872a02b6cc387553b124e8fb90ce109efeca"},
-    {"path":".github/workflows/hf-asset-gateway.yml","size_bytes":7084,"sha256":"878fec96e1984eabdc062cd0b8c55e93cc1c9d3500153001ae45a9d60bf15e8e"},
-    {"path":".github/workflows/main-provenance-and-repository-protection.yml","size_bytes":7596,"sha256":"b75ce93ebea62785abf75e669ef8e9ff5226b194ede168a7eeeff9c675160f2a"},
-    {"path":".github/workflows/openrouter-governance-copilot-canary.yml","size_bytes":7220,"sha256":"2248930edf9a5323221c1bccb889919a3fe3b0c3da7bfbf96039c898356bde22"},
-    {"path":".github/workflows/openrouter-selector-resilience.yml","size_bytes":11586,"sha256":"cf7ea43b7fcc43570d36310274fa22b1c97741824e61096dfc2430a713c700d3"},
-    {"path":".github/workflows/openrouter-selector-security.yml","size_bytes":1476,"sha256":"66c68f2d1c5f97578684abd08eb7d1afd969db6b6eacb4c0e650f06c8ec4c888"},
-    {"path":".github/workflows/supply-chain-audit.yml","size_bytes":2301,"sha256":"d97753cff2b7dcd304a27714fc507d21be343f126fff7297ece3647ab68d87d7"},
-    {"path":"ARCHITECTURE.md","size_bytes":3375,"sha256":"66b98d55f2c6b81133342ba48d061fbd3d39fe8e469d130ae044e746b0ff1b49"},
-    {"path":"CAPABILITY_AUTHORITY_POLICY.md","size_bytes":323,"sha256":"bfb85cb1213555036815ef287bc0314d7bec48a5283b568b4b1d0bb9274929bf"},
-    {"path":"CONTROL_PLANE_RUNBOOK.md","size_bytes":4027,"sha256":"327c71e45c15070d0cd548c1a4d35407166f47a66e7f0f3b08bf99957f30e9f3"},
-    {"path":"CURRENT_RESILIENCE_ACCEPTANCE.md","size_bytes":4298,"sha256":"fd826f10f8581e61051df4e57d0ce6dec35863dacaa949d5c968c2dba2616209"},
-    {"path":"DIAGNOSTICS_IMPLEMENTATION.md","size_bytes":2710,"sha256":"5ea0d64daecfe63084b76f48e0ddb5d25eab5671c69252d4f6e61f0b49c99346"},
-    {"path":"GLOBAL_RECOVERY_CHECKLIST.md","size_bytes":491,"sha256":"f7ebfc0a515d8ff2b003bc8455ccf4eff5d1157250c7dc4e72d093973bac74e4"},
-    {"path":"GPTS_ACCESS_KEY_POLICY.md","size_bytes":4147,"sha256":"85024e727720ef5e0f246099cf731a097071c723046b77f5c29a414bed3e2bba"},
-    {"path":"GPTS_REBUILD_GUIDE.md","size_bytes":5645,"sha256":"ac86642c5db015f3dfb2d82a225b0a378dead58912b88297be693c48fa77c8b6"},
-    {"path":"INTERFACE_VERSION_MATRIX.json","size_bytes":3674,"sha256":"e755d16cbfaa3949351c2a7501aa08a597cfc8840f5ba2662aaba9d716d27b3d"},
-    {"path":"ISSUE_AND_ARTIFACT_RETENTION_POLICY.md","size_bytes":2651,"sha256":"f194f00e052e1006d6395584a52c35184c3ae67d61b3571ae1feadbb5577f662"},
-    {"path":"LATE_RECONCILIATION_CONTRACT.md","size_bytes":3104,"sha256":"84c4c08446f69b0d618e7823f5fdc45e7a9e4d1ba0a7dacee11923c81187dc35"},
-    {"path":"MASTER_OPERATIONS_RUNBOOK.md","size_bytes":610,"sha256":"dfaf39c85852e55149a0dabe0dea140ea33f94898b8e3a6e9091239bdc820ecc"},
-    {"path":"MIGRATION_EXECUTION_PLAN.md","size_bytes":424,"sha256":"272c4d17deddcf0d4de9838fdbec3bf2f7fdc27f0c82c63b0fb0ed055e68d4ad"},
-    {"path":"MODEL_ORCHESTRATION_POLICY.md","size_bytes":7932,"sha256":"9c92db78a5fc331d777df7a55ca72b5da28da1a1535a92af34beaa987fabc553"},
-    {"path":"P1_OPERATIONAL_RESILIENCE.md","size_bytes":3784,"sha256":"31a6afe50e346361d17b1e370ccc1eedc163e07a086d00c85f6056fae1d5add5"},
-    {"path":"README.md","size_bytes":4049,"sha256":"fb29f0b211bc69e7fd6804a14c950185e4e8577be5bef628d9b111e9dfc0f0ff"},
-    {"path":"RELEASE_CHECKLIST.md","size_bytes":521,"sha256":"265638592cf16e3a8313e5cdc0704031c4e6799f7c9a26d319563a836e8118d4"},
-    {"path":"REPOSITORY_MAP.json","size_bytes":1082,"sha256":"36f7247d9dcf3e48b5d2a737a8a8f9173d203ebc3a5042112106d6acb550ed9c"},
-    {"path":"REPOSITORY_PROTECTION_POLICY.md","size_bytes":2539,"sha256":"b45bc95bf357788d20ed92cc212ae04772b2ebac65c067eca90c8df47d268b7f"},
-    {"path":"RESILIENCE_AND_FAILURE_PLAYBOOK.md","size_bytes":15156,"sha256":"436ceda19227d161505655eb6fe1f3dbb258497ce9de911b200194773d2edc14"},
-    {"path":"SECURITY_BOUNDARIES.md","size_bytes":5792,"sha256":"62e0df7c557aa9fffe032bb1f6413a733f26a1bc43562671722f63e448c07147"},
-    {"path":"SYSTEMS_COMPUTATION_MATRIX_POLICY.md","size_bytes":1996,"sha256":"fb7a950d6cd968684baa1df71f7c873a97df90264806c0915a21484e020c66d4"},
-    {"path":"THREE_CENTER_CONTRACT.md","size_bytes":2730,"sha256":"9e1f24c158b68b9ba0e6e46c8387e847c597a4d7efe4095a6cc365291c3971df"},
-    {"path":"compute-baseline-gateway/README.md","size_bytes":3359,"sha256":"e7a71b7b62fe28aa86fc40f21452aeba51cb9ecce416801a2193dfd356d4e445"},
-    {"path":"compute-baseline-gateway/gateway-contract.json","size_bytes":2249,"sha256":"e2dbe459c8ce18cd436f2a7edc35f87ec36fbb3eb3f28eddc91c9f4d6fb40c2d"},
-    {"path":"compute-baseline-gateway/gateway.py","size_bytes":23341,"sha256":"ed991900d7802b4bd46641de65ef2de5e093511f839bf63b570becfdb7db4d14"},
-    {"path":"compute-baseline-gateway/requirements.txt","size_bytes":40,"sha256":"76eded89aee8b49935e6e896d15da9f1987429541fb58a5deee12b29212c738f"},
-    {"path":"compute-baseline-gateway/tests/test_gateway.py","size_bytes":8392,"sha256":"8db6dae327e7d6e185b4735a7d6334a30ed493217d769fc0cd9d67f58501ebe0"},
-    {"path":"contracts/api-catalog.snapshot.json","size_bytes":52489,"sha256":"55e61f3c661c5370208b713d1d01e38fa2dddf54b38f2f717fbd0805b2f1cd03"},
-    {"path":"contracts/architecture/three-center-isolation-contract.json","size_bytes":7592,"sha256":"9b2032a4ac698302ca6557711b871386f031acf963c386efa89143910f4d8200"},
-    {"path":"contracts/compute-capabilities.snapshot.json","size_bytes":15193,"sha256":"10c4a1fc6a100da546d1d43e6a55356853d7c8ac4f03a285b679bfead6bc4705"},
-    {"path":"contracts/expert-team-capabilities.snapshot.json","size_bytes":3609,"sha256":"243f50291505c4eb1b787a0b7f580ab2848e9c1682af28ab452fb19dcd57d721"},
-    {"path":"contracts/gpts-orchestration-policy.json","size_bytes":4085,"sha256":"9bcf6e6783764675825b1d4b9ed54f1678f44d5faa61f5a0384fb40d63ec115c"},
-    {"path":"control-plane/control-ticket.schema.json","size_bytes":820,"sha256":"11f0806fe2529a11c25c55cf1c3489049040411f9edd31d8600602f12429ed7e"},
-    {"path":"control-plane/control_plane.py","size_bytes":41113,"sha256":"0a4c4a1197217a3634fb74a6a9c9814c9dcb018a4278dd541b54f537efe877c4"},
-    {"path":"control-plane/deferred_poll.py","size_bytes":3187,"sha256":"e454d03e6292dfaaec4ec919b3cb88c2139b6e3bbf715f2866cb090f9b4ec4e2"},
-    {"path":"control-plane/deferred_reconcile.py","size_bytes":1931,"sha256":"53f1eb2def468728fea4c67540a29adfbb4ed41eab17427d1e910d0a95f4b130"},
-    {"path":"control-plane/resilient_control.py","size_bytes":827,"sha256":"545182a2bf218058da2b7908bf99b9ecb214fcb3f8dc1b2f521ea4b6150dfa60"},
-    {"path":"control-plane/resilient_http.py","size_bytes":6876,"sha256":"53bbc5fc30f44a37a5fd2aca315d5dca2ab65002b8155394384a85fd9e00f0b9"},
-    {"path":"control-plane/status-dictionary.json","size_bytes":3782,"sha256":"f7b2e7b4525584b8dce3fae4c73d3d6a716f71796a1366f0aa280d0d8d460bc1"},
-    {"path":"control-plane/topology-contract.json","size_bytes":3138,"sha256":"b1bc19421e14fa276f33bc8b86b61a95b8482f23f6125aaad14e7ee3f3446298"},
-    {"path":"governance-canary/run_paid_governance_copilot_canary.py","size_bytes":12357,"sha256":"b9d7453c388c1f4d9767aa8ad8081a60cc3ec436e8ce9120026cd5e06fdf47ee"},
-    {"path":"governance-copilot/production-qualification.json","size_bytes":1916,"sha256":"eb768f9ccabaaa5b37eba23d4efce53a6855aa5838f56b77784efccc8242d447"},
-    {"path":"governance-copilot/rank_flagships_by_task_cost.py","size_bytes":9631,"sha256":"1a19acf26eeafe81096072d02dd0913abd9a29e7713da0b68a79ace3eb6e1b26"},
-    {"path":"governance-copilot/select_paid_governance_flagship_model.py","size_bytes":18341,"sha256":"51db19f70e21c8ebc1a92c114d8b0cf8c39fca771842203e1845276ffce76db0"},
-    {"path":"governance-resilience-matrix.json","size_bytes":10081,"sha256":"29688403c220eadf263baa6ef60d22a060a5ae7cbc1ad73e59c1dd82c692f340"},
-    {"path":"gpts-action/openapi.yaml","size_bytes":5272,"sha256":"6956797bdac9d96c8796d174c01224877069c05311b5fc69e9be22f76e12ed50"},
-    {"path":"gpts-knowledge/GPTS_CONTROL_PLANE.md","size_bytes":1382,"sha256":"2fdc21fded07c5244bc11ba27976ae1617b2b4e717d5034e94c91e3cb5c28b71"},
-    {"path":"gpts-knowledge/GPTS_KNOWLEDGE_MASTER.md","size_bytes":12840,"sha256":"6f2a8e962f4788ac7cbe789b4a1aea6f9599b104c62afd6e24edbfa7eec5da56"},
-    {"path":"gpts-knowledge/KNOWLEDGE_UPLOAD_MANIFEST.md","size_bytes":3846,"sha256":"8aeca2f3007bfffb0d6d42549f4f5e6a835b6399c6d30334f4e37fd9beefe6fd"},
-    {"path":"hf-asset-gateway/README.md","size_bytes":1899,"sha256":"f81c61ba86054a5e8643e254d41d990121c4661627b3336efc11436a32bc5c21"},
-    {"path":"hf-asset-gateway/contract.json","size_bytes":2122,"sha256":"65ffc1578bddfd59153d998293f7cfd7a493b543ee8fff03b6fbe4b3bc99e133"},
-    {"path":"hf-asset-gateway/gateway.py","size_bytes":19039,"sha256":"a1eaeb5f97b2f6b32ecbfda26f4e1642292af566638ebd18221e0ee764626260"},
-    {"path":"hf-asset-gateway/requirements.txt","size_bytes":24,"sha256":"ad70d24cf6060f54403e37d5c3b922e13a07dde84ab621d507fc35df01bfca26"},
-    {"path":"hf-asset-gateway/tests/test_gateway.py","size_bytes":3617,"sha256":"55a7d6140400f246a9dfd3e811a857294fcd84b55a8c28af2d276d2722fe1a9a"},
-    {"path":"integrations/cisa-kev/integration.json","size_bytes":701,"sha256":"f31d5b00314aa8e05ec4f2dde5a335b1b7ef36b86f493f7f2ea869bb04246291"},
-    {"path":"integrations/depsdev/integration.json","size_bytes":794,"sha256":"20035f6f6f718710cd582e1218ec09b336a908ca172080705900f7887a850aba"},
-    {"path":"integrations/healthchecks/integration.json","size_bytes":842,"sha256":"21488d048b4050dc84c13659b2b77d0ad340de8a4bd59fd3bf8941cc506b8c0b"},
-    {"path":"integrations/osv/integration.json","size_bytes":772,"sha256":"5452b289cc6d09af173f1c6923d834477db3390f7803d4da85c92be8a2bb393d"},
-    {"path":"integrations/serverchan/integration.json","size_bytes":1050,"sha256":"eae1f0590f81872141336032d7b1c52f22dce40507b85edc61f92c36701c28df"},
-    {"path":"model-orchestration-policy.json","size_bytes":2165,"sha256":"e6b8fa9c66438af1d82787b3f5be57734c4157cd954db22628e76029a934a577"},
-    {"path":"security/access_contract.py","size_bytes":6056,"sha256":"efe23272a259f2ed95c1721c8ac3c5f8319a5d2413e091fb048dd3867c63d565"},
-    {"path":"security/governance_health_check.py","size_bytes":6888,"sha256":"8b7c3010d3efba4f922e53a72c75c645b212689a319aad2a5d78a0da3fd8490d"},
-    {"path":"security/governance_issue_guard.py","size_bytes":6317,"sha256":"570974f3611b1e44359656d3608fe98e6bc46f0fa4c6339bedbbdba0b9236319"},
-    {"path":"tests/stress_openrouter_governance_selector.py","size_bytes":4640,"sha256":"9e23eae6964d0b7dbebf92e880637aba87e100e5613603eb79af7bd542058b7c"},
-    {"path":"tests/test_access_contract.py","size_bytes":5402,"sha256":"110098e34c1988f3e9f1cc592ff8f4ab9fc7ae9eadc977189085f8f635c684a8"},
-    {"path":"tests/test_control_plane.py","size_bytes":17766,"sha256":"a3ea948a14a48a09147adb2de70d3255f2dbcca32084d8c7c6c2d19a8a3febef"},
-    {"path":"tests/test_deferred_poll.py","size_bytes":6182,"sha256":"880122e952bdc8e806ad95cfc3709c68229b1b3bdbc0fb30adccf20c8f5bb2ac"},
-    {"path":"tests/test_deferred_reconcile.py","size_bytes":2921,"sha256":"f604348ff11496be5140080d2d0582436e886a7b19cba0e004b24d7c4a86090c"},
-    {"path":"tests/test_governance_issue_guard.py","size_bytes":3665,"sha256":"ed1acf1cebc9f03e4f79d193dbdc9d8c56238965933e9f125a1707708db90850"},
-    {"path":"tests/test_governance_paid_canary_contract.py","size_bytes":3883,"sha256":"1b018de1ccc74e26716095a8e7804c293b8776a0b97ec509a7afcde5009b4a6f"},
-    {"path":"tests/test_gpts_schema_compat.py","size_bytes":727,"sha256":"87da3631fac22ac66e72bc826065563c38fccce5ae9b39611fb4d9f94a4666ae"},
-    {"path":"tests/test_openrouter_governance_selector.py","size_bytes":14013,"sha256":"f381836683fc7a9657c7f0070ec7ff89fb442bc4f0e9938aa7bf2d3159162bf4"},
-    {"path":"tests/test_openrouter_selector_static_safety.py","size_bytes":7070,"sha256":"0c5742a87f74dd04456460d168861a708212291150ccea43a4ee6995bea831e1"},
-    {"path":"tests/test_openrouter_task_cost_ranking.py","size_bytes":5223,"sha256":"6197d7e7fd2cac80fb0bb8765554984d3537516d522bd7817c66f73e54146bef"},
-    {"path":"tests/test_p1_operational_contract.py","size_bytes":4595,"sha256":"01ec045e24e6ded8fba979edebf67783e8c4424628723d44a42a7c44326c92b7"},
-    {"path":"tests/test_resilient_http.py","size_bytes":5867,"sha256":"f99f67e8807fe13c9aa09f576d133b3a6e6a295a71e99b736a56f4c0a962e0b6"},
-    {"path":"tools/generate_governance_release_manifest.py","size_bytes":1875,"sha256":"ab9823c424f9a59e9d31d8c737cd371e54730604bdf13d64a7a027ec7a9dc771"},
-    {"path":"tools/serverchan_notify.py","size_bytes":2378,"sha256":"7f0cd4088d18e2d0380a6a19f162234a4f9b1d849a3a406632492b68e8c4331a"},
-    {"path":"tools/supply_chain_audit.py","size_bytes":10414,"sha256":"962a097176b68a6bb521440ceb81b7b60800ac104a4318888787ee29730cf015"},
-    {"path":"tools/workflow_diagnostics.py","size_bytes":15777,"sha256":"89a4acdf6d02dcf415cac3b6e155fbddd7ec29461d6c972c1fc1ae4511ef2530"}
+    {
+      "path": ".github/dependabot.yml",
+      "size_bytes": 848,
+      "sha256": "c5b2fc80966466cbf9c82bf2a60d149a3350dbedd23eb0e4150fad9bad97ed37"
+    },
+    {
+      "path": ".github/workflows/codeql.yml",
+      "size_bytes": 924,
+      "sha256": "dd72e0bccf690755321ef0640aa41abed0d07df68dcd232574ad5feabdb95a23"
+    },
+    {
+      "path": ".github/workflows/compute-baseline-gateway.yml",
+      "size_bytes": 7305,
+      "sha256": "8fd6689cb7c454466cd325ea7ecceaeb69abc0440d2e2efba9c3639ecc76a27d"
+    },
+    {
+      "path": ".github/workflows/control-plane-reconcile.yml",
+      "size_bytes": 1492,
+      "sha256": "86258b3df8c63c6a8efe9c3cfac77e0cc44b30e6816305512beeaa8563249ae3"
+    },
+    {
+      "path": ".github/workflows/control-plane-ticket.yml",
+      "size_bytes": 14470,
+      "sha256": "f241f5aec20ca3d6ad0602d3c94b83b6eb9a0709cae8fca90901c87ae16fb848"
+    },
+    {
+      "path": ".github/workflows/control-plane-validate.yml",
+      "size_bytes": 14502,
+      "sha256": "bf02fe222dfcde419ce2a1ecaa9b7e43f2552a3aa119d9971e9459762cfcfe23"
+    },
+    {
+      "path": ".github/workflows/diagnostic-sweep.yml",
+      "size_bytes": 2636,
+      "sha256": "f10d6fccc1f4890f2203601ff874d795901a798d765bf497c928a342e2042862"
+    },
+    {
+      "path": ".github/workflows/governance-failure-notify.yml",
+      "size_bytes": 2339,
+      "sha256": "87a0522dc6e76d384be42a8035535a58d9cabe18dab62259b2559e0a1c2e77c0"
+    },
+    {
+      "path": ".github/workflows/governance-health-check.yml",
+      "size_bytes": 3820,
+      "sha256": "acdf12d769dd2b02ba2f7ea70883925b18baa37dc4b192810d80e9d69cd5bd3a"
+    },
+    {
+      "path": ".github/workflows/governance-heartbeat.yml",
+      "size_bytes": 2127,
+      "sha256": "72b1c7026fdc964ef621753170db2dfe20194e7a2bef942d4e07ae68cf20d761"
+    },
+    {
+      "path": ".github/workflows/governance-manifest-preview.yml",
+      "size_bytes": 1277,
+      "sha256": "c3ab3f43542f5255a3bc5e65aed598b52b16cd4702984190effed9d58d073bf6"
+    },
+    {
+      "path": ".github/workflows/governance-validate.yml",
+      "size_bytes": 4331,
+      "sha256": "936a3a272eb5301945220ee40130bd17bbbee89386a629d6de30d53b53d31394"
+    },
+    {
+      "path": ".github/workflows/gpts-access-contract.yml",
+      "size_bytes": 838,
+      "sha256": "39e5c37bf8c0e3c1d74ebe98aafa872a02b6cc387553b124e8fb90ce109efeca"
+    },
+    {
+      "path": ".github/workflows/hf-asset-gateway.yml",
+      "size_bytes": 7084,
+      "sha256": "878fec96e1984eabdc062cd0b8c55e93cc1c9d3500153001ae45a9d60bf15e8e"
+    },
+    {
+      "path": ".github/workflows/main-provenance-and-repository-protection.yml",
+      "size_bytes": 7596,
+      "sha256": "b75ce93ebea62785abf75e669ef8e9ff5226b194ede168a7eeeff9c675160f2a"
+    },
+    {
+      "path": ".github/workflows/openrouter-governance-copilot-canary.yml",
+      "size_bytes": 7220,
+      "sha256": "2248930edf9a5323221c1bccb889919a3fe3b0c3da7bfbf96039c898356bde22"
+    },
+    {
+      "path": ".github/workflows/openrouter-selector-resilience.yml",
+      "size_bytes": 11586,
+      "sha256": "cf7ea43b7fcc43570d36310274fa22b1c97741824e61096dfc2430a713c700d3"
+    },
+    {
+      "path": ".github/workflows/openrouter-selector-security.yml",
+      "size_bytes": 1476,
+      "sha256": "66c68f2d1c5f97578684abd08eb7d1afd969db6b6eacb4c0e650f06c8ec4c888"
+    },
+    {
+      "path": ".github/workflows/supply-chain-audit.yml",
+      "size_bytes": 2301,
+      "sha256": "d97753cff2b7dcd304a27714fc507d21be343f126fff7297ece3647ab68d87d7"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "size_bytes": 3375,
+      "sha256": "66b98d55f2c6b81133342ba48d061fbd3d39fe8e469d130ae044e746b0ff1b49"
+    },
+    {
+      "path": "ASYNC_CONTROL_POLLING.md",
+      "size_bytes": 1209,
+      "sha256": "52f90ebb3bf91a312db5a0161563704088c5d847b92097cf5f9300fd1362b6fe"
+    },
+    {
+      "path": "CAPABILITY_AUTHORITY_POLICY.md",
+      "size_bytes": 323,
+      "sha256": "bfb85cb1213555036815ef287bc0314d7bec48a5283b568b4b1d0bb9274929bf"
+    },
+    {
+      "path": "CONTROL_PLANE_RUNBOOK.md",
+      "size_bytes": 4785,
+      "sha256": "7f65d429b99f026a130469c07b8c1ffbd59793346138815b6b38f8c7180f6d90"
+    },
+    {
+      "path": "CURRENT_RESILIENCE_ACCEPTANCE.md",
+      "size_bytes": 4298,
+      "sha256": "fd826f10f8581e61051df4e57d0ce6dec35863dacaa949d5c968c2dba2616209"
+    },
+    {
+      "path": "DIAGNOSTICS_IMPLEMENTATION.md",
+      "size_bytes": 2710,
+      "sha256": "5ea0d64daecfe63084b76f48e0ddb5d25eab5671c69252d4f6e61f0b49c99346"
+    },
+    {
+      "path": "GLOBAL_RECOVERY_CHECKLIST.md",
+      "size_bytes": 491,
+      "sha256": "f7ebfc0a515d8ff2b003bc8455ccf4eff5d1157250c7dc4e72d093973bac74e4"
+    },
+    {
+      "path": "GPTS_ACCESS_KEY_POLICY.md",
+      "size_bytes": 4147,
+      "sha256": "85024e727720ef5e0f246099cf731a097071c723046b77f5c29a414bed3e2bba"
+    },
+    {
+      "path": "GPTS_REBUILD_GUIDE.md",
+      "size_bytes": 5645,
+      "sha256": "ac86642c5db015f3dfb2d82a225b0a378dead58912b88297be693c48fa77c8b6"
+    },
+    {
+      "path": "INTERFACE_VERSION_MATRIX.json",
+      "size_bytes": 3674,
+      "sha256": "e755d16cbfaa3949351c2a7501aa08a597cfc8840f5ba2662aaba9d716d27b3d"
+    },
+    {
+      "path": "ISSUE_AND_ARTIFACT_RETENTION_POLICY.md",
+      "size_bytes": 2651,
+      "sha256": "f194f00e052e1006d6395584a52c35184c3ae67d61b3571ae1feadbb5577f662"
+    },
+    {
+      "path": "LATE_RECONCILIATION_CONTRACT.md",
+      "size_bytes": 3104,
+      "sha256": "84c4c08446f69b0d618e7823f5fdc45e7a9e4d1ba0a7dacee11923c81187dc35"
+    },
+    {
+      "path": "MASTER_OPERATIONS_RUNBOOK.md",
+      "size_bytes": 610,
+      "sha256": "dfaf39c85852e55149a0dabe0dea140ea33f94898b8e3a6e9091239bdc820ecc"
+    },
+    {
+      "path": "MIGRATION_EXECUTION_PLAN.md",
+      "size_bytes": 424,
+      "sha256": "272c4d17deddcf0d4de9838fdbec3bf2f7fdc27f0c82c63b0fb0ed055e68d4ad"
+    },
+    {
+      "path": "MODEL_ORCHESTRATION_POLICY.md",
+      "size_bytes": 7932,
+      "sha256": "9c92db78a5fc331d777df7a55ca72b5da28da1a1535a92af34beaa987fabc553"
+    },
+    {
+      "path": "P1_OPERATIONAL_RESILIENCE.md",
+      "size_bytes": 3784,
+      "sha256": "31a6afe50e346361d17b1e370ccc1eedc163e07a086d00c85f6056fae1d5add5"
+    },
+    {
+      "path": "README.md",
+      "size_bytes": 4049,
+      "sha256": "fb29f0b211bc69e7fd6804a14c950185e4e8577be5bef628d9b111e9dfc0f0ff"
+    },
+    {
+      "path": "RELEASE_CHECKLIST.md",
+      "size_bytes": 521,
+      "sha256": "265638592cf16e3a8313e5cdc0704031c4e6799f7c9a26d319563a836e8118d4"
+    },
+    {
+      "path": "REPOSITORY_MAP.json",
+      "size_bytes": 1082,
+      "sha256": "36f7247d9dcf3e48b5d2a737a8a8f9173d203ebc3a5042112106d6acb550ed9c"
+    },
+    {
+      "path": "REPOSITORY_PROTECTION_POLICY.md",
+      "size_bytes": 2539,
+      "sha256": "b45bc95bf357788d20ed92cc212ae04772b2ebac65c067eca90c8df47d268b7f"
+    },
+    {
+      "path": "RESILIENCE_AND_FAILURE_PLAYBOOK.md",
+      "size_bytes": 15156,
+      "sha256": "436ceda19227d161505655eb6fe1f3dbb258497ce9de911b200194773d2edc14"
+    },
+    {
+      "path": "SECURITY_BOUNDARIES.md",
+      "size_bytes": 5792,
+      "sha256": "62e0df7c557aa9fffe032bb1f6413a733f26a1bc43562671722f63e448c07147"
+    },
+    {
+      "path": "SYSTEMS_COMPUTATION_MATRIX_POLICY.md",
+      "size_bytes": 1996,
+      "sha256": "fb7a950d6cd968684baa1df71f7c873a97df90264806c0915a21484e020c66d4"
+    },
+    {
+      "path": "THREE_CENTER_CONTRACT.md",
+      "size_bytes": 2730,
+      "sha256": "9e1f24c158b68b9ba0e6e46c8387e847c597a4d7efe4095a6cc365291c3971df"
+    },
+    {
+      "path": "compute-baseline-gateway/README.md",
+      "size_bytes": 3359,
+      "sha256": "e7a71b7b62fe28aa86fc40f21452aeba51cb9ecce416801a2193dfd356d4e445"
+    },
+    {
+      "path": "compute-baseline-gateway/gateway-contract.json",
+      "size_bytes": 2249,
+      "sha256": "e2dbe459c8ce18cd436f2a7edc35f87ec36fbb3eb3f28eddc91c9f4d6fb40c2d"
+    },
+    {
+      "path": "compute-baseline-gateway/gateway.py",
+      "size_bytes": 23341,
+      "sha256": "ed991900d7802b4bd46641de65ef2de5e093511f839bf63b570becfdb7db4d14"
+    },
+    {
+      "path": "compute-baseline-gateway/requirements.txt",
+      "size_bytes": 40,
+      "sha256": "76eded89aee8b49935e6e896d15da9f1987429541fb58a5deee12b29212c738f"
+    },
+    {
+      "path": "compute-baseline-gateway/tests/test_gateway.py",
+      "size_bytes": 8392,
+      "sha256": "8db6dae327e7d6e185b4735a7d6334a30ed493217d769fc0cd9d67f58501ebe0"
+    },
+    {
+      "path": "contracts/api-catalog.snapshot.json",
+      "size_bytes": 52489,
+      "sha256": "55e61f3c661c5370208b713d1d01e38fa2dddf54b38f2f717fbd0805b2f1cd03"
+    },
+    {
+      "path": "contracts/architecture/three-center-isolation-contract.json",
+      "size_bytes": 7592,
+      "sha256": "9b2032a4ac698302ca6557711b871386f031acf963c386efa89143910f4d8200"
+    },
+    {
+      "path": "contracts/compute-capabilities.snapshot.json",
+      "size_bytes": 32287,
+      "sha256": "1fc870adcc68df39c12f9e21dcd1739ab1876e60ed51ebcccc024edd6566c854"
+    },
+    {
+      "path": "contracts/expert-team-capabilities.snapshot.json",
+      "size_bytes": 3609,
+      "sha256": "243f50291505c4eb1b787a0b7f580ab2848e9c1682af28ab452fb19dcd57d721"
+    },
+    {
+      "path": "contracts/gpts-orchestration-policy.json",
+      "size_bytes": 4085,
+      "sha256": "9bcf6e6783764675825b1d4b9ed54f1678f44d5faa61f5a0384fb40d63ec115c"
+    },
+    {
+      "path": "control-plane/async_reconcile.py",
+      "size_bytes": 9767,
+      "sha256": "8b53376f68e0f11495d088f7ea9f4af77219fc43783e4b654f857190450c9fa5"
+    },
+    {
+      "path": "control-plane/control-ticket.schema.json",
+      "size_bytes": 820,
+      "sha256": "11f0806fe2529a11c25c55cf1c3489049040411f9edd31d8600602f12429ed7e"
+    },
+    {
+      "path": "control-plane/control_plane.py",
+      "size_bytes": 41822,
+      "sha256": "d6fb1802ab810960f2c86834bd1db0d56fe40dab69b8e285d79ba218d8d7d6e7"
+    },
+    {
+      "path": "control-plane/deferred_poll.py",
+      "size_bytes": 3187,
+      "sha256": "e454d03e6292dfaaec4ec919b3cb88c2139b6e3bbf715f2866cb090f9b4ec4e2"
+    },
+    {
+      "path": "control-plane/deferred_reconcile.py",
+      "size_bytes": 1931,
+      "sha256": "53f1eb2def468728fea4c67540a29adfbb4ed41eab17427d1e910d0a95f4b130"
+    },
+    {
+      "path": "control-plane/resilient_control.py",
+      "size_bytes": 827,
+      "sha256": "545182a2bf218058da2b7908bf99b9ecb214fcb3f8dc1b2f521ea4b6150dfa60"
+    },
+    {
+      "path": "control-plane/resilient_http.py",
+      "size_bytes": 6876,
+      "sha256": "53bbc5fc30f44a37a5fd2aca315d5dca2ab65002b8155394384a85fd9e00f0b9"
+    },
+    {
+      "path": "control-plane/status-dictionary.json",
+      "size_bytes": 4245,
+      "sha256": "a82f9e7d5be9d56180a4dea80f55ac20e5850197f5da41dfaa6eebb39ed1cd87"
+    },
+    {
+      "path": "control-plane/topology-contract.json",
+      "size_bytes": 3138,
+      "sha256": "b1bc19421e14fa276f33bc8b86b61a95b8482f23f6125aaad14e7ee3f3446298"
+    },
+    {
+      "path": "governance-canary/run_paid_governance_copilot_canary.py",
+      "size_bytes": 12357,
+      "sha256": "b9d7453c388c1f4d9767aa8ad8081a60cc3ec436e8ce9120026cd5e06fdf47ee"
+    },
+    {
+      "path": "governance-copilot/production-qualification.json",
+      "size_bytes": 1916,
+      "sha256": "eb768f9ccabaaa5b37eba23d4efce53a6855aa5838f56b77784efccc8242d447"
+    },
+    {
+      "path": "governance-copilot/rank_flagships_by_task_cost.py",
+      "size_bytes": 9631,
+      "sha256": "1a19acf26eeafe81096072d02dd0913abd9a29e7713da0b68a79ace3eb6e1b26"
+    },
+    {
+      "path": "governance-copilot/select_paid_governance_flagship_model.py",
+      "size_bytes": 18341,
+      "sha256": "51db19f70e21c8ebc1a92c114d8b0cf8c39fca771842203e1845276ffce76db0"
+    },
+    {
+      "path": "governance-resilience-matrix.json",
+      "size_bytes": 10081,
+      "sha256": "29688403c220eadf263baa6ef60d22a060a5ae7cbc1ad73e59c1dd82c692f340"
+    },
+    {
+      "path": "gpts-action/openapi.yaml",
+      "size_bytes": 5272,
+      "sha256": "6956797bdac9d96c8796d174c01224877069c05311b5fc69e9be22f76e12ed50"
+    },
+    {
+      "path": "gpts-knowledge/GPTS_CONTROL_PLANE.md",
+      "size_bytes": 1601,
+      "sha256": "a3d6f0d581d99f660d50ab55e47cb882b323ea91558a78449cc790a94d527155"
+    },
+    {
+      "path": "gpts-knowledge/GPTS_KNOWLEDGE_MASTER.md",
+      "size_bytes": 12840,
+      "sha256": "6f2a8e962f4788ac7cbe789b4a1aea6f9599b104c62afd6e24edbfa7eec5da56"
+    },
+    {
+      "path": "gpts-knowledge/KNOWLEDGE_UPLOAD_MANIFEST.md",
+      "size_bytes": 3846,
+      "sha256": "8aeca2f3007bfffb0d6d42549f4f5e6a835b6399c6d30334f4e37fd9beefe6fd"
+    },
+    {
+      "path": "hf-asset-gateway/README.md",
+      "size_bytes": 1899,
+      "sha256": "f81c61ba86054a5e8643e254d41d990121c4661627b3336efc11436a32bc5c21"
+    },
+    {
+      "path": "hf-asset-gateway/contract.json",
+      "size_bytes": 2122,
+      "sha256": "65ffc1578bddfd59153d998293f7cfd7a493b543ee8fff03b6fbe4b3bc99e133"
+    },
+    {
+      "path": "hf-asset-gateway/gateway.py",
+      "size_bytes": 19039,
+      "sha256": "a1eaeb5f97b2f6b32ecbfda26f4e1642292af566638ebd18221e0ee764626260"
+    },
+    {
+      "path": "hf-asset-gateway/requirements.txt",
+      "size_bytes": 24,
+      "sha256": "ad70d24cf6060f54403e37d5c3b922e13a07dde84ab621d507fc35df01bfca26"
+    },
+    {
+      "path": "hf-asset-gateway/tests/test_gateway.py",
+      "size_bytes": 3617,
+      "sha256": "55a7d6140400f246a9dfd3e811a857294fcd84b55a8c28af2d276d2722fe1a9a"
+    },
+    {
+      "path": "integrations/cisa-kev/integration.json",
+      "size_bytes": 701,
+      "sha256": "f31d5b00314aa8e05ec4f2dde5a335b1b7ef36b86f493f7f2ea869bb04246291"
+    },
+    {
+      "path": "integrations/depsdev/integration.json",
+      "size_bytes": 794,
+      "sha256": "20035f6f6f718710cd582e1218ec09b336a908ca172080705900f7887a850aba"
+    },
+    {
+      "path": "integrations/healthchecks/integration.json",
+      "size_bytes": 842,
+      "sha256": "21488d048b4050dc84c13659b2b77d0ad340de8a4bd59fd3bf8941cc506b8c0b"
+    },
+    {
+      "path": "integrations/osv/integration.json",
+      "size_bytes": 772,
+      "sha256": "5452b289cc6d09af173f1c6923d834477db3390f7803d4da85c92be8a2bb393d"
+    },
+    {
+      "path": "integrations/serverchan/integration.json",
+      "size_bytes": 1050,
+      "sha256": "eae1f0590f81872141336032d7b1c52f22dce40507b85edc61f92c36701c28df"
+    },
+    {
+      "path": "model-orchestration-policy.json",
+      "size_bytes": 2165,
+      "sha256": "e6b8fa9c66438af1d82787b3f5be57734c4157cd954db22628e76029a934a577"
+    },
+    {
+      "path": "security/access_contract.py",
+      "size_bytes": 6112,
+      "sha256": "4877458e8a2065374e67677083130987e0d9689686717b779f490f68df75bf69"
+    },
+    {
+      "path": "security/governance_health_check.py",
+      "size_bytes": 6888,
+      "sha256": "8b7c3010d3efba4f922e53a72c75c645b212689a319aad2a5d78a0da3fd8490d"
+    },
+    {
+      "path": "security/governance_issue_guard.py",
+      "size_bytes": 6317,
+      "sha256": "570974f3611b1e44359656d3608fe98e6bc46f0fa4c6339bedbbdba0b9236319"
+    },
+    {
+      "path": "tests/stress_openrouter_governance_selector.py",
+      "size_bytes": 4640,
+      "sha256": "9e23eae6964d0b7dbebf92e880637aba87e100e5613603eb79af7bd542058b7c"
+    },
+    {
+      "path": "tests/test_access_contract.py",
+      "size_bytes": 5402,
+      "sha256": "110098e34c1988f3e9f1cc592ff8f4ab9fc7ae9eadc977189085f8f635c684a8"
+    },
+    {
+      "path": "tests/test_async_reconcile.py",
+      "size_bytes": 3532,
+      "sha256": "30d9761d85c1075cee348cd3bd66c10943bb47743076ed3763660ee082c3da30"
+    },
+    {
+      "path": "tests/test_control_plane.py",
+      "size_bytes": 17766,
+      "sha256": "a3ea948a14a48a09147adb2de70d3255f2dbcca32084d8c7c6c2d19a8a3febef"
+    },
+    {
+      "path": "tests/test_deferred_poll.py",
+      "size_bytes": 6182,
+      "sha256": "880122e952bdc8e806ad95cfc3709c68229b1b3bdbc0fb30adccf20c8f5bb2ac"
+    },
+    {
+      "path": "tests/test_deferred_reconcile.py",
+      "size_bytes": 2921,
+      "sha256": "f604348ff11496be5140080d2d0582436e886a7b19cba0e004b24d7c4a86090c"
+    },
+    {
+      "path": "tests/test_governance_issue_guard.py",
+      "size_bytes": 3665,
+      "sha256": "ed1acf1cebc9f03e4f79d193dbdc9d8c56238965933e9f125a1707708db90850"
+    },
+    {
+      "path": "tests/test_governance_paid_canary_contract.py",
+      "size_bytes": 3883,
+      "sha256": "1b018de1ccc74e26716095a8e7804c293b8776a0b97ec509a7afcde5009b4a6f"
+    },
+    {
+      "path": "tests/test_gpts_schema_compat.py",
+      "size_bytes": 727,
+      "sha256": "87da3631fac22ac66e72bc826065563c38fccce5ae9b39611fb4d9f94a4666ae"
+    },
+    {
+      "path": "tests/test_openrouter_governance_selector.py",
+      "size_bytes": 14013,
+      "sha256": "f381836683fc7a9657c7f0070ec7ff89fb442bc4f0e9938aa7bf2d3159162bf4"
+    },
+    {
+      "path": "tests/test_openrouter_selector_static_safety.py",
+      "size_bytes": 7070,
+      "sha256": "0c5742a87f74dd04456460d168861a708212291150ccea43a4ee6995bea831e1"
+    },
+    {
+      "path": "tests/test_openrouter_task_cost_ranking.py",
+      "size_bytes": 5223,
+      "sha256": "6197d7e7fd2cac80fb0bb8765554984d3537516d522bd7817c66f73e54146bef"
+    },
+    {
+      "path": "tests/test_p1_operational_contract.py",
+      "size_bytes": 4762,
+      "sha256": "419046953716edb3fd58e47e0e7479d455e797b495d05f2b189d04e51342df3e"
+    },
+    {
+      "path": "tests/test_resilient_http.py",
+      "size_bytes": 5867,
+      "sha256": "f99f67e8807fe13c9aa09f576d133b3a6e6a295a71e99b736a56f4c0a962e0b6"
+    },
+    {
+      "path": "tools/generate_governance_release_manifest.py",
+      "size_bytes": 1875,
+      "sha256": "ab9823c424f9a59e9d31d8c737cd371e54730604bdf13d64a7a027ec7a9dc771"
+    },
+    {
+      "path": "tools/serverchan_notify.py",
+      "size_bytes": 2378,
+      "sha256": "7f0cd4088d18e2d0380a6a19f162234a4f9b1d849a3a406632492b68e8c4331a"
+    },
+    {
+      "path": "tools/supply_chain_audit.py",
+      "size_bytes": 10414,
+      "sha256": "962a097176b68a6bb521440ceb81b7b60800ac104a4318888787ee29730cf015"
+    },
+    {
+      "path": "tools/workflow_diagnostics.py",
+      "size_bytes": 15777,
+      "sha256": "89a4acdf6d02dcf415cac3b6e155fbddd7ec29461d6c972c1fc1ae4511ef2530"
+    }
   ]
 }

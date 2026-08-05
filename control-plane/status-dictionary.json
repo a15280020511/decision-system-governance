@@ -76,6 +76,11 @@
       "terminal": false,
       "meaning": "GitHub 平台或 Actions 长期不可用，系统不能安全执行。",
       "next_action": "禁止无证据绕过；平台恢复后从开放治理 Issue 继续。"
+    },
+    "CONTROL_ASYNC_DEADLINE_EXCEEDED": {
+      "terminal": false,
+      "meaning": "异步轮询超过路由期限，治理任务关闭为未确认成功，但子任务可能仍会迟到完成。",
+      "next_action": "不得重复宣称成功；等待迟到可信终态对账，或依据子中心证据决定是否重新提交。"
     }
   },
   "truth_rules": [
@@ -83,6 +88,7 @@
     "Child accepted is not business completed.",
     "Only github-actions[bot] receipts are trusted.",
     "Success requires matching task_id and route-specific Artifact evidence.",
-    "Timeout and monitor error do not prove that the child task stopped."
+    "Timeout and monitor error do not prove that the child task stopped.",
+    "Scheduled polling releases the dispatch Runner; cron delay changes delivery latency, not child computation quality."
   ]
 }

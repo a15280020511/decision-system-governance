@@ -14,3 +14,7 @@
 12. Do not post a second command or read audit comments.
 13. Never place credentials, API keys, personal data, arbitrary code, or shell commands in a ticket.
 14. Governance may recover an interrupted task at most three times and may reuse the same child Issue; do not submit a replacement task.
+
+## 内部执行说明
+
+治理派发后立即释放 GitHub Runner；`CONTROL_DISPATCHED` 保持开放并占用唯一全局槽，独立工作流每5分钟异步轮询子中心终态。GPTs 仍只查询原治理 Issue。

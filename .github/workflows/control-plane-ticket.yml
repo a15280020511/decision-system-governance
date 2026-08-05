@@ -19,19 +19,19 @@ concurrency:
 jobs:
   serial-worker:
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    timeout-minutes: 20
     env:
       GOVERNANCE_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
       GOVERNANCE_HTTP_AUDIT_FILE: control-artifacts/http-retry-audit.jsonl
       GOVERNANCE_HTTP_MAX_ATTEMPTS: "4"
     steps:
       - name: Checkout governance control plane
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
         with:
           python-version: "3.12"
 
@@ -44,9 +44,17 @@ jobs:
             --repository "$GITHUB_REPOSITORY" \
             --output-dir control-artifacts
 
-      - name: Report empty queue
+      - name: Report queue or asynchronous in-flight state
         if: steps.select.outputs.has_task != 'true'
-        run: echo "No owned open [control] Issue is waiting."
+        env:
+          IN_FLIGHT: ${{ steps.select.outputs.in_flight || 'false' }}
+          ISSUE_NUMBER: ${{ steps.select.outputs.issue_number || '' }}
+        run: |
+          if [ "$IN_FLIGHT" = "true" ]; then
+            echo "Governance Issue #${ISSUE_NUMBER} is asynchronously waiting; no Runner is held."
+          else
+            echo "No owned open [control] Issue is waiting."
+          fi
 
       - name: Parse and validate selected ticket before classification
         id: prepare
@@ -246,49 +254,23 @@ jobs:
             "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}" \
             -F body=@governance-issue-body.md
 
-      - name: Monitor trusted child terminal status
-        id: monitor
+      - name: Record asynchronous handoff
         if: steps.dispatch.outcome == 'success'
-        continue-on-error: true
-        env:
-          CONTROL_PLANE_TOKEN: ${{ secrets.CONTROL_PLANE_TOKEN }}
         run: |
-          python control-plane/deferred_poll.py \
-            --output-dir control-artifacts \
-            --wait-seconds "${{ steps.prepare.outputs.wait_seconds }}"
-
-      - name: Publish final centralized receipt
-        if: always() && steps.dispatch.outcome == 'success'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GOVERNANCE_ISSUE_NUMBER: ${{ steps.select.outputs.issue_number }}
-        run: |
-          python control-plane/resilient_control.py render \
-            --phase final \
-            --output-dir control-artifacts \
-            --output governance-comment.md
-          python control-plane/resilient_control.py compose \
-            --request control-artifacts/selected-request.md \
-            --receipt governance-comment.md \
-            --output governance-issue-body.md
-          gh api --method POST \
-            "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}/comments" \
-            -F body=@governance-comment.md
-          if [ "${{ steps.monitor.outputs.success }}" = "true" ]; then
-            reason=completed
-          else
-            reason=not_planned
-          fi
-          gh api --method PATCH \
-            "repos/${GITHUB_REPOSITORY}/issues/${GOVERNANCE_ISSUE_NUMBER}" \
-            -F body=@governance-issue-body.md \
-            -f state=closed \
-            -f state_reason="$reason"
-          touch control-artifacts/task-handled
+          cat > control-artifacts/async-handoff.json <<'EOF'
+          {
+            "schema_version": "governance-async-handoff-v1",
+            "status": "CONTROL_DISPATCHED",
+            "runner_held_waiting": false,
+            "poll_owner": "control-plane-reconcile.yml",
+            "poll_interval_target_seconds": 300,
+            "legacy_wait_seconds_used_for_blocking": false
+          }
+          EOF
 
       - name: Upload governance control evidence
         if: always() && steps.select.outputs.has_task == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: governance-control-${{ steps.select.outputs.issue_number }}-${{ github.run_id }}
           path: control-artifacts/
@@ -374,6 +356,4 @@ jobs:
           if [ "${{ steps.dispatch.outcome }}" != "success" ]; then
             exit 1
           fi
-          if [ "${{ steps.monitor.outputs.success }}" != "true" ]; then
-            exit 1
-          fi
+          echo "Dispatch accepted; terminal collection is delegated to asynchronous reconciliation."
