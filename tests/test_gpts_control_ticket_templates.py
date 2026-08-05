@@ -68,10 +68,10 @@ class GPTControlTicketTemplateTests(unittest.TestCase):
         self.assertIn("Never send `research`", INSTRUCTIONS)
 
     def test_openapi_version_and_examples_are_current(self) -> None:
-        self.assertIn("version: 4.2.0", OPENAPI)
+        self.assertIn("version: 4.1.0", OPENAPI)
         self.assertEqual(
             MATRIX["control_plane"]["gpt_action_interface_version"],
-            "4.2.0",
+            "4.1.0",
         )
         for route in ("intelligence", "compute", "expert"):
             self.assertIn(f'"route":"{route}"', OPENAPI)
