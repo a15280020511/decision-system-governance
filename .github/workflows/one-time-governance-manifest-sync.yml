@@ -1,0 +1,45 @@
+name: One-time Governance Manifest Sync
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: one-time-governance-manifest-sync-${{ github.event.pull_request.head.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'feat/governance-owned-expert-model-selection'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout PR head branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: '3.12'
+
+      - name: Remove one-time workflow and regenerate exact manifest
+        run: |
+          set -euo pipefail
+          rm .github/workflows/one-time-governance-manifest-sync.yml
+          python tools/generate_governance_release_manifest.py \
+            --root . \
+            --output governance-release-manifest.json \
+            --version 4.2.2
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add governance-release-manifest.json .github/workflows/one-time-governance-manifest-sync.yml
+          git commit -m 'chore: sync governance release manifest'
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
