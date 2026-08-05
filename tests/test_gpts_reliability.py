@@ -8,6 +8,9 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+RELIABILITY_SOURCE = (
+    ROOT / "control-plane" / "gpts_reliability.py"
+).read_text(encoding="utf-8")
 
 
 def _load(name: str, path: Path):
@@ -44,6 +47,11 @@ class GPTsReliabilityTests(unittest.TestCase):
         v3 = json.dumps(self._packet(RELIABILITY.V3), sort_keys=True)
         v4 = json.dumps(self._packet(RELIABILITY.V4, request_id), sort_keys=True)
         self.assertEqual(CONTROL._request_fingerprint(v3), CONTROL._request_fingerprint(v4))
+
+    def test_downstream_status_requires_control_received_evidence(self) -> None:
+        self.assertIn('"read_after_write_verified": None', RELIABILITY_SOURCE)
+        self.assertIn('"CONTROL_RECEIVED" if client_request_id else None', RELIABILITY_SOURCE)
+        self.assertNotIn('"read_after_write_verified": bool(client_request_id)', RELIABILITY_SOURCE)
 
     def test_v4_prepare_strips_client_metadata_from_child_ticket(self) -> None:
         request_id = "8beae650-3676-4a76-b8a4-e45f76ccf822"
