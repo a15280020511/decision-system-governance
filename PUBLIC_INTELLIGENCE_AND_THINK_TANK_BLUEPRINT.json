@@ -1,0 +1,313 @@
+{
+  "schema_version": "public-intelligence-think-tank-blueprint-v1",
+  "scope": "Lawful public-source intelligence, evidence engineering and policy research only. No clandestine collection, unauthorized access, covert surveillance, personal targeting, influence operations, weapons integration or offensive cyber activity.",
+  "objective": "Continuously discover, screen, benchmark and govern free data, tools, standards and methods needed for a public-source intelligence center and an offline top-tier think-tank computation center.",
+  "design_principles": [
+    "all-source public information rather than single-search dependence",
+    "source quality, provenance and uncertainty are first-class data",
+    "facts, assumptions, analytic judgments and recommendations are separated",
+    "alternative hypotheses and disconfirming evidence are mandatory",
+    "collection and computation remain isolated and communicate only through governance tickets",
+    "candidate catalogs may be broad; production tools remain small, pinned and benchmarked",
+    "free means no mandatory paid subscription and no automatic paid overage",
+    "no finite process may claim literal complete global coverage"
+  ],
+  "centers": {
+    "governance": {
+      "roles": [
+        "requirements and priority management",
+        "capability taxonomy and coverage matrix",
+        "source and tool approval states",
+        "license, billing and security policy",
+        "version pins, hashes, attestations and retirement decisions",
+        "cross-center ticket and evidence contracts"
+      ]
+    },
+    "evidence_data_center": {
+      "mission": "Collect, verify, normalize, connect and preserve lawful public information and tool metadata.",
+      "capability_pillars": {
+        "requirements_and_collection_management": [
+          "priority intelligence requirements",
+          "collection plans",
+          "coverage and gap maps",
+          "source tasking and refresh schedules",
+          "duplicate and contradiction tracking"
+        ],
+        "global_source_discovery": [
+          "web and semantic search",
+          "news and event search",
+          "academic, patent, legal, company and code search",
+          "API, MCP, package, model and dataset registry discovery",
+          "multilingual and local-domain discovery",
+          "link, RSS, sitemap and protocol enumeration"
+        ],
+        "collection_surfaces": [
+          "fixed read-only APIs",
+          "remote MCP candidates",
+          "browser and headless-browser tooling",
+          "web crawling and change detection",
+          "RSS, Atom, email-publication and sitemap ingestion",
+          "bulk datasets, object stores and open catalogs",
+          "documents, images, audio and video"
+        ],
+        "domain_intelligence": [
+          "political and governance",
+          "macroeconomic, fiscal and monetary",
+          "finance, markets and corporate",
+          "trade, customs and supply chains",
+          "science, technology, patents and standards",
+          "energy, commodities and infrastructure",
+          "geospatial, earth observation, weather and environment",
+          "transport, aviation, maritime and logistics",
+          "health, food, agriculture and demographics",
+          "law, regulation, procurement and courts",
+          "media, narratives, public opinion and social indicators",
+          "humanitarian, disaster and public cyber-threat intelligence"
+        ],
+        "document_and_media_exploitation": [
+          "HTML and structured-data extraction",
+          "PDF layout, tables and citations",
+          "OCR and document image processing",
+          "Office, email, archive and ebook parsing",
+          "audio transcription and subtitle processing",
+          "video frame and image metadata extraction",
+          "translation and multilingual normalization"
+        ],
+        "information_extraction": [
+          "entities, relations and events",
+          "time, place and identifiers",
+          "claims, quotations and citations",
+          "topics, keywords and classifications",
+          "company, institution, address and product normalization"
+        ],
+        "fusion_and_evidence_engineering": [
+          "record linkage and entity resolution",
+          "deduplication and near-duplicate detection",
+          "knowledge, evidence, citation and temporal graphs",
+          "source snapshots, hashes, versions and lineage",
+          "contradiction, corroboration and missing-evidence maps",
+          "search indexes, geospatial indexes and vector indexes"
+        ],
+        "source_evaluation": [
+          "official status and ownership",
+          "primary versus secondary source",
+          "access and collection method",
+          "credibility, reliability and corroboration",
+          "timeliness, geographic and topical coverage",
+          "known bias, limitations and uncertainty",
+          "license, retention, redistribution and privacy constraints"
+        ],
+        "warning_and_monitoring": [
+          "weak-signal and emerging-issue detection",
+          "event, policy, market, technology and supply-chain change detection",
+          "source breakage and data drift",
+          "threshold alerts and scheduled briefs",
+          "watch topics and institutions, not covert personal surveillance"
+        ],
+        "defensive_cyber_intelligence": [
+          "STIX and TAXII",
+          "MISP and OpenCTI candidate interoperability",
+          "CVE, CWE, CPE, ATT&CK, CAPEC and advisory feeds",
+          "IOC normalization and public threat-report processing",
+          "SBOM, dependency, vulnerability and secret scanning"
+        ],
+        "quality_and_audit": [
+          "collection receipts and request budgets",
+          "source-level evidence citations",
+          "schema and contract validation",
+          "replay, regression and change tests",
+          "failure classification and bounded retry",
+          "artifact, hash and provenance verification"
+        ]
+      },
+      "tool_surfaces_to_discover": [
+        "API", "remote-MCP", "local-MCP-candidate", "SDK", "CLI", "library", "framework", "server", "database", "search-engine", "browser", "crawler", "parser", "OCR-model", "NLP-model", "workflow-action", "protocol-adapter", "knowledge-graph", "reference-dataset", "standard", "method-guide"
+      ]
+    },
+    "compute_simulation_center": {
+      "mission": "Perform reproducible offline research, estimation, forecasting, simulation and decision analysis on evidence packages approved by governance.",
+      "capability_pillars": {
+        "research_design": [
+          "problem framing and theory of change",
+          "hypothesis and estimand definition",
+          "measurement models and indicator design",
+          "sampling, power and experimental design",
+          "systematic-review and evidence-synthesis inputs"
+        ],
+        "statistics_and_econometrics": [
+          "descriptive and inferential statistics",
+          "regression, generalized models and panel data",
+          "time series, state-space and structural models",
+          "survival, duration, count and spatial models",
+          "robust estimation and missing-data analysis"
+        ],
+        "causal_inference": [
+          "causal graphs and identification",
+          "experiments and quasi-experiments",
+          "matching, weighting and doubly robust estimation",
+          "difference-in-differences, synthetic control and discontinuity",
+          "sensitivity and falsification tests"
+        ],
+        "bayesian_and_probabilistic": [
+          "Bayesian inference and hierarchical models",
+          "probabilistic programming",
+          "prior predictive and posterior predictive checks",
+          "Bayesian networks and decision networks",
+          "value of information"
+        ],
+        "forecasting_and_early_warning": [
+          "classical and machine-learning forecasting",
+          "probabilistic and interval forecasts",
+          "forecast combination and calibration",
+          "change-point and anomaly detection",
+          "backtesting and forecast scoring"
+        ],
+        "uncertainty_and_robustness": [
+          "Monte Carlo and quasi-Monte Carlo",
+          "global sensitivity analysis",
+          "uncertainty propagation",
+          "reliability and rare-event analysis",
+          "robust decision making and deep-uncertainty analysis"
+        ],
+        "optimization_and_operations_research": [
+          "linear, mixed-integer and convex optimization",
+          "constraint programming",
+          "routing, scheduling, allocation and network flow",
+          "multi-objective and robust optimization",
+          "post-optimality, scenario and what-if analysis"
+        ],
+        "simulation_and_complex_systems": [
+          "discrete-event simulation",
+          "system dynamics",
+          "agent-based modeling",
+          "microsimulation and population synthesis",
+          "hybrid and event-driven simulation",
+          "verification, validation and accreditation"
+        ],
+        "strategic_and_policy_methods": [
+          "structured analytic techniques",
+          "alternative hypotheses and red-team challenge",
+          "Delphi and expert elicitation",
+          "horizon scanning and weak signals",
+          "driver mapping and three horizons",
+          "scenario construction and morphological analysis",
+          "policy stress testing, backcasting and roadmapping",
+          "multi-criteria decision analysis",
+          "robust decision making",
+          "game theory, bargaining and competition models"
+        ],
+        "networks_and_graphs": [
+          "centrality, communities and diffusion",
+          "multilayer, temporal and bipartite networks",
+          "supply-chain and ownership graphs",
+          "contagion and cascade models",
+          "graph robustness and intervention analysis"
+        ],
+        "geospatial_and_remote_sensing": [
+          "vector, raster and spatial statistics",
+          "network and accessibility analysis",
+          "earth-observation time series",
+          "land-use, mobility and environmental modeling",
+          "spatial uncertainty and scenario mapping"
+        ],
+        "economics_finance_and_business": [
+          "macroeconomic and sector modeling",
+          "input-output and social-accounting analysis",
+          "financial risk, portfolio and stress testing",
+          "market, competition and consumer analysis",
+          "cost-benefit, cost-effectiveness and real-options analysis"
+        ],
+        "reproducibility_and_quality": [
+          "frozen datasets and benchmarks",
+          "deterministic seeds and environment locks",
+          "unit, property and metamorphic tests",
+          "cross-model consistency",
+          "calibration, validation and uncertainty reports",
+          "artifacts, hashes and recomputation receipts"
+        ]
+      }
+    },
+    "expert_assessment_center": {
+      "mission": "Tool-free synthesis and challenge using only prepared evidence and computed outputs.",
+      "constraints": [
+        "no external tools",
+        "no direct center-to-center calls",
+        "explicit uncertainty and alternative interpretations",
+        "facts, assumptions, judgments and recommendations separated"
+      ]
+    }
+  },
+  "global_discovery_sources": {
+    "official_standards_and_methods": [
+      "ODNI analytic standards and sourcing directives",
+      "CIA public analytic tradecraft publications",
+      "UK PHIA standards and professional framework",
+      "UK Government Futures Toolkit",
+      "OECD strategic foresight resources",
+      "RAND public methods including Delphi and Robust Decision Making",
+      "OASIS STIX/TAXII standards",
+      "W3C, OGC, IETF, ISO-public metadata and protocol pages"
+    ],
+    "software_and_service_registries": [
+      "GitHub", "GitLab", "PyPI", "conda-forge", "CRAN", "R-universe", "Julia-General", "npm", "Maven-Central", "NuGet", "RubyGems", "crates.io", "Go-modules", "Docker-Hub-metadata", "GitHub-Actions-Marketplace", "MCP-registries", "APIs.guru"
+    ],
+    "models_and_data_registries": [
+      "Hugging-Face", "OpenML", "Zenodo", "Software-Heritage", "OpenAlex", "Crossref", "DataCite", "re3data", "OpenAIRE", "CKAN", "Socrata", "ArcGIS-Hub", "STAC-catalogs"
+    ],
+    "security_and_supply_chain": [
+      "OSV", "deps.dev", "NVD", "CISA-KEV", "GitHub-Advisories", "OpenSSF", "SPDX", "CycloneDX", "Sigstore"
+    ],
+    "multilingual_search": [
+      "Tavily", "Exa", "GitHub-search", "Google-via-approved-provider", "Baidu-via-approved-provider", "official-site-search", "local-language-government-and-academic-portals"
+    ]
+  },
+  "candidate_states": [
+    "discovered", "normalized", "official-source-verified", "license-reviewed", "free-gate-passed", "security-reviewed", "duplicate-or-dominated", "sandbox-eligible", "benchmarked", "approved", "pinned", "production", "degraded", "retired", "rejected"
+  ],
+  "free_gate": {
+    "allowed": [
+      "open-source", "open-standard", "public-domain", "open-data", "free-no-key", "free-key-required", "free-snapshot", "free-tier-with-hard-stop"
+    ],
+    "blocked": [
+      "trial-only", "automatic-paid-overage", "mandatory-card-with-charge-risk", "unknown-license", "no-automated-access", "paywall-bypass", "credential-sharing", "private-data-harvesting"
+    ]
+  },
+  "tool_promotion_gates": [
+    "official repository or independently verified provenance",
+    "clear compatible license",
+    "no paid runtime dependency for intended workload",
+    "no critical unresolved vulnerability",
+    "dependency and build reproducibility",
+    "maintained or stable enough for pinning",
+    "fits one center without violating isolation",
+    "fills a capability gap or materially beats incumbent",
+    "passes offline sandbox and frozen benchmark",
+    "produces auditable artifacts and deterministic failure modes"
+  ],
+  "cadence": {
+    "daily": [
+      "source and tool changes", "releases and deprecations", "security advisories", "critical data updates", "weak signals and alerts", "due health checks"
+    ],
+    "weekly": [
+      "balanced multilingual source discovery", "package-model-dataset-MCP registry deltas", "coverage-gap rotation", "candidate scoring and deduplication"
+    ],
+    "monthly": [
+      "license and billing audit", "free quota audit", "source reliability review", "approved-tool regression benchmarks", "stale and dominated candidate review"
+    ],
+    "quarterly": [
+      "frontier technology review", "strategic methods review", "under-covered countries-languages-domains campaign", "architecture simplification and retirement"
+    ]
+  },
+  "deliverables": [
+    "global source registry",
+    "intelligence tool candidate registry",
+    "compute tool candidate registry",
+    "reference methods and standards registry",
+    "country-language-domain-protocol-capability coverage matrix",
+    "gap and saturation report",
+    "free-tier and billing-risk ledger",
+    "license and security evidence",
+    "benchmark and promotion reports",
+    "source and tool retirement log"
+  ]
+}
