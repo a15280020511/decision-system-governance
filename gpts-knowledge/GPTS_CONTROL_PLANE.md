@@ -20,16 +20,70 @@
 18. `state=closed` with `state_reason=not_planned` means rejected, failed, timed out, or bounded recovery was exhausted.
 19. Never create Issues or comments directly in the three business repositories.
 20. Build the child-center ticket without `task_id`; governance generates it.
-21. Never place credentials, API keys, personal data, arbitrary code or shell commands in a ticket.
-22. Governance may recover an interrupted task at most three times and may reuse the same child Issue; do not submit a replacement task.
-23. Do not claim queue position or completion percentage unless the authoritative machine status explicitly provides it. The current protocol provides phases, not percentages.
-24. Present progress as a status card containing client_request_id, issue_number, task_id, route, state, phase, last_updated_at, retryable, error_code, next_action and issue_url.
-25. In the same response, use at most four bounded reads: immediately, then near 15, 45 and 90 seconds. After that, stop polling and return the query handle.
-26. When the user says `查询当前任务`, `查询任务 #<issue_number>` or `继续查看执行进度`, read the same Issue; never create a new task.
-27. `CONTROL_RECEIVED` proves ingress and readback only. It is not business acceptance or completion.
-28. Timeout or monitor error does not prove the child task stopped. Keep the original task handle and wait for reconciliation.
-29. A retryable terminal failure may become a new logical task only after the user decides to retry; generate a new client_request_id.
-30. Never use an automatic Agent loop, unbounded polling or repeated write approval.
+21. Every new submission envelope must use the exact literal `schema_version: governance-control-ticket-v4`. Never shorten it to `4`, `v4`, `governance-v4`, or another alias.
+22. The only valid route literals are `intelligence`, `compute`, and `expert`. Never send `research`, `analysis`, `strategy`, `api`, or `simulation` as a route.
+23. Route current public-data retrieval, source collection and evidence acquisition to `intelligence`.
+24. Route deterministic statistics, optimization, simulation and numerical analysis to `compute`.
+25. Route strategy, policy, business, multidisciplinary judgment, red-team review and synthesis to `expert`. A request described as research or strategic analysis still uses `route: expert` when expert synthesis is required.
+26. Before POST, validate the envelope against `contracts/gpts-control-ticket-templates.json`. Exact constants are not subject to paraphrase.
+27. An expert ticket must use `objective`, `pipeline: expert-team`, `task.question`, `task.requirements`, `task.language`, `execution_acceptance`, `evidence`, `approved_budget`, and `private_output: false`.
+28. For expert tickets, map a proposed `title` to `ticket.objective`, `user_request` to `ticket.task.question`, and `output_language` to `ticket.task.language`. Do not send `title`, `user_request`, or `output_language` as top-level fields inside `ticket`.
+29. GPTs must omit `governance_model_plan`; the governance center creates and signs that plan. GPTs must not choose model IDs or providers.
+30. Never place credentials, API keys, personal data, arbitrary code or shell commands in a ticket.
+31. Governance may recover an interrupted task at most three times and may reuse the same child Issue; do not submit a replacement task.
+32. Do not claim queue position or completion percentage unless the authoritative machine status explicitly provides it. The current protocol provides phases, not percentages.
+33. Present progress as a status card containing client_request_id, issue_number, task_id, route, state, phase, last_updated_at, retryable, error_code, next_action and issue_url.
+34. In the same response, use at most four bounded reads: immediately, then near 15, 45 and 90 seconds. After that, stop polling and return the query handle.
+35. When the user says `查询当前任务`, `查询任务 #<issue_number>` or `继续查看执行进度`, read the same Issue; never create a new task.
+36. `CONTROL_RECEIVED` proves ingress and readback only. It is not business acceptance or completion.
+37. Timeout or monitor error does not prove the child task stopped. Keep the original task handle and wait for reconciliation.
+38. A retryable terminal failure may become a new logical task only after the user decides to retry; generate a new client_request_id.
+39. A non-retryable `CONTROL_SCHEMA_REJECTED` must not be resubmitted unchanged. Report the rejected fields, rebuild from the exact template, and use a new client_request_id only when the user continues the corrected logical task.
+40. Never use an automatic Agent loop, unbounded polling or repeated write approval.
+
+## Exact v4 envelope templates
+
+### Expert synthesis
+
+```json
+{
+  "schema_version": "governance-control-ticket-v4",
+  "client_request_id": "<canonical UUID>",
+  "route": "expert",
+  "ticket": {
+    "objective": "<assessment objective>",
+    "pipeline": "expert-team",
+    "task": {
+      "question": "<complete question>",
+      "requirements": ["<requirement>"],
+      "language": "zh-CN"
+    },
+    "execution_acceptance": ["<acceptance condition>"],
+    "evidence": [],
+    "approved_budget": {
+      "calls": 8,
+      "maximum_recovery_calls": 1
+    },
+    "private_output": false
+  },
+  "wait_seconds": 2700
+}
+```
+
+### Deterministic compute
+
+```json
+{
+  "schema_version": "governance-control-ticket-v4",
+  "client_request_id": "<canonical UUID>",
+  "route": "compute",
+  "ticket": {
+    "operation": "descriptive_statistics",
+    "inputs": {"data": [1, 2, 3]}
+  },
+  "wait_seconds": 2400
+}
+```
 
 ## Diagnostic state mapping
 
@@ -38,6 +92,7 @@
 - Authenticated GET returns 403: `ACTION_AUTH_FORBIDDEN`
 - POST returns 401/403/422 or another non-201: report the exact status and stop
 - POST approval returns no result and recovery finds no Issue: `SUBMISSION_AMBIGUOUS`
+- Governance returns `CONTROL_SCHEMA_REJECTED`: report the exact invalid literals or fields; never describe the business analysis as started
 
 ## User-facing progress phases
 
@@ -54,4 +109,4 @@ Failure, rejection, timeout and monitoring states must use `control-plane/status
 
 Governance releases the dispatch Runner after `CONTROL_DISPATCHED`. The open governance Issue remains the global slot lock. Independent reconciliation reads the child terminal every five minutes, with a fifteen-minute queue recovery scan. GPTs always query the same governance Issue.
 
-Formal protocol: `GPTS_WEB_SESSION_PROTOCOL.md` and `contracts/gpts-web-session-protocol.json`.
+Formal protocol: `GPTS_WEB_SESSION_PROTOCOL.md`, `contracts/gpts-web-session-protocol.json`, and `contracts/gpts-control-ticket-templates.json`.
