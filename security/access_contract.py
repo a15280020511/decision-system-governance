@@ -147,9 +147,10 @@ def validate_access_contract(openapi: str, workflow: str) -> None:
         if "CONTROL_PLANE_TOKEN" in line
     ]
     expected_token_line = "CONTROL_PLANE_TOKEN: ${{ secrets.CONTROL_PLANE_TOKEN }}"
-    if token_lines != [expected_token_line, expected_token_line]:
+    if token_lines != [expected_token_line]:
         errors.append(
-            "CONTROL_PLANE_TOKEN must appear exactly twice as a step env assignment; "
+            "CONTROL_PLANE_TOKEN must appear exactly once in the dispatch workflow; "
+            "asynchronous reconciliation owns its separate step assignment; "
             f"got {token_lines}"
         )
 

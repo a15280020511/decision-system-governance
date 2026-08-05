@@ -404,6 +404,20 @@ def select(args: argparse.Namespace) -> int:
     issue = queue[0]
     issue_number = int(issue["number"])
     request_body = _original_request_body(str(issue.get("body") or ""))
+    current_heading = _governance_status_heading(str(issue.get("body") or ""))
+    if current_heading == "## CONTROL_DISPATCHED":
+        status = {
+            "has_task": False,
+            "in_flight": True,
+            "pending_count": len(queue),
+            "issue_number": issue_number,
+            "issue_url": str(issue.get("html_url") or ""),
+            "reason": "oldest governance task is asynchronously waiting for a child terminal",
+        }
+        _write_json(root / "selection-status.json", status)
+        for key, value in status.items():
+            _write_output(key, str(value).lower() if isinstance(value, bool) else value)
+        return 0
     fingerprint = _request_fingerprint(request_body)
     all_rows = _list_issues(token, args.repository, state="all")
     duplicate = _find_duplicate_issue(
@@ -914,6 +928,7 @@ def _reconciliation_candidate(issue: Mapping[str, Any]) -> dict[str, Any] | None
     if not status_match or status_match.group(1) not in {
         "CONTROL_TIMEOUT",
         "CONTROL_MONITOR_ERROR",
+        "CONTROL_ASYNC_DEADLINE_EXCEEDED",
     }:
         return None
     if not route_match or route_match.group(1) not in ROUTES:

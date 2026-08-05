@@ -9,7 +9,7 @@ submitDecisionTask
 getDecisionTaskStatus
 ```
 
-提交是异步的。GPTs 创建一次 `[control]` Issue 后立即保存 Issue 编号，后续只轮询同一个 Issue；禁止通过再次创建 Issue 重试。
+提交与内部执行现在都是真异步。GPTs 创建一次 `[control]` Issue 后立即保存 Issue 编号；治理 worker 派发子任务后立即释放 Runner，独立对账工作流每5分钟读取同一个任务的可信终态。禁止通过再次创建 Issue 重试。
 
 ## 全局单任务队列
 
@@ -27,9 +27,17 @@ getDecisionTaskStatus
 - 排队顺序按治理 Issue 编号从小到大；
 - GitHub Actions 采用固定全局并发组，`cancel-in-progress=false`；
 - 当前任务关闭后，工作流自动唤醒下一名；
-- 每 15 分钟执行一次恢复扫描，补偿丢失或被替换的 Actions 事件；
+- 主队列每15分钟执行恢复扫描；子中心终态由独立工作流每5分钟异步轮询；
 - 单个任务最多自动恢复 3 次，达到上限后关闭为 `CONTROL_RETRY_EXHAUSTED`；
 - 不建立后台服务、数据库、Redis、Celery 或常驻进程。
+
+## 内部异步轮询
+
+- 派发工作流不再现场等待子中心，不维持长连接，也不执行30秒循环轮询；
+- `CONTROL_DISPATCHED` 的开放 Issue 本身就是全局槽锁，下一任务不能越过它；
+- 独立对账工作流以5分钟为目标间隔运行；GitHub cron 可能延迟，因此不是严格实时 SLA；
+- cron 延迟只增加最终回执的送达时间，不改变子中心已经独立执行的模型、计算或采集质量；
+- 情报和计算路由期限为2小时，专家路由为3小时；超期后仍保留迟到可信终态对账。
 
 ## 禁止重复提交
 
@@ -39,7 +47,7 @@ getDecisionTaskStatus
 schema_version + route + ticket
 ```
 
-`wait_seconds` 不参与业务身份，因此仅修改等待时间不能绕过去重。
+`wait_seconds` 为旧接口兼容字段，不再用于占用 Runner 等待；它仍不参与业务身份，因此不能用于绕过去重。
 
 发现更早的相同请求时：
 
