@@ -1,0 +1,53 @@
+{
+  "schema_version": "radar-timeliness-reuse-policy-v1",
+  "objective": "Ensure global information sources, intelligence-center tools, compute-center tools, and incumbent capability changes are discovered promptly, evaluated against existing capabilities, and upgraded safely under zero-cost-first constraints.",
+  "truthfulness": "This policy targets measurable high coverage and bounded detection latency. It does not claim literal complete or zero-blind-spot coverage.",
+  "timeliness_slo": {
+    "critical_security_or_service_change": "detect within 24 hours when an official machine-readable feed exists",
+    "new_release_or_deprecation": "detect within 72 hours for approved tools with official release feeds or registry metadata",
+    "pricing_license_or_free_tier_change": "detect within 7 days where an official page or feed can be monitored",
+    "new_high_value_tool_or_source": "enter candidate registry within 7 days when present in a covered registry; otherwise within the next scheduled multilingual discovery cycle",
+    "full_capability_inventory_refresh": "monthly",
+    "frontier_replacement_review": "quarterly"
+  },
+  "reuse_first": {
+    "required_steps": [
+      "inventory existing approved capabilities",
+      "map the new request or candidate to capability IDs",
+      "check whether an existing API, MCP, connector, package, model, workflow or dataset already satisfies the need",
+      "prefer configuration, adapter, query, prompt, workflow or version activation before adding a new dependency",
+      "measure capability overlap and marginal gain",
+      "add a new tool only when it fills a verified gap or materially dominates the incumbent",
+      "record rejected duplicates and negative evidence to avoid repeated investigation"
+    ],
+    "promotion_threshold": "No production promotion without documented net capability gain, acceptable security and licensing, reproducible tests, and a rollback path. Popularity or novelty alone is insufficient."
+  },
+  "incumbent_change_handling": {
+    "compatible_addition": "test the new operation or feature against existing contracts; promote only after regression and quota checks",
+    "behavior_change": "run compatibility and evidence-diff tests; update adapters and documentation if safe",
+    "breaking_change": "block automatic upgrade, generate migration plan, benchmark alternatives, and keep the last known-good pin",
+    "security_regression": "block upgrade or disable the affected capability according to severity; search for a replacement",
+    "cost_or_license_regression": "block promotion when free-gate or license rules fail; retain an approved free fallback",
+    "maintenance_decline": "move to watchlist and trigger replacement search"
+  },
+  "coverage_controls": {
+    "dimensions": [
+      "country", "region", "language", "industry", "institution_type", "source_type", "protocol", "data_format", "tool_surface", "capability_family", "software_ecosystem", "license", "free_mode", "maintenance_state", "update_cadence"
+    ],
+    "required_reports": [
+      "coverage matrix", "blind spots", "failed engines", "quota usage", "duplicate rate", "accepted-candidate yield", "stale incumbents", "capability deltas", "replacement opportunities"
+    ],
+    "gap_driven_search": "Search priority must be computed from uncovered or stale cells rather than fixed keyword rotation alone."
+  },
+  "upgrade_pipeline": [
+    "detect", "fingerprint", "diff", "reuse-check", "gap-or-dominance-check", "free-license-security-gates", "sandbox", "regression", "benchmark", "canary", "governance-approval", "pin-and-hash", "promote", "monitor", "rollback-or-retire"
+  ],
+  "automation_limits": {
+    "allowed": [
+      "metadata discovery", "official documentation comparison", "capability diff generation", "candidate scoring", "test execution in approved isolated workflows", "review issue creation", "notification"
+    ],
+    "forbidden": [
+      "automatic production dependency upgrade", "automatic installation of newly discovered code", "automatic local MCP execution", "automatic billing activation", "automatic secret submission", "automatic removal of the last known-good capability"
+    ]
+  }
+}
