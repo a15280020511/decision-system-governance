@@ -1,0 +1,105 @@
+{
+  "schema_version": "gpts-control-ticket-templates-v1",
+  "control_schema_version": "governance-control-ticket-v4",
+  "allowed_routes": [
+    "intelligence",
+    "compute",
+    "expert"
+  ],
+  "forbidden_schema_aliases": [
+    "4",
+    "v4",
+    "governance-v4"
+  ],
+  "forbidden_route_aliases": [
+    "research",
+    "analysis",
+    "strategy",
+    "api",
+    "simulation"
+  ],
+  "route_mapping": {
+    "current public-data retrieval, source collection and evidence acquisition": "intelligence",
+    "deterministic statistics, optimization, simulation and numerical analysis": "compute",
+    "strategy, policy, business, multidisciplinary judgment and synthesis": "expert"
+  },
+  "common_rules": {
+    "title": "[control]",
+    "client_request_id": "canonical UUID generated before POST",
+    "task_id": "must be omitted because governance generates it",
+    "secrets": "forbidden",
+    "post_attempts_per_logical_task": 1,
+    "automatic_post_retry": false
+  },
+  "templates": {
+    "intelligence": {
+      "schema_version": "governance-control-ticket-v4",
+      "client_request_id": "00000000-0000-4000-8000-000000000000",
+      "route": "intelligence",
+      "ticket": {
+        "query": "Describe the public-data or evidence request",
+        "requirements": [
+          "State source, date and evidence quality requirements"
+        ],
+        "language": "zh-CN"
+      },
+      "wait_seconds": 2400
+    },
+    "compute": {
+      "schema_version": "governance-control-ticket-v4",
+      "client_request_id": "00000000-0000-4000-8000-000000000000",
+      "route": "compute",
+      "ticket": {
+        "operation": "descriptive_statistics",
+        "inputs": {
+          "data": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "wait_seconds": 2400
+    },
+    "expert": {
+      "schema_version": "governance-control-ticket-v4",
+      "client_request_id": "00000000-0000-4000-8000-000000000000",
+      "route": "expert",
+      "ticket": {
+        "objective": "Describe the decision or assessment objective",
+        "pipeline": "expert-team",
+        "task": {
+          "question": "State the complete question to be answered",
+          "requirements": [
+            "State evidence, uncertainty, comparison and output requirements"
+          ],
+          "language": "zh-CN"
+        },
+        "execution_acceptance": [
+          "A complete final synthesis is published",
+          "Facts, inference and unknowns are separated"
+        ],
+        "evidence": [],
+        "approved_budget": {
+          "calls": 8,
+          "maximum_recovery_calls": 1
+        },
+        "private_output": false
+      },
+      "wait_seconds": 2700
+    }
+  },
+  "expert_field_mapping": {
+    "title": "ticket.objective",
+    "user_request": "ticket.task.question",
+    "requirements": "ticket.task.requirements",
+    "output_language": "ticket.task.language"
+  },
+  "expert_forbidden_top_level_ticket_fields": [
+    "title",
+    "user_request",
+    "output_language",
+    "task_id",
+    "governance_model_plan"
+  ]
+}
