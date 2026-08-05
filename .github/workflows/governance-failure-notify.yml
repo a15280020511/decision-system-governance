@@ -1,0 +1,63 @@
+name: Governance Critical Failure Notification
+
+on:
+  workflow_run:
+    workflows:
+      - Governance Control Plane
+      - Governance Token and Repository Health
+      - Validate and Run Governance Compute Baseline Gateway
+      - Workflow Diagnostic Sweep
+      - Supply Chain Risk Audit
+      - Governance External Heartbeat
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      test_message:
+        description: Send a controlled test notification
+        required: false
+        default: "Governance notification workflow test"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: governance-critical-notification-${{ github.event.workflow_run.id || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion != 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      SERVERCHAN_SENDKEY: ${{ secrets.SERVERCHAN_SENDKEY }}
+    steps:
+      - name: Checkout notifier
+        uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Send metadata-only notification
+        env:
+          SOURCE_WORKFLOW: ${{ github.event.workflow_run.name || 'manual-test' }}
+          SOURCE_CONCLUSION: ${{ github.event.workflow_run.conclusion || 'test' }}
+          SOURCE_RUN_ID: ${{ github.event.workflow_run.id || github.run_id }}
+          SOURCE_RUN_URL: ${{ github.event.workflow_run.html_url || format('https://github.com/{0}/actions/runs/{1}', github.repository, github.run_id) }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          TEST_MESSAGE: ${{ inputs.test_message || '' }}
+        run: |
+          set -euo pipefail
+          description=$(cat <<EOF
+          Repository: ${GITHUB_REPOSITORY}
+          Workflow: ${SOURCE_WORKFLOW}
+          Conclusion: ${SOURCE_CONCLUSION}
+          Run ID: ${SOURCE_RUN_ID}
+          Commit: ${SOURCE_SHA:0:12}
+          Run: ${SOURCE_RUN_URL}
+          ${TEST_MESSAGE}
+          EOF
+          )
+          python tools/serverchan_notify.py \
+            --title "治理中心关键运行通知：${SOURCE_WORKFLOW}" \
+            --description "${description}"
