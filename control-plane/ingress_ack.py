@@ -31,6 +31,7 @@ from governance_transport.idempotency import (
 from governance_transport.status import build_machine_status
 
 OWNER = "a15280020511"
+MACHINE_STATUS_SCHEMA = "governance-machine-status-v1"
 
 
 def _packet(body: str) -> dict[str, Any]:
@@ -78,7 +79,7 @@ def _machine_status(
     read_after_write_verified: bool,
     observed_at: str,
 ) -> dict[str, Any]:
-    return build_machine_status(
+    machine = build_machine_status(
         client_request_id=client_request_id,
         issue_number=issue_number,
         state="RECEIVED",
@@ -92,6 +93,9 @@ def _machine_status(
         error_code=None if schema_valid else "CONTROL_SCHEMA_REJECTED",
         updated_at=observed_at,
     )
+    if machine.get("schema_version") != MACHINE_STATUS_SCHEMA:
+        raise RuntimeError("ingress machine status schema mismatch")
+    return machine
 
 
 def _receipt(
