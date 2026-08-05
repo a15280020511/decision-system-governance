@@ -1,6 +1,6 @@
 {
   "schema_version": "interface-version-matrix-v2",
-  "governance_version": "4.3.0",
+  "governance_version": "4.3.1",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "external_controller": "a15280020511/decision-system-governance",
@@ -11,7 +11,14 @@
     "schema_version": "governance-control-ticket-v4",
     "legacy_schema_version": "governance-control-ticket-v3",
     "gpt_action_openapi_version": "3.1.0",
-    "gpt_action_interface_version": "4.1.0",
+    "gpt_action_interface_version": "4.2.0",
+    "ticket_template_contract": "contracts/gpts-control-ticket-templates.json",
+    "exact_schema_literal_required": true,
+    "allowed_route_literals": [
+      "intelligence",
+      "compute",
+      "expert"
+    ],
     "submission_mode": "single_issue_create_asynchronous_with_client_request_id",
     "task_id_mode": "generated_from_governance_issue_number",
     "status_mode": "machine_json_plus_single_issue_state_reason_body_and_trusted_comments",
