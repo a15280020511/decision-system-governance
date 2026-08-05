@@ -1,0 +1,97 @@
+{
+  "schema_version": "radar-search-architecture-v2",
+  "objective": "Continuously discover, verify and lifecycle-manage global information sources, intelligence tools, compute tools, and capability changes of already approved tools under zero-cost-first constraints.",
+  "truthfulness": "No search system may claim literal total coverage. It must report measurable coverage, saturation, blind spots, failed engines and quota consumption.",
+  "radars": {
+    "global_information_source_radar": {
+      "objects": ["APIs", "databases", "datasets", "open-data portals", "websites", "reports", "papers", "books", "archives", "news", "laws", "company filings", "patents", "standards", "maps", "remote sensing", "real-time feeds", "public sensors", "models", "benchmarks"],
+      "owner": "evidence-data-center"
+    },
+    "intelligence_tool_radar": {
+      "objects": ["search APIs", "search engines", "remote browsers", "browser automation", "crawlers", "extractors", "OCR", "document parsers", "translation", "speech-to-text", "NLP", "entity resolution", "knowledge graphs", "retrieval", "ETL", "data quality", "provenance", "security", "MCP servers", "MCP gateways", "connectors", "SDKs", "GitHub Actions"],
+      "owner": "evidence-data-center"
+    },
+    "compute_tool_radar": {
+      "objects": ["statistics", "econometrics", "causal inference", "Bayesian inference", "forecasting", "time series", "optimization", "operations research", "simulation", "system dynamics", "agent-based modeling", "game theory", "network science", "graph analytics", "uncertainty", "sensitivity", "financial analysis", "policy analysis", "social behavior", "geospatial computation", "visualization", "reproducibility", "benchmarking"],
+      "discovery_owner": "evidence-data-center",
+      "approval_owner": "decision-system-governance",
+      "offline_benchmark_owner": "compute-simulation-center",
+      "boundary": "The compute center does not browse or search the public internet at runtime. The intelligence center searches on its behalf and transfers pinned evidence-rich candidates through governance."
+    },
+    "incumbent_capability_change_radar": {
+      "objects": ["new operations", "new endpoints", "new MCP tools", "new SDK methods", "new package features", "new models", "new datasets", "breaking changes", "deprecations", "pricing changes", "free-tier changes", "license changes", "security advisories", "maintenance decline", "API version changes"],
+      "signals": ["release feeds", "GitHub Releases", "tags", "commits", "changelogs", "documentation diffs", "OpenAPI diffs", "MCP server metadata versions", "package registry versions", "model and dataset card changes", "security advisories", "status pages"],
+      "required_output": ["old capability fingerprint", "new capability fingerprint", "added", "removed", "changed", "breaking", "cost impact", "security impact", "recommended action"]
+    }
+  },
+  "discovery_layers": [
+    {
+      "priority": 1,
+      "name": "structured_official_registries",
+      "examples": ["APIs.guru", "official MCP Registry", "PyPI", "conda-forge", "CRAN", "R-universe", "Julia General", "npm", "Maven Central", "NuGet", "RubyGems", "crates.io", "Go modules", "Hugging Face Hub", "OpenML", "Zenodo", "Software Heritage", "CKAN", "Socrata", "ArcGIS Hub", "STAC catalogs", "OpenAlex", "Crossref", "DataCite", "re3data"]
+    },
+    {
+      "priority": 2,
+      "name": "official_project_and_institution_surfaces",
+      "examples": ["developer portals", "data portals", "documentation", "release pages", "changelogs", "RSS", "Atom", "Sitemaps", "OpenAPI documents", "GitHub organizations", "status pages"]
+    },
+    {
+      "priority": 3,
+      "name": "github_and_code_ecosystem",
+      "capabilities": ["repository search", "file and code search", "commit search", "release and tag inspection", "issue and PR search", "workflow inspection", "manifest and lockfile inspection", "dependency and SBOM inspection"],
+      "rules": ["Search repositories broadly, then inspect only high-scoring candidates", "Prefer official organizations and repositories linked from official domains", "Never infer safety from stars alone", "Do not auto-run discovered code"]
+    },
+    {
+      "priority": 4,
+      "name": "multilingual_search_engines",
+      "examples": ["Tavily", "Exa", "Google via approved interface", "Baidu", "regional and local-language search"],
+      "role": "long-tail and blind-spot discovery, not the authoritative registry"
+    },
+    {
+      "priority": 5,
+      "name": "trusted_link_expansion",
+      "role": "enumerate links, protocols, related projects, dependencies and references from already trusted sources"
+    }
+  ],
+  "query_planner": {
+    "dimensions": ["radar", "capability", "ecosystem", "country", "region", "language", "industry", "institution type", "source type", "protocol", "freshness", "change type"],
+    "families": [
+      "[capability] API OR SDK OR MCP OR connector",
+      "[capability] library OR package OR framework OR toolkit",
+      "[domain] dataset OR database OR open data OR repository",
+      "[institution] developer portal OR data catalog OR publications",
+      "[tool] release OR changelog OR deprecated OR migration",
+      "[tool] new feature OR endpoint OR operation OR method",
+      "[tool] pricing OR free tier OR quota OR license",
+      "[tool] vulnerability OR advisory OR CVE",
+      "site:github.com [capability] MCP server OR library",
+      "local-language equivalents for all discovery objects"
+    ],
+    "anti_pattern": "Do not combine every axis in one strict query. Run small query families and merge results by candidate identity."
+  },
+  "change_detection": {
+    "fingerprints": ["OpenAPI operation set", "MCP tool and resource set", "SDK public symbol set", "CLI command set", "package metadata", "model card", "dataset card", "documentation headings", "pricing and quota table", "license identifier", "release notes"],
+    "comparison": ["semantic version", "normalized schema diff", "symbol diff", "documentation diff", "terms and pricing diff"],
+    "actions": ["record-only", "review", "benchmark", "migration-plan", "security-block", "retire"]
+  },
+  "cadence": {
+    "hourly_or_event": ["critical vulnerabilities", "critical source outage", "major pricing or terms change when a reliable feed exists"],
+    "daily": ["releases", "deprecations", "new MCP entries", "new package versions", "new model and dataset versions", "GitHub high-signal repository changes", "due health checks"],
+    "weekly": ["balanced full-universe discovery across radars, ecosystems, capabilities and languages", "GitHub repository campaigns", "candidate deduplication and scoring"],
+    "monthly": ["capability inventory diff for every approved tool", "free-tier, license, maintenance and security audit", "coverage gap and quota efficiency report"],
+    "quarterly": ["frontier replacement campaign", "under-covered geography and language campaign", "incumbent-versus-candidate benchmarks"]
+  },
+  "budgeting": {
+    "principles": ["registries before paid search credits", "metadata before full content", "search before fetch", "fetch only high-scoring candidates", "conditional requests and cursors", "reserve at least half of free quotas for user tasks", "hard stop before paid overage"],
+    "engine_roles": {
+      "Tavily": "fresh official web discovery and broad verification",
+      "Exa": "semantic long-tail discovery and related-project expansion",
+      "GitHub": "open-source tools, MCP, SDKs, manifests, releases and code evidence",
+      "Baidu": "China-mainland and Chinese-language discovery",
+      "official_registries": "primary low-cost enumeration"
+    }
+  },
+  "candidate_gates": ["official source", "free-mode verified", "no automatic paid overage", "license verified", "read-only fit", "maintenance verified", "security and dependency review", "duplicate and replacement analysis", "center ownership", "sandbox eligibility"],
+  "automatic_forbidden": ["auto-install packages", "auto-run unknown code", "auto-start local MCP", "auto-run containers", "auto-authorize OAuth", "auto-submit secrets", "auto-enable billing", "auto-upgrade production"],
+  "metrics": ["coverage matrix", "new verified candidates", "new capability deltas", "time to detect releases", "duplicate rate", "false-positive rate", "dead-source rate", "quota per accepted candidate", "security rejection rate", "benchmark improvement", "blind spots"]
+}
