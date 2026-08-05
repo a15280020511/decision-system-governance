@@ -1,0 +1,23 @@
+{
+  "schema_version": "external-integration-installation-v1",
+  "id": "osv",
+  "display_name": "OSV.dev Vulnerability API",
+  "installation_status": "installed",
+  "activation_status": "enabled",
+  "implementation_status": "implemented",
+  "runtime_entrypoints": [
+    ".github/workflows/supply-chain-audit.yml",
+    "tools/supply_chain_audit.py"
+  ],
+  "required_secrets": [],
+  "network_endpoints": [
+    "https://api.osv.dev/v1/querybatch"
+  ],
+  "access_mode": "read_only",
+  "data_sent": [
+    "package ecosystem",
+    "package name",
+    "pinned package version"
+  ],
+  "policy": "No source code, artifacts, prompts, business data, personal data or secrets may be transmitted. Findings are report-only unless a separately approved policy enables a blocking gate."
+}

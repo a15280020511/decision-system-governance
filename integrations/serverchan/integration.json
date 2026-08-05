@@ -3,12 +3,23 @@
   "id": "serverchan",
   "display_name": "Server酱",
   "installation_status": "installed",
-  "activation_status": "disabled",
-  "implementation_status": "not_designed",
+  "activation_status": "enabled",
+  "implementation_status": "implemented",
   "design_owner": "user",
-  "runtime_entrypoints": [],
-  "required_secrets": [],
-  "network_endpoints": [],
-  "workflow_hooks": [],
-  "policy": "The integration is reserved in the governance repository only. No behavior, endpoint, credential, payload, trigger, retry, filtering, or notification rule is implemented until the user designs it."
+  "runtime_entrypoints": [
+    ".github/workflows/governance-failure-notify.yml",
+    "tools/serverchan_notify.py"
+  ],
+  "required_secrets": [
+    "SERVERCHAN_SENDKEY"
+  ],
+  "network_endpoints": [
+    "https://sctapi.ftqq.com/{sendkey}.send",
+    "https://{uid}.push.ft07.com/send/{sendkey}.send"
+  ],
+  "workflow_hooks": [
+    "workflow_run:completed:selected-critical-governance-workflows",
+    "workflow_dispatch:controlled-test"
+  ],
+  "policy": "Metadata-only critical notifications. Messages may contain repository, workflow, conclusion, run ID, abbreviated commit SHA and Run URL. Issue bodies, artifacts, logs, prompts, business data, personal data and secret values are forbidden. Requests are bounded, fail closed on invalid key prefixes, and never print the endpoint or SendKey."
 }

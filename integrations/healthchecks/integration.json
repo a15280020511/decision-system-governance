@@ -1,0 +1,26 @@
+{
+  "schema_version": "external-integration-installation-v1",
+  "id": "healthchecks",
+  "display_name": "Healthchecks External Watchdog",
+  "installation_status": "installed",
+  "activation_status": "pending_secret",
+  "implementation_status": "implemented",
+  "runtime_entrypoints": [
+    ".github/workflows/governance-heartbeat.yml"
+  ],
+  "required_secrets": [
+    "HEALTHCHECKS_PING_URL"
+  ],
+  "network_endpoints": [
+    "configured HTTPS ping URL",
+    "configured HTTPS ping URL/start",
+    "configured HTTPS ping URL/fail"
+  ],
+  "access_mode": "metadata_only",
+  "data_sent": [
+    "start signal",
+    "success signal",
+    "failure signal"
+  ],
+  "policy": "No Issue body, artifact, log, prompt, business data, personal data or secret value is transmitted. Integration remains inactive until HEALTHCHECKS_PING_URL is configured."
+}

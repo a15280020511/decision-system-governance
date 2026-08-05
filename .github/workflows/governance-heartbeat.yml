@@ -1,0 +1,58 @@
+name: Governance External Heartbeat
+
+on:
+  schedule:
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: governance-external-heartbeat
+  cancel-in-progress: false
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      HEALTHCHECKS_PING_URL: ${{ secrets.HEALTHCHECKS_PING_URL }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Verify governance availability and ping watchdog
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${HEALTHCHECKS_PING_URL:-}" ]]; then
+            echo "::warning::HEALTHCHECKS_PING_URL is not configured; external dead-man monitoring is inactive"
+            echo "External watchdog: pending secret" >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+          python3 - <<'PY'
+          import os
+          from urllib.parse import urlsplit
+          value = os.environ["HEALTHCHECKS_PING_URL"]
+          parsed = urlsplit(value)
+          if parsed.scheme != "https" or not parsed.netloc or parsed.query or parsed.fragment:
+              raise SystemExit("HEALTHCHECKS_PING_URL must be an HTTPS ping URL without query or fragment")
+          PY
+          base="${HEALTHCHECKS_PING_URL%/}"
+          failed=1
+          finish() {
+            if [[ "${failed}" -eq 0 ]]; then
+              curl --fail --silent --show-error --retry 2 --max-time 20 "${base}" >/dev/null
+            else
+              curl --fail --silent --show-error --retry 2 --max-time 20 "${base}/fail" >/dev/null || true
+            fi
+          }
+          trap finish EXIT
+          curl --fail --silent --show-error --retry 2 --max-time 20 "${base}/start" >/dev/null
+          curl --fail --silent --show-error --retry 2 --max-time 20 \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}" >/dev/null
+          failed=0
+          echo "External watchdog ping: success" >> "${GITHUB_STEP_SUMMARY}"
