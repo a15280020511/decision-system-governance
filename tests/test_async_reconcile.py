@@ -78,6 +78,16 @@ class AsyncReconcileTests(unittest.TestCase):
         self.assertEqual(workflow.count(line), 2)
         self.assertNotIn("deferred_poll.py", workflow)
 
+    def test_workflow_has_bounded_event_monitor_and_schedule_fallback(self):
+        workflow = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "control-plane-reconcile.yml").read_text(encoding="utf-8")
+        self.assertIn("workflow_run:", workflow)
+        self.assertIn("Governance Control Plane", workflow)
+        self.assertIn('cron: "*/5 * * * *"', workflow)
+        self.assertIn("attempts=20", workflow)
+        self.assertIn("interval=30", workflow)
+        self.assertIn('EVENT_NAME: ${{ github.event_name }}', workflow)
+        self.assertNotIn("while true", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()
