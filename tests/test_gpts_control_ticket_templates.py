@@ -74,7 +74,7 @@ class GPTControlTicketTemplateTests(unittest.TestCase):
             "4.2.0",
         )
         for route in ("intelligence", "compute", "expert"):
-            self.assertIn(f'\\"route\\":\\"{route}\\"', OPENAPI)
+            self.assertIn(f'"route":"{route}"', OPENAPI)
         for field in (
             "objective",
             "pipeline",
