@@ -47,12 +47,9 @@ jobs:
               Path('.github/workflows/main-provenance-and-repository-protection.yml'),
           )
           merged_test_branch = '/'.join(('test', 'openrouter-high-level-price-selection'))
-          forbidden_permissions = (
-              'contents: write',
-              'actions: write',
-              'issues: write',
-              'pull-requests: write',
-              'id-token: write',
+          forbidden_permissions = tuple(
+              f'{scope}: ' + 'write'
+              for scope in ('contents', 'actions', 'issues', 'pull-requests', 'id-token')
           )
           for path in paths:
               text = path.read_text('utf-8').lower()
