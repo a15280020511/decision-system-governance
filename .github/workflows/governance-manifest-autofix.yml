@@ -1,0 +1,37 @@
+name: Governance Manifest Autofix
+
+on:
+  push:
+    branches:
+      - refactor/governance-owned-expert-selection
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: refactor/governance-owned-expert-selection
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+      - name: Regenerate exact manifest and remove one-time workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/governance-manifest-autofix.yml
+          python tools/generate_governance_release_manifest.py \
+            --root . \
+            --output governance-release-manifest.json \
+            --version 4.2.2
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: refresh governance release manifest"
+          git push origin HEAD:refactor/governance-owned-expert-selection
