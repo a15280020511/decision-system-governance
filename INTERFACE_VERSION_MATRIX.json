@@ -11,7 +11,7 @@
     "schema_version": "governance-control-ticket-v4",
     "legacy_schema_version": "governance-control-ticket-v3",
     "gpt_action_openapi_version": "3.1.0",
-    "gpt_action_interface_version": "4.2.0",
+    "gpt_action_interface_version": "4.1.0",
     "ticket_template_contract": "contracts/gpts-control-ticket-templates.json",
     "exact_schema_literal_required": true,
     "allowed_route_literals": [
