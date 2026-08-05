@@ -1,0 +1,124 @@
+{
+  "schema_version": "global-data-tech-radar-policy-v1",
+  "objective": "Continuously discover, verify, classify and lifecycle-manage globally available public data sources and free technical capabilities for the Evidence & Data Center and the Compute & Simulation Center.",
+  "truthfulness_constraint": "No finite crawler or search provider may claim literal complete coverage of every global source or tool. Coverage is measured, gaps are retained, and discovery is continuous.",
+  "center_boundaries": {
+    "governance": [
+      "owns policy, coverage matrix, approval state, version pins, audit receipts and promotion decisions",
+      "never stores provider secrets in source control"
+    ],
+    "evidence_data_center": [
+      "discovers and reads external public sources",
+      "normalizes metadata, provenance, licenses, costs, rate limits and evidence",
+      "may register fixed read-only endpoints after validation",
+      "must not execute discovered packages, containers, binaries or local MCP servers"
+    ],
+    "compute_simulation_center": [
+      "evaluates and runs approved free/open-source tools offline against fixed benchmarks",
+      "accepts only pinned, reproducible and security-cleared dependencies",
+      "must not browse or fetch external resources at runtime"
+    ],
+    "expert_assessment_center": [
+      "remains tool-free and receives only prepared evidence and computed outputs"
+    ]
+  },
+  "data_universe": {
+    "domains": [
+      "macroeconomics", "finance", "companies", "trade", "customs", "tax", "procurement", "labor", "income", "population", "health", "medicine", "pharmaceuticals", "education", "science", "research", "patents", "standards", "technology", "artificial-intelligence", "semiconductors", "telecommunications", "cybersecurity", "manufacturing", "construction", "real-estate", "retail", "tourism", "agriculture", "food", "fisheries", "forestry", "energy", "electricity", "oil-gas-coal", "renewables", "mining", "commodities", "climate", "environment", "water", "weather", "ocean", "geospatial", "earth-observation", "satellite", "transport", "aviation", "shipping", "ports", "rail", "roads", "logistics", "law", "courts", "regulation", "public-policy", "governance", "elections", "security", "defense-public-data", "conflict", "humanitarian", "disasters", "crime-statistics", "social-behavior", "public-opinion", "media", "culture", "libraries", "archives", "museums", "China-mainland-public-data"
+    ],
+    "source_classes": [
+      "official-api", "open-data-catalog", "bulk-dataset", "database", "real-time-feed", "sensor-feed", "institutional-repository", "paper-index", "report-library", "official-webpage", "pdf", "spreadsheet", "rss-atom", "sitemap", "knowledge-graph", "company-filing", "legal-text", "patent-record", "map-catalog", "model-dataset-registry", "software-registry"
+    ],
+    "protocols": [
+      "REST", "OpenAPI", "GraphQL", "SPARQL", "SDMX", "CKAN", "Socrata", "ArcGIS-REST", "STAC", "OAI-PMH", "SRU-CQL", "Z39.50", "IIIF", "RSS", "Atom", "Sitemap", "JSON", "CSV", "Parquet", "XML", "RDF", "GeoJSON", "NetCDF", "HDF5", "COG", "WMS", "WFS", "WMTS", "bulk-download"
+    ]
+  },
+  "technology_universe": {
+    "ecosystems": [
+      "PyPI", "conda-forge", "CRAN", "R-universe", "Julia-General", "npm", "Maven-Central", "Gradle-Plugins", "NuGet", "RubyGems", "crates.io", "Go-modules", "GitHub", "GitLab", "Bitbucket", "Hugging-Face-models", "Hugging-Face-datasets", "Hugging-Face-Spaces", "OpenML", "Software-Heritage", "Zenodo-software", "MCP-registries", "OpenAPI-catalogs"
+    ],
+    "capability_families": [
+      "search", "browser-reading", "web-extraction", "document-parsing", "pdf-table-extraction", "ocr", "data-ingestion", "ETL-ELT", "data-validation", "schema-inference", "entity-resolution", "deduplication", "data-lineage", "provenance", "knowledge-graphs", "vector-search", "geospatial", "remote-sensing", "time-series", "statistics", "econometrics", "causal-inference", "bayesian-inference", "forecasting", "optimization", "operations-research", "simulation", "system-dynamics", "agent-based-modeling", "game-theory", "network-science", "graph-analytics", "anomaly-detection", "uncertainty-quantification", "sensitivity-analysis", "financial-analysis", "portfolio-analysis", "policy-analysis", "social-science", "behavior-modeling", "visualization", "report-generation", "reproducibility", "benchmarking", "security-scanning", "license-analysis", "dependency-analysis"
+    ]
+  },
+  "discovery_strategy": {
+    "priority_order": [
+      "official registries and catalogs",
+      "official institution developer and data portals",
+      "package/model/dataset registries",
+      "multilingual web search",
+      "repository search",
+      "link and protocol enumeration from already trusted sources"
+    ],
+    "query_families": [
+      "source discovery", "protocol discovery", "dataset and database discovery", "report and publication discovery", "tool capability discovery", "package and repository discovery", "MCP and connector discovery", "new release and deprecation discovery", "regional and local-language gap discovery"
+    ],
+    "coverage_dimensions": [
+      "country", "region", "language", "domain", "institution-type", "source-class", "protocol", "tool-ecosystem", "capability-family", "license", "cost-model", "update-cadence"
+    ]
+  },
+  "cadence": {
+    "daily": [
+      "incremental feeds, changelogs, new releases, deprecations, security advisories and high-value source changes",
+      "health checks only for due sources"
+    ],
+    "weekly": [
+      "balanced multilingual discovery across all data domains and capability families",
+      "OpenAPI, package, model, dataset and repository registry deltas",
+      "candidate deduplication and priority refresh"
+    ],
+    "monthly": [
+      "license, free-tier, billing, rate-limit and maintenance review",
+      "benchmark refresh for promoted compute tools",
+      "coverage-gap report and stale-source retirement"
+    ],
+    "quarterly": [
+      "architecture and technology frontier review",
+      "under-covered region, language and discipline campaigns",
+      "replace dominated or abandoned tools"
+    ]
+  },
+  "free_gate": {
+    "required": [
+      "no mandatory paid subscription for the intended workload",
+      "no automatic paid overage",
+      "no mandatory credit card unless explicitly approved by the user",
+      "license permits the intended use",
+      "source or package metadata is publicly inspectable",
+      "rate limits and quotas are recorded",
+      "all external keys are stored only as repository secrets"
+    ],
+    "accepted_classes": [
+      "open-source", "public-domain", "open-data", "free-no-key", "free-key-required", "free-snapshot", "free-tier-with-hard-stop"
+    ],
+    "rejected_classes": [
+      "trial-only", "automatic-paid-overage", "unknown-license", "no-automated-access", "paywall-bypass", "credential-sharing", "private-data-harvesting"
+    ]
+  },
+  "promotion_pipeline": [
+    "discover", "normalize", "deduplicate", "verify-official-source", "classify-cost-and-license", "security-and-supply-chain-check", "maintenance-and-community-check", "center-fit-check", "sandbox-test", "benchmark", "canary", "governance-approval", "pin-version-and-hash", "promote", "monitor", "retest", "deprecate-or-retire"
+  ],
+  "tool_scoring": {
+    "dimensions": [
+      "capability-fit", "quality", "reproducibility", "maintenance-recency", "maintainer-diversity", "documentation", "test-coverage-signal", "release-stability", "dependency-risk", "known-vulnerabilities", "license-compatibility", "offline-support", "resource-cost", "integration-complexity", "benchmark-performance", "replacement-value"
+    ],
+    "promotion_rule": "A tool is promoted only when it adds a missing capability or materially dominates the approved incumbent on benchmark, safety, reproducibility or maintenance. Popularity alone is insufficient."
+  },
+  "automatic_actions": {
+    "allowed": [
+      "register metadata", "read fixed public endpoints", "download metadata and small bounded samples", "record candidates", "open review issues", "send ServerChan notification for high-value free key-required sources"
+    ],
+    "forbidden": [
+      "auto-install discovered packages", "auto-run unknown code", "auto-run local MCP servers", "auto-run containers", "auto-enable write APIs", "auto-submit credentials", "auto-upgrade production dependencies", "auto-enable paid billing"
+    ]
+  },
+  "success_metrics": [
+    "coverage by country-region-language-domain-source-protocol", "new verified high-value sources", "new approved capabilities", "duplicate rate", "false-positive rate", "broken-source rate", "free-quota consumption", "security rejection rate", "time-to-detect important releases", "benchmark improvement", "retired technical debt"
+  ],
+  "notification": {
+    "channel": "ServerChan",
+    "events": [
+      "high-value source requires a free key", "free service changes to paid", "license or terms materially change", "critical source breaks", "approved tool has a critical vulnerability", "frontier tool materially beats incumbent"
+    ]
+  }
+}
