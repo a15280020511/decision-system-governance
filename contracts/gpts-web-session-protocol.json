@@ -1,0 +1,168 @@
+{
+  "schema_version": "gpts-web-session-protocol-v1",
+  "interface_version": "4.1.0",
+  "command_gateway": "a15280020511/decision-system-governance",
+  "scope": "custom-gpt-to-governance-control-plane",
+  "runtime_dependency_policy": {
+    "third_party_python_packages_required": false,
+    "allowed_runtime_primitives": [
+      "python-3.12-standard-library",
+      "github-actions",
+      "github-issues",
+      "github-comments",
+      "github-artifacts",
+      "github-cli",
+      "sha256"
+    ],
+    "forbidden_runtime_dependencies": [
+      "celery",
+      "redis",
+      "rq",
+      "database",
+      "long-running-worker",
+      "agent-loop-framework"
+    ]
+  },
+  "session_task_lock": {
+    "maximum_non_terminal_tasks_per_gpt_session": 1,
+    "maximum_global_execution_slots": 1,
+    "second_submission_while_current_task_non_terminal": "forbidden",
+    "required_response_when_busy": "return_current_task_query_handle",
+    "queue_visibility": "phase_only",
+    "queue_position_claim_allowed": false
+  },
+  "submission": {
+    "preflight_order": [
+      "checkGovernanceGatewayPublic",
+      "checkGitHubAuthentication"
+    ],
+    "both_preflights_must_return_http_200": true,
+    "client_request_id_generated_before_post": true,
+    "client_request_id_format": "uuid",
+    "maximum_submitDecisionTask_calls_per_logical_task": 1,
+    "maximum_write_approvals_per_logical_task": 1,
+    "post_non_201_retry_allowed": false,
+    "missing_post_result_second_approval_allowed": false,
+    "ambiguous_post_recovery_operation": "findDecisionTaskByClientRequestId",
+    "same_request_id_same_body": "reuse_canonical_issue",
+    "same_request_id_different_body": "REQUEST_ID_CONFLICT"
+  },
+  "asynchronous_execution": {
+    "submission_returns_before_business_completion": true,
+    "dispatch_runner_must_not_wait_for_child_completion": true,
+    "governance_issue_is_authoritative_task_handle": true,
+    "scheduled_terminal_reconciliation_minutes": 5,
+    "scheduled_queue_recovery_minutes": 15,
+    "route_deadline_hours": {
+      "intelligence": 2,
+      "compute": 2,
+      "expert": 3
+    },
+    "late_trusted_terminal_reconciliation": true
+  },
+  "query_window": {
+    "presentation": "chat_status_card",
+    "persistent_browser_window_required": false,
+    "query_handle_fields": [
+      "client_request_id",
+      "issue_number",
+      "task_id",
+      "route",
+      "state",
+      "phase",
+      "last_updated_at",
+      "retryable",
+      "error_code",
+      "next_action",
+      "issue_url"
+    ],
+    "read_operations": [
+      "getDecisionTaskStatus",
+      "getDecisionTaskReceipts"
+    ],
+    "read_operations_are_non_consequential": true,
+    "progress_representation": "discrete_phase_not_percentage",
+    "percentage_claim_allowed": false,
+    "automatic_same_turn_query_schedule_seconds": [
+      0,
+      15,
+      45,
+      90
+    ],
+    "after_automatic_window": "return_query_handle_and_stop_polling",
+    "user_query_command_examples": [
+      "查询当前任务",
+      "查询任务 #<issue_number>",
+      "继续查看执行进度"
+    ]
+  },
+  "phases": [
+    {
+      "order": 1,
+      "state": "RECEIVED",
+      "label": "已接收",
+      "terminal": false
+    },
+    {
+      "order": 2,
+      "state": "QUEUED",
+      "label": "等待执行槽",
+      "terminal": false
+    },
+    {
+      "order": 3,
+      "state": "CONTROL_RUNNING",
+      "label": "治理校验中",
+      "terminal": false
+    },
+    {
+      "order": 4,
+      "state": "CONTROL_DISPATCHED",
+      "label": "已派发子中心",
+      "terminal": false
+    },
+    {
+      "order": 5,
+      "state": "CHILD_ACCEPTED",
+      "label": "子中心执行中",
+      "terminal": false
+    },
+    {
+      "order": 6,
+      "state": "CONTROL_COMPLETED",
+      "label": "已完成并验证证据",
+      "terminal": true
+    }
+  ],
+  "terminal_truth": {
+    "trusted_receipt_author": "github-actions[bot]",
+    "success_requires": [
+      "matching-task-id",
+      "matching-route",
+      "trusted-terminal-receipt",
+      "route-specific-artifact-contract"
+    ],
+    "control_received_is_success": false,
+    "child_accepted_is_success": false,
+    "timeout_is_business_failure": false,
+    "monitor_error_is_business_failure": false
+  },
+  "retry_and_recovery": {
+    "governance_maximum_recovery_attempts": 3,
+    "automatic_new_task_on_failure": false,
+    "new_client_request_id_requires_new_logical_submission": true,
+    "retryable_failure_requires_user_decision": true,
+    "never_retry_post_automatically": true
+  },
+  "security": {
+    "gpt_direct_child_repository_access_allowed": false,
+    "ticket_secrets_allowed": false,
+    "ticket_personal_data_allowed": false,
+    "ticket_shell_commands_allowed": false,
+    "token_repository_scope": "decision-system-governance-only",
+    "token_minimum_permissions": [
+      "metadata:read",
+      "issues:read-write"
+    ]
+  }
+}
