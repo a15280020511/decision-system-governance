@@ -45,6 +45,16 @@ def candidate(model_id: str, *, company: str | None = None, score: float = 50.0)
     }
 
 
+def receipt_source(rows: list[Any]) -> dict[str, Any]:
+    return {
+        "status": "TEST",
+        "cheapest_paid_flagship_candidates": rows,
+        "paid_stable_full_tier_benchmarked_count": len(rows),
+        "globally_high_count": len(rows),
+        "paid_flagship_count": len(rows),
+    }
+
+
 class BasePrimitiveTests(unittest.TestCase):
     def test_paid_requires_positive_billable_value(self) -> None:
         self.assertFalse(base._is_paid({"prompt": "0", "completion": "0"}))
@@ -55,29 +65,33 @@ class BasePrimitiveTests(unittest.TestCase):
         good = {"architecture": {"input_modalities": ["text"], "output_modalities": ["text"]}}
         image = {"architecture": {"input_modalities": ["text"], "output_modalities": ["text", "image"]}}
         missing = {"architecture": {}}
-        self.assertTrue(base._is_text_governance_model(good))
-        self.assertFalse(base._is_text_governance_model(image))
-        self.assertFalse(base._is_text_governance_model(missing))
+        self.assertTrue(base._is_general_text(good))
+        self.assertFalse(base._is_general_text(image))
+        self.assertFalse(base._is_general_text(missing))
 
-    def test_stable_release_rejects_unstable_lifecycle_names(self) -> None:
-        stable = {"name": "Vendor Flagship Pro"}
+    def test_unstable_lifecycle_and_economy_names_are_detected(self) -> None:
         for marker in ("preview", "beta", "experimental"):
-            row = {"name": f"Vendor Flagship {marker}"}
-            self.assertFalse(base._is_stable_release(row, f"vendor/model-{marker}", "vendor/model"))
-        self.assertTrue(base._is_stable_release(stable, "vendor/model-pro", "vendor/model-pro"))
+            text = base._tier_text({"name": f"Vendor Flagship {marker}"}, f"vendor/model-{marker}", "vendor/model")
+            self.assertIsNotNone(base.UNSTABLE_TIER.search(text))
+        for marker in ("flash", "mini", "nano", "lite", "small"):
+            text = base._tier_text({"name": f"Vendor {marker}"}, f"vendor/model-{marker}", "vendor/model")
+            self.assertIsNotNone(base.ECONOMY_TIER.search(text))
+        stable = base._tier_text({"name": "Vendor Flagship Pro"}, "vendor/model-pro", "vendor/model-pro")
+        self.assertIsNone(base.UNSTABLE_TIER.search(stable))
+        self.assertIsNone(base.ECONOMY_TIER.search(stable))
 
     def test_natural_split_is_deterministic(self) -> None:
         values = [10.0, 11.0, 12.0, 50.0, 52.0, 55.0]
-        first = base._two_cluster_high_tier(values)
+        first = base._two_cluster_high(values)
         for _ in range(20):
-            self.assertEqual(first, base._two_cluster_high_tier(values))
+            self.assertEqual(first, base._two_cluster_high(values))
         self.assertEqual(first[0], [False, False, False, True, True, True])
 
     def test_split_rejects_degenerate_input(self) -> None:
         with self.assertRaises(base.SelectorError):
-            base._two_cluster_high_tier([1.0])
+            base._two_cluster_high([1.0])
         with self.assertRaises(base.SelectorError):
-            base._two_cluster_high_tier([1.0, 1.0])
+            base._two_cluster_high([1.0, 1.0])
 
 
 class FlagshipRefinementTests(unittest.TestCase):
@@ -118,53 +132,53 @@ class GovernanceFinalizationTests(unittest.TestCase):
             candidate("vendor/rerank-pro"),
             candidate("vendor/general-pro"),
         ]
-        result = governance.finalize({"cheapest_paid_flagship_candidates": rows})
+        result = governance.finalize(receipt_source(rows))
         self.assertEqual(result["selected_model"]["model_id"], "vendor/general-pro")
         rejected = {row["model_id"] for row in result["flagship_false_positive_controls"]["domain_specialized_models_rejected"]}
         self.assertEqual(rejected, {"vendor/coder-pro", "vendor/content-safety-pro", "vendor/embed-pro", "vendor/rerank-pro"})
 
     def test_first_remaining_candidate_wins_after_rejection(self) -> None:
         rows = [candidate("a/coder-pro"), candidate("b/general-pro"), candidate("c/general-max")]
-        result = governance.finalize({"cheapest_paid_flagship_candidates": rows})
+        result = governance.finalize(receipt_source(rows))
         self.assertEqual(result["selected_model"]["model_id"], "b/general-pro")
         self.assertEqual([r["model_id"] for r in result["cheapest_paid_flagship_candidates"]], ["b/general-pro", "c/general-max"])
 
     def test_catalog_change_selects_new_cheapest_without_history(self) -> None:
-        first = governance.finalize({"cheapest_paid_flagship_candidates": [candidate("a/old-pro"), candidate("b/new-pro")]})
-        second = governance.finalize({"cheapest_paid_flagship_candidates": [candidate("b/new-pro")]})
+        first_rows = [candidate("a/old-pro"), candidate("b/new-pro")]
+        second_rows = [candidate("b/new-pro")]
+        first = governance.finalize(receipt_source(first_rows))
+        second = governance.finalize(receipt_source(second_rows))
         self.assertEqual(first["selected_model"]["model_id"], "a/old-pro")
         self.assertEqual(second["selected_model"]["model_id"], "b/new-pro")
 
     def test_empty_or_specialized_only_pool_fails_closed(self) -> None:
         with self.assertRaises(RuntimeError):
-            governance.finalize({"cheapest_paid_flagship_candidates": []})
+            governance.finalize(receipt_source([]))
         with self.assertRaises(RuntimeError):
-            governance.finalize({"cheapest_paid_flagship_candidates": [candidate("a/coder-pro")]})
+            governance.finalize(receipt_source([candidate("a/coder-pro")]))
 
     def test_malformed_rows_are_ignored_and_do_not_crash(self) -> None:
-        result = governance.finalize({"cheapest_paid_flagship_candidates": [None, "bad", candidate("a/general-pro")]})
+        rows = [None, "bad", candidate("a/general-pro")]
+        result = governance.finalize(receipt_source(rows))
         self.assertEqual(result["selected_model"]["model_id"], "a/general-pro")
 
     def test_receipt_forces_zero_calls_zero_cost_and_no_secret_exposure(self) -> None:
-        result = governance.finalize({
-            "cheapest_paid_flagship_candidates": [candidate("a/general-pro")],
-            "model_calls": 999,
-            "estimated_model_cost_usd": 999,
-            "secret_values_exposed": True,
-        })
+        source = receipt_source([candidate("a/general-pro")])
+        source.update({"model_calls": 999, "estimated_model_cost_usd": 999, "secret_values_exposed": True})
+        result = governance.finalize(source)
         self.assertEqual(result["model_calls"], 0)
         self.assertEqual(result["estimated_model_cost_usd"], 0)
         self.assertFalse(result["secret_values_exposed"])
 
     def test_same_snapshot_is_byte_deterministic(self) -> None:
-        source = {"cheapest_paid_flagship_candidates": [candidate("a/general-pro"), candidate("b/general-max")]}
+        source = receipt_source([candidate("a/general-pro"), candidate("b/general-max")])
         first = json.dumps(governance.finalize(source), ensure_ascii=False, sort_keys=True)
         for _ in range(50):
             self.assertEqual(first, json.dumps(governance.finalize(source), ensure_ascii=False, sort_keys=True))
 
-    def test_receipt_writer_does_not_include_environment_secret(self) -> None:
+    def test_receipt_writer_does_not_include_secret_like_value(self) -> None:
         secret = "sk-or-v1-DO-NOT-LEAK-TEST"
-        result = governance.finalize({"cheapest_paid_flagship_candidates": [candidate("a/general-pro")]})
+        result = governance.finalize(receipt_source([candidate("a/general-pro")]))
         with tempfile.TemporaryDirectory() as directory:
             base.write_receipts(result, Path(directory))
             text = "\n".join(path.read_text(encoding="utf-8") for path in Path(directory).iterdir())
