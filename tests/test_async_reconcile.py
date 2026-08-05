@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "control-plane" / "async_reconcile.py"
@@ -34,7 +34,7 @@ class AsyncReconcileTests(unittest.TestCase):
             "title": "[control]",
             "state": state,
             "body": body,
-            "updated_at": "2026-08-05T00:00:00Z",
+            "updated_at": "2099-01-01T00:00:00Z",
             "user": {"login": MODULE.CONTROL.OWNER},
         }
 
@@ -43,6 +43,7 @@ class AsyncReconcileTests(unittest.TestCase):
         self.assertIsNotNone(item)
         self.assertEqual(item["task_id"], "gov-42-compute")
         self.assertEqual(item["child_repository"], "a15280020511/compute-simulation-center")
+        self.assertNotIn("updated_at", item)
 
     def test_closed_or_wrong_task_is_rejected(self):
         self.assertIsNone(MODULE.candidate(self.issue(state="closed")))
@@ -50,13 +51,15 @@ class AsyncReconcileTests(unittest.TestCase):
         wrong["body"] = wrong["body"].replace("gov-42-compute", "wrong")
         self.assertIsNone(MODULE.candidate(wrong))
 
-    def test_deadline_is_route_specific_without_runner_wait(self):
+    def test_deadline_uses_child_dispatch_time_not_governance_updates(self):
         item = MODULE.candidate(self.issue(route="expert"))
+        item["dispatched_at"] = MODULE._parse_time("2026-08-05T00:00:00Z", "child Issue created_at")
         now = datetime(2026, 8, 5, 4, 0, tzinfo=timezone.utc)
         self.assertEqual(MODULE.age_seconds(item, now), 14400)
         receipt = MODULE.render_deadline(item, 14400)
         self.assertIn("CONTROL_ASYNC_DEADLINE_EXCEEDED", receipt)
         self.assertIn("Runner-held waiting: `false`", receipt)
+        self.assertIn("child Issue created_at", receipt)
 
     def test_terminal_receipt_declares_scheduled_polling(self):
         item = MODULE.candidate(self.issue())
@@ -67,8 +70,9 @@ class AsyncReconcileTests(unittest.TestCase):
         self.assertTrue(receipt.startswith("## CONTROL_COMPLETED"))
         self.assertIn("asynchronous scheduled polling", receipt)
         self.assertIn("Runner-held waiting: `false`", receipt)
+        self.assertIn("child Issue created_at", receipt)
 
-    def test_workflow_owns_one_separate_child_token_assignment(self):
+    def test_workflow_owns_two_separate_child_token_assignments(self):
         workflow = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "control-plane-reconcile.yml").read_text(encoding="utf-8")
         line = "CONTROL_PLANE_TOKEN: ${{ secrets.CONTROL_PLANE_TOKEN }}"
         self.assertEqual(workflow.count(line), 2)
