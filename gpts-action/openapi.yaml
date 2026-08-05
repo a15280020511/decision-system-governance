@@ -2,10 +2,11 @@ openapi: 3.1.0
 
 info:
   title: Decision System Governance Gateway
-  version: 4.1.0
+  version: 4.2.0
   description: >
     Diagnostic and recoverable interface for governance tasks. It separates
-    public transport, bearer authentication, task submission, and readback.
+    public transport, bearer authentication, exact ticket construction,
+    task submission, and readback.
 
 servers:
   - url: https://api.github.com
@@ -77,10 +78,9 @@ paths:
       operationId: submitDecisionTask
       summary: Submit one asynchronous decision-system task
       description: >
-        Call once only after both diagnostic GET operations return 200. Generate
-        one UUID and create one [control] Issue. After approval, never call this
-        operation again for the same task. On any non-201 result, stop and report
-        the exact status without retrying the POST.
+        Call once only after both diagnostic GET operations return 200. Use the
+        exact v4 schema and one allowed route. After approval, never call this
+        operation again for the same task. On non-201, stop without POST retry.
       x-openai-isConsequential: true
       security:
         - githubBearer: []
@@ -101,14 +101,22 @@ paths:
                     - "[control]"
                 body:
                   type: string
+                  minLength: 1
                   maxLength: 100000
                   description: >
-                    JSON string with schema_version, client_request_id, route,
-                    ticket and optional wait_seconds. For v4, client_request_id
-                    must be a UUID generated before submission. The nested ticket
-                    must omit task_id and secrets.
+                    JSON string. schema_version must be exactly
+                    governance-control-ticket-v4, never 4 or v4. route must be
+                    exactly intelligence, compute, or expert; never research,
+                    analysis, strategy, api, or simulation. Expert tickets use
+                    objective, pipeline=expert-team, task.question,
+                    task.requirements, task.language, execution_acceptance,
+                    evidence, approved_budget, and private_output=false. Expert
+                    tickets must not use title, user_request, output_language,
+                    task_id, model IDs, providers, or governance_model_plan.
                   examples:
-                    - '{"schema_version":"governance-control-ticket-v4","client_request_id":"8beae650-3676-4a76-b8a4-e45f76ccf822","route":"compute","ticket":{"operation":"descriptive_statistics","inputs":{"data":[1,2,3]}}}'
+                    - '{"schema_version":"governance-control-ticket-v4","client_request_id":"8beae650-3676-4a76-b8a4-e45f76ccf822","route":"compute","ticket":{"operation":"descriptive_statistics","inputs":{"data":[1,2,3]}},"wait_seconds":2400}'
+                    - '{"schema_version":"governance-control-ticket-v4","client_request_id":"4193e9a8-871e-4c40-8fef-d2791685d239","route":"expert","ticket":{"objective":"研判一个战略问题","pipeline":"expert-team","task":{"question":"完整问题文本","requirements":["区分事实、推断和未知"],"language":"zh-CN"},"execution_acceptance":["发布完整最终综合报告"],"evidence":[],"approved_budget":{"calls":8,"maximum_recovery_calls":1},"private_output":false},"wait_seconds":2700}'
+                    - '{"schema_version":"governance-control-ticket-v4","client_request_id":"7279a90d-cb8b-42a3-a848-f48a6cfb38f3","route":"intelligence","ticket":{"query":"检索并核验公开证据","requirements":["列出来源和日期"],"language":"zh-CN"},"wait_seconds":2400}'
       responses:
         "201":
           description: Governance Issue created; read-after-write is still required
