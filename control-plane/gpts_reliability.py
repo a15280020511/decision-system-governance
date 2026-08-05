@@ -395,7 +395,10 @@ def patch(control: Any) -> None:
                 merged.get("request_fingerprint") or ""
             )
             or None,
-            "read_after_write_verified": bool(client_request_id),
+            "read_after_write_verified": None,
+            "read_after_write_evidence": (
+                "CONTROL_RECEIVED" if client_request_id else None
+            ),
             "retryable": retryable,
             "error_code": error_code,
             "canonical_issue_number": int(
