@@ -2,7 +2,7 @@ openapi: 3.1.0
 
 info:
   title: Decision System Governance Gateway
-  version: 4.2.0
+  version: 4.1.0
   description: >
     Diagnostic and recoverable interface for governance tasks. It separates
     public transport, bearer authentication, exact ticket construction,
