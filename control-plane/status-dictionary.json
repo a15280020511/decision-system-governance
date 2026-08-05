@@ -1,11 +1,21 @@
 {
-  "schema_version": "governance-status-dictionary-v1",
+  "schema_version": "governance-status-dictionary-v2",
   "language": "zh-CN",
   "statuses": {
+    "RECEIVED": {
+      "terminal": false,
+      "meaning": "GitHub 已创建治理 Issue，入口确认工作流已回读原请求。",
+      "next_action": "保存 client_request_id 和 Issue 编号；等待队列受理，不要重复提交。"
+    },
     "CREATED": {
       "terminal": false,
-      "meaning": "治理 Issue 已创建，但尚不能证明任务已受理。",
-      "next_action": "保存 Issue 编号并读取治理状态。"
+      "meaning": "治理 Issue 已创建，但尚不能证明入口回读或任务受理。",
+      "next_action": "按 client_request_id 找回 Issue，并读取 CONTROL_RECEIVED。"
+    },
+    "SUBMISSION_AMBIGUOUS": {
+      "terminal": false,
+      "meaning": "GPTs 发出了 POST，但没有拿到确定返回。",
+      "next_action": "先调用 findDecisionTaskByClientRequestId；找到原 Issue 后禁止再次提交。"
     },
     "QUEUED": {
       "terminal": false,
@@ -19,7 +29,7 @@
     },
     "CONTROL_DISPATCHED": {
       "terminal": false,
-      "meaning": "子 Issue 已创建或幂等复用。",
+      "meaning": "目标仓库预检通过，子 Issue 已创建或幂等复用。",
       "next_action": "等待子中心可信机器人终态。"
     },
     "CHILD_ACCEPTED": {
@@ -35,17 +45,32 @@
     "CONTROL_FAILED": {
       "terminal": true,
       "meaning": "治理或子中心返回可信失败，或者成功证据合同未完成。",
-      "next_action": "读取 failure class 和 child status；仅在失败可重试时创建新治理 Issue。"
+      "next_action": "读取 error_code、retryable 和 child status，再决定是否创建新请求号。"
     },
     "CONTROL_REJECTED": {
       "terminal": true,
       "meaning": "票据格式、权限、安全字段或状态所有权不合格，未派发子任务。",
-      "next_action": "按拒绝原因修正票据后重新提交。"
+      "next_action": "按拒绝原因修正票据，并使用新的 client_request_id 提交。"
+    },
+    "DUPLICATE_REUSED": {
+      "terminal": true,
+      "meaning": "同一 client_request_id 和相同请求内容已有权威治理 Issue。",
+      "next_action": "返回 canonical_issue_number，继续读取原任务，不执行第二次业务调用。"
+    },
+    "REQUEST_ID_CONFLICT": {
+      "terminal": true,
+      "meaning": "同一 client_request_id 被用于不同请求内容。",
+      "next_action": "禁止复用该编号；修正客户端逻辑并为新内容生成新 UUID。"
     },
     "CONTROL_DUPLICATE": {
       "terminal": true,
       "meaning": "相同业务任务已有开放、运行中、成功或已确认重复记录。",
       "next_action": "返回原治理 Issue，不要创建新任务。"
+    },
+    "TARGET_NOT_READY": {
+      "terminal": true,
+      "meaning": "治理中心可以工作，但目标子仓库身份、状态或 Issue 网关预检失败。",
+      "next_action": "修复目标中心生产状态；不要把它表述成 GPTs 或 GitHub 未连接。"
     },
     "CONTROL_TIMEOUT": {
       "terminal": false,
@@ -84,9 +109,13 @@
     }
   },
   "truth_rules": [
+    "POST without a response is ambiguous, not proven failure.",
+    "A client_request_id must be generated before submission and never reused for different content.",
     "Issue created is not task accepted.",
+    "CONTROL_RECEIVED proves ingress and readback, not business completion.",
     "Child accepted is not business completed.",
     "Only github-actions[bot] receipts are trusted.",
+    "Prefer governance-machine-status JSON over natural-language inference.",
     "Success requires matching task_id and route-specific Artifact evidence.",
     "Timeout and monitor error do not prove that the child task stopped.",
     "Scheduled polling releases the dispatch Runner; cron delay changes delivery latency, not child computation quality."
