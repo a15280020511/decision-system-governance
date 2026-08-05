@@ -1,0 +1,22 @@
+{
+  "schema_version": "external-integration-installation-v1",
+  "id": "depsdev",
+  "display_name": "deps.dev Open Source Insights",
+  "installation_status": "installed",
+  "activation_status": "enabled",
+  "implementation_status": "implemented",
+  "runtime_entrypoints": [
+    ".github/workflows/supply-chain-audit.yml",
+    "tools/supply_chain_audit.py"
+  ],
+  "required_secrets": [],
+  "network_endpoints": [
+    "https://api.deps.dev/v3/systems/pypi/packages/{package}/versions/{version}"
+  ],
+  "access_mode": "read_only",
+  "data_sent": [
+    "public package name",
+    "pinned package version"
+  ],
+  "policy": "Used only for dependency metadata, licenses, advisory keys and source links. No source code, artifacts, prompts, business data, personal data or secrets may be transmitted."
+}
