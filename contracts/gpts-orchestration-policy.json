@@ -1,5 +1,5 @@
 {
-  "schema_version": "gpts-orchestration-policy-v3",
+  "schema_version": "gpts-orchestration-policy-v4",
   "usage_center": "custom-gpts",
   "command_gateway": "decision-system-governance",
   "maintenance_center": "ordinary-web-gpt-with-github-plugin",
@@ -18,9 +18,21 @@
   "center_repetition_allowed": true,
   "control_plane": {
     "issue_title": "[control]",
-    "submission_mode": "single_issue_create",
+    "submission_mode": "single_issue_create_with_client_id_and_readback",
     "task_id_mode": "generated_from_governance_issue_number",
     "schema": "control-plane/control-ticket.schema.json",
+    "preferred_ticket_version": "governance-control-ticket-v4",
+    "legacy_ticket_version_temporarily_accepted": "governance-control-ticket-v3",
+    "client_request_id": {
+      "required_for_v4": true,
+      "format": "uuid",
+      "generated_before_post": true,
+      "same_id_same_body": "reuse_canonical_issue",
+      "same_id_different_body": "REQUEST_ID_CONFLICT",
+      "ambiguous_post_recovery": "find_before_retry"
+    },
+    "read_after_write_required": true,
+    "machine_status_schema": "governance-machine-status-v1",
     "allowed_routes": [
       "intelligence",
       "compute",
@@ -28,6 +40,7 @@
     ],
     "gpt_operations": [
       "submitDecisionTask",
+      "findDecisionTaskByClientRequestId",
       "getDecisionTaskStatus",
       "getDecisionTaskReceipts"
     ],
@@ -42,7 +55,14 @@
     "business_execution_allowed": false,
     "business_artifact_download_allowed": false,
     "trusted_terminal_author": "github-actions[bot]",
-    "notification_channel": "none"
+    "notification_channel": "none",
+    "ingress_acknowledgement": {
+      "status": "CONTROL_RECEIVED",
+      "proves": "github_issue_created_and_read_back",
+      "does_not_prove": "queue_acceptance_or_business_completion"
+    },
+    "target_preflight_required": true,
+    "zero_business_canary_interval_hours": 6
   },
   "installed_integrations": {
     "serverchan": {
@@ -83,6 +103,8 @@
   },
   "feedback_rules": [
     "Every repeated center use requires a new governance Issue and stage_id.",
+    "A lost POST response requires client_request_id recovery before any retry.",
+    "A client_request_id is never reused for different request content.",
     "Expert hypotheses cannot directly trigger compute; GPTs must restructure them and obtain user approval when material.",
     "Compute data gaps cannot directly trigger API; GPTs must choose connectors and create a new governance control ticket.",
     "API results do not automatically trigger compute or expert execution.",
