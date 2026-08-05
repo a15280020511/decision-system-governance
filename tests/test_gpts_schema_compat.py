@@ -17,8 +17,14 @@ class GPTActionSchemaCompatibilityTests(unittest.TestCase):
     def test_schema_avoids_refs_rejected_by_importer(self) -> None:
         self.assertNotIn("$ref:", OPENAPI)
 
-    def test_exposes_exactly_three_operations(self) -> None:
-        self.assertEqual(OPENAPI.count("operationId:"), 3)
+    def test_exposes_exactly_four_operations(self) -> None:
+        self.assertEqual(OPENAPI.count("operationId:"), 4)
+        self.assertIn("operationId: findDecisionTaskByClientRequestId", OPENAPI)
+
+    def test_submission_documents_uuid_and_readback(self) -> None:
+        self.assertIn("governance-control-ticket-v4", OPENAPI)
+        self.assertIn("client_request_id", OPENAPI)
+        self.assertIn("read-after-write", OPENAPI)
 
 
 if __name__ == "__main__":
