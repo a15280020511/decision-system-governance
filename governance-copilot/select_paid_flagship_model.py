@@ -1,19 +1,26 @@
 """Refine the live paid flagship set and choose its cheapest member.
 
-This wrapper reuses the catalog/benchmark joiner, then removes singleton-company
-false positives that have neither explicit flagship tier evidence nor sufficient
-cross-model evidence. It performs no model inference.
+The selector performs no inference. It rejects economy tiers and distinguishes
+an actual flagship product tier from generic capability marketing language.
 """
 from __future__ import annotations
 
 import argparse
 import importlib.util
 import json
+import math
 import os
+import re
+import statistics
+from collections import defaultdict
 from pathlib import Path
 from typing import Any, Mapping
 
 BASE_PATH = Path(__file__).with_name("select_paid_high_level_model.py")
+STRICT_FLAGSHIP_NAME = re.compile(
+    r"(?:^|[-_ /])(pro|max|opus|ultra|premier)(?:$|[-_ /0-9])",
+    re.IGNORECASE,
+)
 
 
 def _load_base():
@@ -29,70 +36,103 @@ def _mapping(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
 
+def _two_cluster_top(rows: list[dict[str, Any]]) -> set[str]:
+    if len(rows) < 2:
+        return set()
+    values = [float(row.get("balanced_score") or 0) for row in rows]
+    low_center, high_center = min(values), max(values)
+    assignments = [False] * len(values)
+    for _ in range(100):
+        nxt = [abs(v - high_center) <= abs(v - low_center) for v in values]
+        low = [v for v, high in zip(values, nxt) if not high]
+        high = [v for v, is_high in zip(values, nxt) if is_high]
+        if not low or not high:
+            return {str(rows[values.index(max(values))].get("model_id"))}
+        next_low, next_high = statistics.fmean(low), statistics.fmean(high)
+        stable = nxt == assignments and math.isclose(
+            next_low, low_center, rel_tol=0, abs_tol=1e-12
+        ) and math.isclose(next_high, high_center, rel_tol=0, abs_tol=1e-12)
+        assignments, low_center, high_center = nxt, next_low, next_high
+        if stable:
+            break
+    return {
+        str(row.get("model_id"))
+        for row, is_top in zip(rows, assignments)
+        if is_top
+    }
+
+
 def refine(result: dict[str, Any]) -> dict[str, Any]:
-    evidence = _mapping(result.get("company_flagship_evidence"))
     rows = result.get("cheapest_paid_flagship_candidates")
     if not isinstance(rows, list):
         raise RuntimeError("base selector did not return flagship candidates")
 
+    candidates = [dict(row) for row in rows if isinstance(row, Mapping)]
+    by_company: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in candidates:
+        by_company[str(row.get("company") or "")].append(row)
+
+    natural_top_ids: set[str] = set()
+    for company_rows in by_company.values():
+        natural_top_ids.update(_two_cluster_top(company_rows))
+
     refined: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
-    for raw in rows:
-        if not isinstance(raw, Mapping):
-            continue
-        row = dict(raw)
+    for row in candidates:
+        model_id = str(row.get("model_id") or "")
+        name = str(row.get("name") or "")
         company = str(row.get("company") or "")
-        company_row = _mapping(evidence.get(company))
-        company_count = int(company_row.get("eligible_high_count") or 0)
-        explicit = bool(row.get("explicit_flagship_tier"))
-        text = f"{row.get('model_id', '')} {row.get('name', '')}".lower()
+        company_count = len(by_company[company])
+        strict_product_tier = bool(STRICT_FLAGSHIP_NAME.search(f"{model_id} {name}"))
+        company_natural_top = model_id in natural_top_ids
+        text = f"{model_id} {name}".lower()
 
         reasons: list[str] = []
         if "spark" in text:
             reasons.append("speed-or-compact-product-tier")
-        if company_count <= 1 and not explicit:
-            reasons.append("singleton-company-without-explicit-flagship-evidence")
+        if company_count <= 1 and not strict_product_tier:
+            reasons.append("singleton-company-without-strict-product-tier")
+        elif company_count > 1 and not (strict_product_tier or company_natural_top):
+            reasons.append("not-company-flagship-product-tier-or-natural-top")
 
         if reasons:
-            rejected.append(
-                {
-                    "model_id": row.get("model_id"),
-                    "company": company,
-                    "reasons": reasons,
-                }
-            )
+            rejected.append({"model_id": model_id, "company": company, "reasons": reasons})
             continue
 
+        row["strict_product_tier"] = strict_product_tier
+        row["company_natural_top"] = company_natural_top
         row["flagship_basis"] = (
-            "explicit-product-tier"
-            if explicit
+            "strict-product-tier"
+            if strict_product_tier
             else "company-local-natural-top-layer"
         )
         refined.append(row)
 
     if not refined:
-        raise RuntimeError("no flagship models remain after false-positive control")
+        raise RuntimeError("no flagship models remain after strict product-tier control")
 
     result = dict(result)
     result.update(
         {
-            "schema_version": "governance-openrouter-paid-flagship-selection-test-v5",
-            "status": "OPENROUTER_PAID_FLAGSHIP_SELECTION_REFINED",
+            "schema_version": "governance-openrouter-paid-flagship-selection-test-v6",
+            "status": "OPENROUTER_PAID_FLAGSHIP_SELECTION_STRICT",
             "selected_model": refined[0],
             "paid_flagship_count": len(refined),
             "cheapest_paid_flagship_candidates": refined,
             "flagship_false_positive_controls": {
-                "singleton_company_requires_explicit_flagship_evidence": True,
-                "speed_or_compact_product_tiers_rejected": ["spark"],
+                "strict_product_name_tiers": ["pro", "max", "opus", "ultra", "premier"],
+                "generic_capability_phrases_do_not_define_flagship": True,
+                "singleton_company_requires_strict_product_tier": True,
                 "rejected_candidates": rejected,
             },
             "selection_rule": (
-                "start from paid stable full-tier benchmarked models; exclude free, "
-                "preview/beta/experimental and flash/mini/nano/micro/small/lite/fast "
-                "tiers; identify company-local highest product layers; reject a "
-                "singleton-company model unless OpenRouter product metadata explicitly "
-                "identifies a flagship tier; preserve OpenRouter pricing-low-to-high "
-                "order and choose the first remaining flagship"
+                "start from paid stable benchmarked full-tier models; exclude free, "
+                "preview/beta/experimental and economy tiers; treat Pro/Max/Opus/Ultra/"
+                "Premier product names as strict flagship evidence; otherwise require "
+                "membership in the company's natural highest capability layer; generic "
+                "phrases such as frontier, top-tier, state-of-the-art or Pro-level do not "
+                "by themselves define a flagship; preserve OpenRouter pricing-low-to-high "
+                "order and choose the first remaining model"
             ),
         }
     )
