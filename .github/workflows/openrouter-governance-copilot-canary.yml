@@ -1,0 +1,182 @@
+name: OpenRouter Paid Governance Copilot Canary
+
+on:
+  push:
+    branches:
+      - production/governance-copilot-cost-canary
+    paths:
+      - "governance-copilot/select_paid_governance_flagship_model.py"
+      - "governance-copilot/rank_flagships_by_task_cost.py"
+      - "governance-canary/**"
+      - "tests/test_openrouter_task_cost_ranking.py"
+      - "tests/test_governance_paid_canary_contract.py"
+      - ".github/workflows/openrouter-governance-copilot-canary.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openrouter-paid-governance-canary-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offline-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout pinned source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - name: Compile cost ranking and canary code
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m compileall -q \
+            governance-copilot/rank_flagships_by_task_cost.py \
+            governance-canary/run_paid_governance_copilot_canary.py \
+            tests/test_openrouter_task_cost_ranking.py \
+            tests/test_governance_paid_canary_contract.py
+
+      - name: Run task-cost regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tests/test_openrouter_task_cost_ranking.py
+
+      - name: Run paid-canary contract tests without network
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tests/test_governance_paid_canary_contract.py
+
+      - name: Validate workflow permissions and one-call boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/openrouter-governance-copilot-canary.yml').read_text('utf-8').lower()
+          source = Path('governance-canary/run_paid_governance_copilot_canary.py').read_text('utf-8').lower()
+          if 'permissions:\n  contents: read' not in workflow:
+              raise SystemExit('canary workflow is not read-only')
+          forbidden = tuple(
+              f'{scope}: ' + 'write'
+              for scope in ('contents', 'actions', 'issues', 'pull-requests', 'id-token')
+          )
+          for marker in forbidden:
+              if marker in workflow:
+                  raise SystemExit(f'forbidden workflow permission: {marker}')
+          if source.count('method="post"') != 1:
+              raise SystemExit('canary source must contain exactly one POST request')
+          if 'for attempt in' in source or 'fallback_model_calls": 0' not in source:
+              raise SystemExit('canary retry or fallback boundary is invalid')
+          PY
+
+  paid-canary:
+    needs: offline-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      GOVERNANCE_EXPECTED_PROMPT_TOKENS: "10000"
+      GOVERNANCE_EXPECTED_COMPLETION_TOKENS: "2000"
+    steps:
+      - name: Checkout pinned source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - name: Verify OpenRouter secret exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${OPENROUTER_API_KEY:-}"
+
+      - name: Select current paid governance flagships
+        shell: bash
+        run: |
+          set -euo pipefail
+          python governance-copilot/select_paid_governance_flagship_model.py \
+            --output-dir canary-evidence/flagships
+
+      - name: Rank flagships by governance task cost
+        shell: bash
+        run: |
+          set -euo pipefail
+          python governance-copilot/rank_flagships_by_task_cost.py \
+            --input canary-evidence/flagships/selection.json \
+            --output-dir canary-evidence/task-cost \
+            --expected-prompt-tokens "${GOVERNANCE_EXPECTED_PROMPT_TOKENS}" \
+            --expected-completion-tokens "${GOVERNANCE_EXPECTED_COMPLETION_TOKENS}"
+
+      - name: Run exactly one real paid governance canary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python governance-canary/run_paid_governance_copilot_canary.py \
+            --selection canary-evidence/task-cost/cost-selection.json \
+            --output-dir canary-evidence/paid
+
+      - name: Validate paid evidence chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          selection = json.loads(
+              Path('canary-evidence/task-cost/cost-selection.json').read_text('utf-8')
+          )
+          receipt = json.loads(
+              Path('canary-evidence/paid/paid-canary.json').read_text('utf-8')
+          )
+          expected_model = selection['selected_model']['model_id']
+          checks = {
+              'status': receipt.get('status') == 'PAID_GOVERNANCE_COPILOT_CANARY_PASS',
+              'same_model': receipt.get('requested_model') == expected_model,
+              'one_call': receipt.get('model_calls') == 1,
+              'no_fallback': receipt.get('fallback_model_calls') == 0,
+              'no_repo_write': receipt.get('repository_write_capability') is False,
+              'no_tools': receipt.get('tool_capability') is False,
+              'no_secret': receipt.get('secret_values_exposed') is False,
+              'paid_usage': receipt.get('usage', {}).get('prompt_tokens', 0) > 0
+                  and receipt.get('usage', {}).get('completion_tokens', 0) > 0,
+              'positive_estimated_cost': receipt.get('estimated_actual_cost_usd', 0) > 0,
+          }
+          failed = sorted(name for name, passed in checks.items() if not passed)
+          if failed:
+              raise SystemExit(f'paid canary evidence failed: {failed}')
+          summary = {
+              'status': 'PAID_GOVERNANCE_COPILOT_PRODUCTION_CANARY_PASS',
+              'selected_model': expected_model,
+              'task_cost_profile': selection['task_cost_profile'],
+              'estimated_profile_cost_usd': selection['selected_model'][
+                  'estimated_task_cost_usd'
+              ],
+              'actual_usage': receipt['usage'],
+              'estimated_actual_cost_usd': receipt['estimated_actual_cost_usd'],
+              'model_calls': 1,
+              'fallback_model_calls': 0,
+              'repository_write_capability': False,
+              'tool_capability': False,
+              'secret_values_exposed': False,
+          }
+          Path('canary-evidence/production-canary-summary.json').write_text(
+              json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + '\n',
+              'utf-8',
+          )
+          print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload paid canary evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: openrouter-paid-governance-canary-${{ github.run_id }}
+          path: canary-evidence/
+          if-no-files-found: error
+          retention-days: 30

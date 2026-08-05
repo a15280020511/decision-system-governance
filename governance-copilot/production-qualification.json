@@ -1,0 +1,65 @@
+{
+  "schema_version": "governance-copilot-production-qualification-v1",
+  "status": "PAID_GOVERNANCE_COPILOT_QUALIFIED",
+  "qualification_scope": "read-only advisory governance assistance",
+  "candidate_commit": "5994a7e9407f25849688a6308ffdbdb1fdabc247",
+  "workflow_run_id": 30975518088,
+  "workflow_run_attempt": 1,
+  "artifact": {
+    "id": 8918099682,
+    "name": "openrouter-paid-governance-canary-30975518088",
+    "sha256": "f4dae16e9060d6bd3ac4571c6af9979654c4a5baa2d0ee208c72314838ae2e22",
+    "retention_days": 30
+  },
+  "selected_model": {
+    "id": "openai/gpt-5.6-luna",
+    "prompt_usd_per_million": 0.1,
+    "completion_usd_per_million": 0.6,
+    "estimated_profile_cost_usd": 0.0022
+  },
+  "task_cost_profile": {
+    "expected_prompt_tokens": 10000,
+    "expected_completion_tokens": 2000
+  },
+  "canary": {
+    "status": "PAID_GOVERNANCE_COPILOT_PRODUCTION_CANARY_PASS",
+    "model_calls": 1,
+    "fallback_model_calls": 0,
+    "usage": {
+      "prompt_tokens": 328,
+      "completion_tokens": 540,
+      "total_tokens": 868
+    },
+    "estimated_actual_cost_usd": 0.0003568,
+    "verdict": "REVISE",
+    "finding_categories": [
+      "loop",
+      "permission",
+      "secret",
+      "topology"
+    ],
+    "patch_plan_items": 5,
+    "required_test_items": 5,
+    "rollback_items": 4,
+    "confidence": 0.99
+  },
+  "offline_contract": {
+    "task_cost_tests": 7,
+    "canary_contract_tests": 8,
+    "total_tests": 15,
+    "result": "PASS"
+  },
+  "security_boundary": {
+    "repository_permissions": "contents: read",
+    "repository_write_capability": false,
+    "tool_capability": false,
+    "secret_values_exposed": false,
+    "automatic_merge_capability": false,
+    "business_center_dispatch_capability": false
+  },
+  "remaining_production_condition": {
+    "main_ruleset_required": true,
+    "current_issue": 126,
+    "full_production_status": "BLOCKED_UNTIL_REPOSITORY_PROTECTION_PASS"
+  }
+}

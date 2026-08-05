@@ -164,8 +164,14 @@ class StaticSafetyTests(unittest.TestCase):
         self.assertIn("needs: offline-validation", resilience)
         self.assertIn("ubuntu-22.04", resilience)
         self.assertIn("ubuntu-24.04", resilience)
-        self.assertIn("run three independent live catalog selections", resilience)
+        self.assertIn(
+            "run three independent live catalog and task-cost selections",
+            resilience,
+        )
         self.assertIn("attempts\": 3", resilience)
+        self.assertIn('governance_expected_prompt_tokens: "10000"', resilience)
+        self.assertIn('governance_expected_completion_tokens: "2000"', resilience)
+        self.assertIn("estimated_task_cost_usd", resilience)
 
     def test_secret_is_only_read_from_environment_and_never_serialized(self):
         source = self.selector_sources()
