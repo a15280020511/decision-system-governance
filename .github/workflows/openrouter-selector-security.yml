@@ -3,13 +3,23 @@ name: Validate OpenRouter Selector Security
 on:
   push:
     branches:
+      - main
       - test/openrouter-high-level-price-selection
     paths:
       - "governance-copilot/**"
       - "tests/test_openrouter_selector_static_safety.py"
-      - ".github/workflows/openrouter-governance-selector-test.yml"
       - ".github/workflows/openrouter-selector-resilience.yml"
       - ".github/workflows/openrouter-selector-security.yml"
+      - "MODEL_ORCHESTRATION_POLICY.md"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "governance-copilot/**"
+      - "tests/test_openrouter_selector_static_safety.py"
+      - ".github/workflows/openrouter-selector-resilience.yml"
+      - ".github/workflows/openrouter-selector-security.yml"
+      - "MODEL_ORCHESTRATION_POLICY.md"
   workflow_dispatch:
 
 permissions:
