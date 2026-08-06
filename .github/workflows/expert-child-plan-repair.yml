@@ -1,0 +1,96 @@
+name: Governance Expert Child Plan Repair
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Existing expert child Issue number
+        required: true
+        type: string
+      expected_task_id:
+        description: Exact existing governance task ID
+        required: true
+        type: string
+      retry_id:
+        description: New unique expert retry ID
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: governance-expert-child-plan-repair-${{ inputs.issue_number }}
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CHILD_REPOSITORY: a15280020511/expert-assessment-center
+      ISSUE_NUMBER: ${{ inputs.issue_number }}
+      EXPECTED_TASK_ID: ${{ inputs.expected_task_id }}
+      RETRY_ID: ${{ inputs.retry_id }}
+      GH_TOKEN: ${{ secrets.CONTROL_PLANE_TOKEN }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - name: Checkout governance main
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+
+      - name: Validate repair inputs
+        run: |
+          set -euo pipefail
+          [[ "$ISSUE_NUMBER" =~ ^[1-9][0-9]*$ ]]
+          [[ "$EXPECTED_TASK_ID" =~ ^gov-[1-9][0-9]*-expert$ ]]
+          [[ "$RETRY_ID" =~ ^[A-Za-z0-9._-]{1,64}$ ]]
+          test -n "$GH_TOKEN"
+          test -n "$OPENROUTER_API_KEY"
+
+      - name: Fetch exact existing child ticket
+        run: |
+          set -euo pipefail
+          title="$(gh api "repos/${CHILD_REPOSITORY}/issues/${ISSUE_NUMBER}" --jq '.title')"
+          test "$title" = "[execution] ${EXPECTED_TASK_ID}"
+          gh api "repos/${CHILD_REPOSITORY}/issues/${ISSUE_NUMBER}" \
+            --jq '.body // ""' > source-ticket.json
+
+      - name: Regenerate executable immutable plan
+        run: |
+          set -euo pipefail
+          python tools/repair_expert_child_plan.py \
+            --source-body source-ticket.json \
+            --expected-task-id "$EXPECTED_TASK_ID" \
+            --retry-id "$RETRY_ID" \
+            --output-ticket repaired-ticket.json \
+            --output-plan regenerated-plan.json \
+            | tee repair-receipt.json
+
+      - name: Update the same child Issue and trigger one controlled retry
+        run: |
+          set -euo pipefail
+          gh api --method PATCH \
+            "repos/${CHILD_REPOSITORY}/issues/${ISSUE_NUMBER}" \
+            -F body=@repaired-ticket.json \
+            -f state=open
+          gh api --method POST \
+            "repos/${CHILD_REPOSITORY}/issues/${ISSUE_NUMBER}/comments" \
+            -f body="/retry-expert-team ${RETRY_ID}"
+
+      - name: Upload repair evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: expert-child-plan-repair-${{ inputs.issue_number }}-${{ inputs.retry_id }}
+          path: |
+            repaired-ticket.json
+            regenerated-plan.json
+            repair-receipt.json
+          if-no-files-found: error
+          retention-days: 14
