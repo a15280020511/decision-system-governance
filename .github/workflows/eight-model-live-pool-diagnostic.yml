@@ -68,6 +68,7 @@ jobs:
           }
 
           original_flagship = selector._is_general_flagship
+          original_governance_companies = selector.GOVERNANCE_COMPANIES
 
           def broad_high_intelligence(identity: str) -> bool:
               lowered = identity.lower()
@@ -79,18 +80,29 @@ jobs:
                   )
               )
 
-          def candidates(broad: bool):
+          def candidates(broad: bool, include_governance_vendors: bool):
               selector._is_general_flagship = (
                   broad_high_intelligence if broad else original_flagship
+              )
+              selector.GOVERNANCE_COMPANIES = (
+                  frozenset()
+                  if include_governance_vendors
+                  else original_governance_companies
               )
               try:
                   return selector._catalog_candidates(catalog)
               finally:
                   selector._is_general_flagship = original_flagship
+                  selector.GOVERNANCE_COMPANIES = original_governance_companies
 
-          def qualify(mode: str, broad: bool, minimum_zdr_providers: int):
+          def qualify(
+              mode: str,
+              broad: bool,
+              minimum_zdr_providers: int,
+              include_governance_vendors: bool = False,
+          ):
               qualified = []
-              for candidate in candidates(broad):
+              for candidate in candidates(broad, include_governance_vendors):
                   model_id = str(candidate['model_id'])
                   endpoint_payload = selector._fetch_json(
                       selector._endpoint_url(model_id),
@@ -132,9 +144,14 @@ jobs:
 
           results = [
               qualify('explicit-flagship-zdr2', False, 2),
+              qualify(
+                  'explicit-flagship-zdr2-all-vendors',
+                  False,
+                  2,
+                  True,
+              ),
               qualify('broad-high-intelligence-zdr2', True, 2),
               qualify('explicit-flagship-zdr1', False, 1),
-              qualify('broad-high-intelligence-zdr1', True, 1),
           ]
           print('EIGHT_MODEL_POOL_DIAGNOSTIC=' + json.dumps(
               results,
