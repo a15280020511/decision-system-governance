@@ -1,0 +1,89 @@
+name: Apply Strict Standby Vendor Policy
+
+on:
+  push:
+    branches:
+      - fix/strict-eight-model-standby-vendors
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: fix/strict-eight-model-standby-vendors
+          fetch-depth: 0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: '3.12'
+      - name: Patch selector and validators
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text(encoding='utf-8')
+              if old not in text:
+                  raise SystemExit(f'missing patch target in {path}: {old[:80]!r}')
+              target.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          selector = 'governance-copilot/select_expert_team_plan.py'
+          replace_once(
+              selector,
+              '''        company = model_id.split("/", 1)[0].casefold()\n        if company in GOVERNANCE_COMPANIES:\n            continue\n        if not _is_general_text(row) or not _not_expired(row):\n''',
+              '''        company = model_id.split("/", 1)[0].casefold()\n        if not _is_general_text(row) or not _not_expired(row):\n''',
+          )
+          replace_once(
+              selector,
+              '''        if (\n            not model\n            or not company\n            or company in GOVERNANCE_COMPANIES\n            or model in models\n        ):\n''',
+              '''        if not model or not company or model in models:\n''',
+          )
+          replace_once(
+              selector,
+              '''        "governance_companies_excluded": sorted(GOVERNANCE_COMPANIES),\n''',
+              '''        "governance_companies_excluded_from_primary": sorted(\n            GOVERNANCE_COMPANIES\n        ),\n        "governance_companies_allowed_in_recovery": True,\n''',
+          )
+          replace_once(
+              selector,
+              '''            "ascending -> distinct-primary-companies -> unique-recovery-models"\n''',
+              '''            "ascending -> primary-excludes-governance-vendors -> "\n            "distinct-primary-companies -> unique-recovery-models"\n''',
+          )
+
+          signer = 'tools/sign_expert_plan.py'
+          replace_once(
+              signer,
+              '''            if company in {"openai", "anthropic"}:\n                raise ExpertPlanSigningError(\n                    "governance companies cannot be expert companies"\n                )\n''',
+              '''            if (\n                field == "selected_models"\n                and company in {"openai", "anthropic"}\n            ):\n                raise ExpertPlanSigningError(\n                    "governance companies cannot be selected expert companies"\n                )\n''',
+          )
+
+          repair = 'tools/repair_expert_child_plan.py'
+          replace_once(
+              repair,
+              '''            if company in {"openai", "anthropic"}:\n                raise ExpertChildRepairError(\n                    "regenerated plan contains governance company"\n                )\n''',
+              '''            if (\n                field == "selected_models"\n                and company in {"openai", "anthropic"}\n            ):\n                raise ExpertChildRepairError(\n                    "regenerated primary plan contains governance company"\n                )\n''',
+          )
+
+          preview = 'tests/test_expert_plan_preview_workflow.py'
+          replace_once(
+              preview,
+              '''            "governance companies cannot be expert companies",\n''',
+              '''            "governance companies cannot be selected expert companies",\n''',
+          )
+
+          workflow = Path('.github/workflows/apply-standby-vendor-policy.yml')
+          workflow.unlink()
+          PY
+      - name: Commit policy patch
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: allow governance vendors only in standby queue'
+          git push origin HEAD:fix/strict-eight-model-standby-vendors
