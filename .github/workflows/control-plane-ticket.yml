@@ -60,6 +60,8 @@ jobs:
         id: prepare
         if: steps.select.outputs.has_task == 'true'
         continue-on-error: true
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
           python control-plane/resilient_control.py prepare \
             --event-path control-artifacts/selected-event.json \
