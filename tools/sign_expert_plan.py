@@ -217,6 +217,10 @@ def verify_signed_plan(
                 raise ExpertPlanSigningError(
                     "model does not satisfy the qualified ZDR provider floor"
                 )
+            if "strict-tier+company-highest-intelligence-reasoning-flagship" not in evidence:
+                raise ExpertPlanSigningError(
+                    "model lacks strict-tier reasoning flagship evidence"
+                )
             if "authenticated-zdr-endpoint-qualified" not in evidence:
                 raise ExpertPlanSigningError(
                     "model lacks authenticated ZDR selection evidence"

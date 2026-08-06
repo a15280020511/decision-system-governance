@@ -57,6 +57,11 @@ def plan(ticket: dict, provider_count: int = 2) -> dict:
                 "endpoint_inventory_sha256": hashlib.sha256(
                     company.encode("utf-8")
                 ).hexdigest(),
+                "selection_evidence": (
+                    "strict-tier+company-highest-intelligence-reasoning-flagship+"
+                    "price-order+live-exact-endpoint-qualified+"
+                    "authenticated-zdr-endpoint-qualified+minimum-one-zdr-provider-route"
+                ),
             }
         )
     value = {
@@ -118,7 +123,7 @@ class ExpertChildPlanRepairTests(unittest.TestCase):
         source = source_ticket()
         repaired = dict(source)
         new_plan = plan(repaired, provider_count=1)
-        new_plan["selected_models"][0]["model"] = "openai/gpt-5.6-luna-pro"
+        new_plan["selected_models"][0]["model"] = "openai/gpt-5-pro"
         new_plan["selected_models"][0]["company"] = "openai"
         new_plan["plan_sha256"] = repair._plan_digest(new_plan)
         repaired["governance_model_plan"] = new_plan
