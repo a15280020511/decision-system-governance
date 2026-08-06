@@ -62,16 +62,18 @@ jobs:
               r'.*?\n\n    def test_company_selection_keeps_only_one_model_per_company',
               re.S,
           )
-          replacement = '''    def test_name_pro_alone_does_not_make_a_model_eligible(self) -> None:
-        with self.assertRaisesRegex(
-            planner.ExpertPlanError,
-            "no paid general-purpose reasoning company flagship",
-        ):
-            planner._catalog_candidates(
-                {"data": [model("vendor/cheap-pro", 0.1, 0.2, reasoning=False)]}
-            )
-
-    def test_company_selection_keeps_only_one_model_per_company'''
+          replacement = '\n'.join((
+              '    def test_name_pro_alone_does_not_make_a_model_eligible(self) -> None:',
+              '        with self.assertRaisesRegex(',
+              '            planner.ExpertPlanError,',
+              '            "no paid general-purpose reasoning company flagship",',
+              '        ):',
+              '            planner._catalog_candidates(',
+              '                {"data": [model("vendor/cheap-pro", 0.1, 0.2, reasoning=False)]}',
+              '            )',
+              '',
+              '    def test_company_selection_keeps_only_one_model_per_company',
+          ))
           text, count = pattern.subn(replacement, text, count=1)
           if count != 1:
               raise SystemExit('generated nonreasoning Pro test not found')
