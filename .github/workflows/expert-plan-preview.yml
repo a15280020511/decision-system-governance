@@ -21,10 +21,9 @@ jobs:
     timeout-minutes: 10
     env:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-      ISSUE_NUMBER: ${{ github.event.issue.number }}
       RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
-      - name: Checkout governance selector
+      - name: Checkout governance signer
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
@@ -34,146 +33,21 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Validate unsigned expert ticket
-        id: prepare
-        continue-on-error: true
-        run: |
-          set -euo pipefail
-          mkdir -p expert-plan-artifacts
-          python - <<'PY'
-          import json
-          import os
-          import re
-          from pathlib import Path
-
-          event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text(encoding="utf-8"))
-          raw = str((event.get("issue") or {}).get("body") or "").strip()
-          ticket = json.loads(raw)
-          if not isinstance(ticket, dict):
-              raise SystemExit("Issue body must be exactly one JSON object")
-          if "governance_model_plan" in ticket:
-              raise SystemExit("unsigned ticket must not contain governance_model_plan")
-          allowed = {
-              "task_id", "objective", "pipeline", "route", "task",
-              "execution_acceptance", "evidence", "approved_budget", "private_output"
-          }
-          unknown = sorted(set(ticket) - allowed)
-          if unknown:
-              raise SystemExit(f"unknown expert ticket fields: {unknown}")
-          task_id = str(ticket.get("task_id") or "")
-          if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{7,127}", task_id):
-              raise SystemExit("task_id is invalid")
-          if ticket.get("route") != "expert-team":
-              raise SystemExit("route must be expert-team")
-          if ticket.get("private_output") is not False:
-              raise SystemExit("private_output must be false")
-          pipeline = ticket.get("pipeline")
-          if not isinstance(pipeline, dict):
-              raise SystemExit("pipeline must be an object")
-          if not str(pipeline.get("pipeline_id") or ""):
-              raise SystemExit("pipeline.pipeline_id is required")
-          if not str(pipeline.get("stage_id") or ""):
-              raise SystemExit("pipeline.stage_id is required")
-          task = ticket.get("task")
-          if not isinstance(task, dict) or not str(task.get("question") or "").strip():
-              raise SystemExit("task.question is required")
-          budget = ticket.get("approved_budget")
-          if not isinstance(budget, dict):
-              raise SystemExit("approved_budget is required")
-          calls = budget.get("calls")
-          recovery = budget.get("maximum_recovery_calls")
-          if not isinstance(calls, int) or not 4 <= calls <= 16:
-              raise SystemExit("approved_budget.calls must be 4..16")
-          if not isinstance(recovery, int) or not 0 <= recovery <= 4:
-              raise SystemExit("approved_budget.maximum_recovery_calls must be 0..4")
-          if calls - recovery < 3:
-              raise SystemExit("budget must leave at least three initial expert calls")
-          if budget.get("cost_policy") not in {
-              "prompt_led_soft_governance", "unbounded_with_anomaly_guard"
-          }:
-              raise SystemExit("approved_budget.cost_policy is invalid")
-          Path("expert-plan-artifacts/unsigned-ticket.json").write_text(
-              json.dumps(ticket, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-              encoding="utf-8",
-          )
-          PY
-
-      - name: Generate governance-owned immutable model plan
-        id: plan
-        if: steps.prepare.outcome == 'success'
+      - name: Sign immutable expert plan with production contract
+        id: sign
         continue-on-error: true
         run: |
           set -euo pipefail
           test -n "${OPENROUTER_API_KEY:-}"
           test "${#OPENROUTER_API_KEY}" -ge 20
-          python governance-copilot/select_expert_team_plan.py \
-            --ticket expert-plan-artifacts/unsigned-ticket.json \
-            --output-ticket expert-plan-artifacts/signed-ticket.json \
-            --output-plan expert-plan-artifacts/governance-model-plan.json
+          python tools/sign_expert_plan.py \
+            --event-path "$GITHUB_EVENT_PATH" \
+            --output-dir expert-plan-artifacts
 
-      - name: Validate signed ticket and zero-call boundary
-        id: validate
-        if: steps.plan.outcome == 'success'
-        continue-on-error: true
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import json
-          from pathlib import Path
-
-          signed = json.loads(Path("expert-plan-artifacts/signed-ticket.json").read_text(encoding="utf-8"))
-          plan = json.loads(Path("expert-plan-artifacts/governance-model-plan.json").read_text(encoding="utf-8"))
-          if signed.get("governance_model_plan") != plan:
-              raise SystemExit("signed ticket and plan file differ")
-          if plan.get("selection_authority") != "decision-system-governance":
-              raise SystemExit("selection authority is not governance")
-          if plan.get("model_calls") != 0:
-              raise SystemExit("plan does not prove zero model calls")
-          if plan.get("endpoint_qualification_performed_by_governance") is not True:
-              raise SystemExit("live exact endpoint qualification is missing")
-          if plan.get("model_substitution_allowed") is not False:
-              raise SystemExit("model substitution must be disabled")
-          if plan.get("expert_center_reranking_allowed") is not False:
-              raise SystemExit("expert center reranking must be disabled")
-          selected = plan.get("selected_models")
-          recovery = plan.get("recovery_models")
-          if not isinstance(selected, list) or not 3 <= len(selected) <= 6:
-              raise SystemExit("selected expert count is invalid")
-          if not isinstance(recovery, list):
-              raise SystemExit("recovery model list is invalid")
-          rows = [*selected, *recovery]
-          companies = [str(row.get("company") or "") for row in rows]
-          models = [str(row.get("model") or "") for row in rows]
-          if not all(companies) or len(companies) != len(set(companies)):
-              raise SystemExit("expert companies are not globally distinct")
-          if not all(models) or len(models) != len(set(models)):
-              raise SystemExit("expert models are not globally distinct")
-          if {"openai", "anthropic"} & {value.casefold() for value in companies}:
-              raise SystemExit("governance companies cannot be expert companies")
-          if any(int(row.get("qualified_provider_count") or 0) < 2 for row in rows):
-              raise SystemExit("every model must have at least two qualified providers")
-          Path("expert-plan-artifacts/signed-ticket-body.md").write_text(
-              json.dumps(signed, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-              encoding="utf-8",
-          )
-          summary = {
-              "status": "PASS",
-              "task_id": signed.get("task_id"),
-              "plan_sha256": plan.get("plan_sha256"),
-              "selected_models": models[:len(selected)],
-              "recovery_models": models[len(selected):],
-              "model_calls": 0,
-              "child_dispatch": False,
-          }
-          Path("expert-plan-artifacts/plan-preview-receipt.json").write_text(
-              json.dumps(summary, ensure_ascii=False, indent=2) + "\n",
-              encoding="utf-8",
-          )
-          PY
-
-      - name: Upload immutable plan preview artifact
+      - name: Upload immutable signed plan
         id: artifact
-        if: steps.validate.outcome == 'success'
+        if: ${{ always() && steps.sign.outcome == 'success' }}
+        continue-on-error: true
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: governance-expert-plan-preview-${{ github.run_id }}
@@ -182,7 +56,9 @@ jobs:
           retention-days: 30
 
       - name: Publish signed ticket to the same Issue
-        if: steps.validate.outcome == 'success' && steps.artifact.outcome == 'success'
+        id: publish
+        if: ${{ always() && steps.sign.outcome == 'success' && steps.artifact.outcome == 'success' }}
+        continue-on-error: true
         uses: actions/github-script@ff4b64fc288a21d5291396a384c1273f032e6333 # v9.0.0
         env:
           SIGNED_TICKET_FILE: expert-plan-artifacts/signed-ticket-body.md
@@ -215,6 +91,8 @@ jobs:
                 `- Plan SHA256: \`${receipt.plan_sha256}\``,
                 `- Selected models: ${models}`,
                 `- Recovery models: ${recoveries}`,
+                `- Required context tokens: \`${receipt.required_context_tokens}\``,
+                `- Minimum qualified providers per model: \`${receipt.minimum_qualified_provider_count}\``,
                 '- Selection authority: `decision-system-governance`',
                 '- Model calls: `0`',
                 '- Child dispatch: `false`',
@@ -224,8 +102,8 @@ jobs:
               ].join('\n')
             });
 
-      - name: Publish fail-closed preview failure
-        if: always() && (steps.prepare.outcome != 'success' || steps.plan.outcome != 'success' || steps.validate.outcome != 'success' || steps.artifact.outcome != 'success')
+      - name: Publish fail-closed signing failure
+        if: ${{ always() && (steps.sign.outcome != 'success' || steps.artifact.outcome != 'success' || steps.publish.outcome != 'success') }}
         uses: actions/github-script@ff4b64fc288a21d5291396a384c1273f032e6333 # v9.0.0
         with:
           script: |
@@ -249,4 +127,15 @@ jobs:
               state: 'closed',
               state_reason: 'not_planned'
             });
-            core.setFailed('expert plan preview failed closed')
+            core.setFailed('expert plan signing failed closed');
+
+      - name: Verify authoritative zero-call signing outcome
+        if: always()
+        run: |
+          set -euo pipefail
+          test "${{ steps.sign.outcome }}" = "success"
+          test "${{ steps.artifact.outcome }}" = "success"
+          test "${{ steps.publish.outcome }}" = "success"
+          test "$(jq -r '.status' expert-plan-artifacts/plan-preview-receipt.json)" = "PASS"
+          test "$(jq -r '.model_calls' expert-plan-artifacts/plan-preview-receipt.json)" = "0"
+          test "$(jq -r '.child_dispatch' expert-plan-artifacts/plan-preview-receipt.json)" = "false"
