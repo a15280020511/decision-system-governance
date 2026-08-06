@@ -2,11 +2,12 @@
 """Frozen execution compatibility shared by governance expert selection paths.
 
 Governance and expert production must use the same task envelope, authenticated
-ZDR endpoint inventory, provider redundancy floor, role assignment, and a
-minimum governance-approved recovery reserve. The price-minimal distinct-company
+ZDR endpoint inventory, provider redundancy floor, role assignment, and an
+ordered governance-approved recovery reserve. The price-minimal distinct-company
 set is selected first; within that frozen set, the strongest official
 intelligence rank performs final synthesis and the second strongest performs
-cross-review.
+cross-review. Four additional price-ranked flagship models remain dormant and
+are attempted sequentially only after an eligible technical failure.
 """
 from __future__ import annotations
 
@@ -14,22 +15,26 @@ import hashlib
 import json
 from typing import Any, Mapping
 
-SCHEMA_VERSION = "governance-expert-task-envelope-v4"
+SCHEMA_VERSION = "governance-expert-task-envelope-v5"
 EXPERT_RUNTIME_SCHEMA_VERSION = "v5-minimal-task-envelope-1"
 MINIMUM_CONTEXT_LENGTH = 16_384
 FIXED_PROTOCOL_RESERVE = 8_192
 MINIMUM_QUALIFIED_PROVIDER_COUNT = 2
-MINIMUM_GOVERNANCE_RECOVERY_MODELS = 1
+MINIMUM_GOVERNANCE_RECOVERY_MODELS = 4
 MAXIMUM_TOTAL_MODEL_CALLS = 16
 ZDR_ENDPOINTS_API = "https://openrouter.ai/api/v1/endpoints/zdr"
 ZDR_SELECTOR_SCHEMA_VERSION = (
-    "governance-openrouter-zdr-redundant-executable-flagship-price-v4"
+    "governance-openrouter-zdr-redundant-executable-flagship-price-v5"
 )
 ROLE_ASSIGNMENT_POLICY = (
     "price-minimal-distinct-company-set -> official-intelligence-rank-ascending -> "
     "strongest-final-synthesis -> second-strongest-cross-review -> remaining-independent"
 )
 RECOVERY_POOL_POLICY = "shared-governance-approved-candidates"
+RECOVERY_ORDER_POLICY = (
+    "four-primary-models -> four-price-ranked-recovery-models -> "
+    "sequential-attempts -> stop-after-first-success"
+)
 RECOVERY_TRIGGER_CATEGORIES = (
     "PROVIDER_RATE_LIMITED",
     "PROVIDER_TIMEOUT",
@@ -69,12 +74,13 @@ def required_context_tokens(ticket: Mapping[str, Any]) -> int:
 
 
 def normalize_recovery_budget(ticket: Mapping[str, Any]) -> dict[str, Any]:
-    """Add one shared recovery call without reducing the requested initial capacity.
+    """Provision four ordered recovery calls while preserving four primary calls.
 
-    Governance owns this normalization. A submitted 4+0 ticket therefore becomes
-    5+1 before the immutable model plan is created. The extra model is only called
-    after an eligible technical failure, so a healthy run still performs the same
-    number of initial expert calls.
+    Governance owns this normalization. A submitted 4+0 ticket becomes 8+4
+    before the immutable model plan is created: four primary models plus four
+    distinct-company, price-ranked standby models. Healthy runs still perform
+    only the four primary calls. Standby calls are consumed sequentially only
+    after eligible technical failures.
     """
     budget = ticket.get("approved_budget")
     if not isinstance(budget, Mapping):
@@ -82,7 +88,9 @@ def normalize_recovery_budget(ticket: Mapping[str, Any]) -> dict[str, Any]:
     calls = budget.get("calls")
     recovery = budget.get("maximum_recovery_calls")
     if isinstance(calls, bool) or not isinstance(calls, int) or not 4 <= calls <= 16:
-        raise ExpertTaskEnvelopeError("approved_budget.calls must be an integer from 4 to 16")
+        raise ExpertTaskEnvelopeError(
+            "approved_budget.calls must be an integer from 4 to 16"
+        )
     if (
         isinstance(recovery, bool)
         or not isinstance(recovery, int)
@@ -99,15 +107,15 @@ def normalize_recovery_budget(ticket: Mapping[str, Any]) -> dict[str, Any]:
     normalized = dict(ticket)
     normalized_budget = dict(budget)
     if recovery < MINIMUM_GOVERNANCE_RECOVERY_MODELS:
-        initial_capacity = calls - recovery
+        initial_capacity = max(4, calls - recovery)
         normalized_recovery = MINIMUM_GOVERNANCE_RECOVERY_MODELS
         normalized_calls = min(
             MAXIMUM_TOTAL_MODEL_CALLS,
             initial_capacity + normalized_recovery,
         )
-        if normalized_calls - normalized_recovery < 3:
+        if normalized_calls - normalized_recovery < 4:
             raise ExpertTaskEnvelopeError(
-                "governance recovery reserve would leave fewer than three initial experts"
+                "governance recovery reserve must preserve four primary model calls"
             )
         normalized_budget["calls"] = normalized_calls
         normalized_budget["maximum_recovery_calls"] = normalized_recovery
@@ -166,7 +174,9 @@ def _assign_intelligence_ranked_roles(selector: Any, plan: dict[str, Any]) -> No
     """Assign roles inside the already selected price-minimal company set."""
     rows = plan.get("selected_models")
     if not isinstance(rows, list) or not 3 <= len(rows) <= 6:
-        raise ExpertTaskEnvelopeError("selected expert set is outside constitutional bounds")
+        raise ExpertTaskEnvelopeError(
+            "selected expert set is outside constitutional bounds"
+        )
     records = [dict(row) for row in rows if isinstance(row, Mapping)]
     if len(records) != len(rows):
         raise ExpertTaskEnvelopeError("selected expert rows must be objects")
@@ -195,7 +205,9 @@ def _assign_intelligence_ranked_roles(selector: Any, plan: dict[str, Any]) -> No
         if str(row.get("model") or "") not in {synthesis_model, review_model}
     ]
     if len(independent) != len(records) - 2:
-        raise ExpertTaskEnvelopeError("selected expert model identities are not unique")
+        raise ExpertTaskEnvelopeError(
+            "selected expert model identities are not unique"
+        )
     review = next(
         row for row in records if str(row.get("model") or "") == review_model
     )
@@ -232,7 +244,9 @@ def patch_selector(selector: Any) -> None:
         EXPERT_RUNTIME_SCHEMA_VERSION
     )
     selector.MINIMUM_QUALIFIED_PROVIDER_COUNT = MINIMUM_QUALIFIED_PROVIDER_COUNT
-    selector.MINIMUM_GOVERNANCE_RECOVERY_MODELS = MINIMUM_GOVERNANCE_RECOVERY_MODELS
+    selector.MINIMUM_GOVERNANCE_RECOVERY_MODELS = (
+        MINIMUM_GOVERNANCE_RECOVERY_MODELS
+    )
     selector.EXPERT_RUNTIME_ZDR_ENDPOINTS_API = ZDR_ENDPOINTS_API
     selector.normalize_recovery_budget = normalize_recovery_budget
 
@@ -263,7 +277,11 @@ def patch_selector(selector: Any) -> None:
             qualified = original_qualify(candidate, token, required_context)
             if not isinstance(qualified, Mapping):
                 return None
-            return dict(qualified) if _provider_count_is_sufficient(qualified) else None
+            return (
+                dict(qualified)
+                if _provider_count_is_sufficient(qualified)
+                else None
+            )
 
         if zdr_cache is None:
             zdr_cache = _zdr_endpoint_keys(selector, token)
@@ -302,7 +320,10 @@ def patch_selector(selector: Any) -> None:
         original_model_record = selector._model_record
 
         def model_record(row: Mapping[str, Any], *, slot: int) -> dict[str, Any]:
-            if has_live_endpoint_primitives and row.get("zdr_endpoint_qualified") is not True:
+            if (
+                has_live_endpoint_primitives
+                and row.get("zdr_endpoint_qualified") is not True
+            ):
                 raise ExpertTaskEnvelopeError(
                     "ranked model has no authenticated ZDR endpoint qualification"
                 )
@@ -329,9 +350,12 @@ def patch_selector(selector: Any) -> None:
             normalized_ticket = normalize_recovery_budget(ticket)
             plan = original_build_plan(normalized_ticket, token)
             _assign_intelligence_ranked_roles(selector, plan)
-            if int(plan.get("recovery_count") or 0) < MINIMUM_GOVERNANCE_RECOVERY_MODELS:
+            if (
+                int(plan.get("recovery_count") or 0)
+                < MINIMUM_GOVERNANCE_RECOVERY_MODELS
+            ):
                 raise ExpertTaskEnvelopeError(
-                    "governance plan must include at least one approved recovery model"
+                    "governance plan must include four approved recovery models"
                 )
             plan["selection_policy"] = (
                 "openrouter-official-intelligence-top-150 -> paid-general-purpose-"
@@ -349,7 +373,12 @@ def patch_selector(selector: Any) -> None:
             )
             plan["governance_approved_recovery_allowed"] = True
             plan["recovery_pool_policy"] = RECOVERY_POOL_POLICY
-            plan["recovery_trigger_categories"] = list(RECOVERY_TRIGGER_CATEGORIES)
+            plan["recovery_order_policy"] = RECOVERY_ORDER_POLICY
+            plan["recovery_models_are_price_ranked"] = True
+            plan["recovery_models_are_sequential"] = True
+            plan["recovery_trigger_categories"] = list(
+                RECOVERY_TRIGGER_CATEGORIES
+            )
             plan["unapproved_model_substitution_allowed"] = False
             plan["source_selector_schema_version"] = ZDR_SELECTOR_SCHEMA_VERSION
             plan["source_ranking_schema_version"] = ZDR_SELECTOR_SCHEMA_VERSION

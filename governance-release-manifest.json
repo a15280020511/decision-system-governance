@@ -4,7 +4,7 @@
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 151,
-  "total_bytes": 970160,
+  "total_bytes": 972801,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -453,8 +453,8 @@
     },
     {
       "path": "governance-copilot/expert_task_envelope.py",
-      "size_bytes": 15999,
-      "sha256": "dcae0d8c6fdf8883e7817343de0fa9d93446921c9965a8c89d8d7c0257bb2ac7"
+      "size_bytes": 16796,
+      "sha256": "74478f235d7266e51c0005e2b03359e876eed7142852a7e36e2f80fe0034fa04"
     },
     {
       "path": "governance-copilot/production-qualification.json",
@@ -648,8 +648,8 @@
     },
     {
       "path": "tests/test_expert_zdr_endpoint_parity.py",
-      "size_bytes": 8901,
-      "sha256": "8a30f90d728c8c00c5b30e6cf47372c7543ec8c3f936849b7da43c751171b6c2"
+      "size_bytes": 10048,
+      "sha256": "1328607ccc8490335bde996caee695fd132ac2143d7d9a4dec3e1ec9ee3c74a6"
     },
     {
       "path": "tests/test_governance_issue_guard.py",
@@ -663,8 +663,8 @@
     },
     {
       "path": "tests/test_governance_recovery_budget.py",
-      "size_bytes": 2925,
-      "sha256": "0e8ac5e0b5569b21f642878660d8698ae8573c916741061dc0e85521393db006"
+      "size_bytes": 3622,
+      "sha256": "52f22ebbfc45127acffb08002ae57bf7cd4a5c45c59c1dc28cd48c0579fec5a8"
     },
     {
       "path": "tests/test_governance_transport_package.py",
