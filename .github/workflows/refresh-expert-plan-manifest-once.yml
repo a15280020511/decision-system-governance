@@ -1,0 +1,42 @@
+name: Refresh Expert Plan Manifest Once
+
+on:
+  push:
+    branches:
+      - fix/inject-openrouter-key-expert-plan-v2
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-expert-plan-manifest-once
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    if: github.actor == github.repository_owner
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout branch with push credentials
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: fix/inject-openrouter-key-expert-plan-v2
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Generate exact manifest and remove this workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/refresh-expert-plan-manifest-once.yml
+          python tools/generate_governance_release_manifest.py \
+            --root . \
+            --output governance-release-manifest.json \
+            --version 4.2.2
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git diff --cached --check
+          git commit -m "chore: refresh governance release manifest"
+          git push origin HEAD:fix/inject-openrouter-key-expert-plan-v2
