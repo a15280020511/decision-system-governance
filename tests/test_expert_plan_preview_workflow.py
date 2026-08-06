@@ -89,7 +89,7 @@ class ExpertPlanPreviewWorkflowTests(unittest.TestCase):
             "route must be expert-team",
             "private_output must be false",
             "budget must leave at least three initial expert calls",
-            "expert companies are not globally distinct",
+            "selected expert companies are not distinct",
             "governance companies cannot be expert companies",
             "OPENROUTER_API_KEY is required",
         )
