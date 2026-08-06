@@ -14,6 +14,7 @@ from typing import Any, Mapping
 ROOT = Path(__file__).resolve().parents[1]
 SELECTOR_PATH = ROOT / "governance-copilot" / "select_expert_team_plan.py"
 TASK_ENVELOPE_PATH = ROOT / "governance-copilot" / "expert_task_envelope.py"
+TOP20_POOL_PATH = ROOT / "governance-copilot" / "top20_reasoning_pool.py"
 RETRY_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 EXPECTED_ROUTE = "expert-team"
 
@@ -39,7 +40,12 @@ TASK_ENVELOPE = _load_module(
     "governance_expert_child_repair_task_envelope",
     TASK_ENVELOPE_PATH,
 )
+TOP20_POOL = _load_module(
+    "governance_expert_child_repair_top20_pool",
+    TOP20_POOL_PATH,
+)
 TASK_ENVELOPE.patch_selector(SELECTOR)
+TOP20_POOL.patch_selector(SELECTOR)
 
 
 def _canonical_json(value: Any) -> bytes:
@@ -91,6 +97,97 @@ def _plan_digest(plan: Mapping[str, Any]) -> str:
     return hashlib.sha256(_canonical_json(material)).hexdigest()
 
 
+def _verify_top20_pool(plan: Mapping[str, Any]) -> None:
+    if plan.get("top20_reasoning_pool_schema_version") != (
+        TOP20_POOL.POOL_SCHEMA_VERSION
+    ):
+        raise ExpertChildRepairError("regenerated top-20 pool schema is invalid")
+    if plan.get("top20_reasoning_pool_source") != TOP20_POOL.POOL_SOURCE:
+        raise ExpertChildRepairError("regenerated top-20 pool source is invalid")
+    if plan.get("top20_reasoning_pool_size") != TOP20_POOL.TOP20_POOL_SIZE:
+        raise ExpertChildRepairError("regenerated top-20 pool is incomplete")
+    if plan.get("candidate_pool_authority") != "decision-system-governance":
+        raise ExpertChildRepairError("regenerated candidate pool authority is invalid")
+    if plan.get("model_assignment_authority") != "expert-assessment-center":
+        raise ExpertChildRepairError("regenerated model assignment authority is invalid")
+    if plan.get("expert_center_pool_selection_allowed") is not True:
+        raise ExpertChildRepairError("expert center top-20 selection is not enabled")
+    raw_pool = plan.get("top20_reasoning_models")
+    eligible = plan.get("expert_selectable_candidates")
+    if not isinstance(raw_pool, list) or len(raw_pool) != TOP20_POOL.TOP20_POOL_SIZE:
+        raise ExpertChildRepairError("regenerated top-20 pool rows are invalid")
+    if (
+        not isinstance(eligible, list)
+        or len(eligible) < TOP20_POOL.MINIMUM_EXECUTABLE_CANDIDATES
+    ):
+        raise ExpertChildRepairError(
+            "regenerated top-20 pool has fewer than eight executable companies"
+        )
+
+
+def _verify_model_rows(plan: Mapping[str, Any]) -> None:
+    selected_rows = list(plan.get("selected_models") or [])
+    recovery_rows = list(plan.get("recovery_models") or [])
+    companies: set[str] = set()
+    models: set[str] = set()
+    for field, rows in (
+        ("selected_models", selected_rows),
+        ("recovery_models", recovery_rows),
+    ):
+        for index, row in enumerate(rows):
+            if not isinstance(row, Mapping):
+                raise ExpertChildRepairError(f"{field}[{index}] is not an object")
+            model = str(row.get("model") or "").strip()
+            company = str(row.get("company") or "").strip().casefold()
+            endpoint_hash = str(row.get("endpoint_inventory_sha256") or "")
+            provider_count = row.get("qualified_provider_count")
+            evidence = str(row.get("selection_evidence") or "")
+            if not model or model in models:
+                raise ExpertChildRepairError(
+                    "regenerated plan contains duplicate model"
+                )
+            if not company:
+                raise ExpertChildRepairError(
+                    "regenerated plan model company is missing"
+                )
+            if company in companies:
+                raise ExpertChildRepairError(
+                    "regenerated plan reuses a model company"
+                )
+            basis = str(row.get("flagship_basis") or "")
+            if basis not in {"strict-product-tier", "company-local-natural-top-layer"}:
+                raise ExpertChildRepairError("repair model flagship basis is invalid")
+            if "verified-company-flagship-reasoning" not in evidence or basis not in evidence:
+                raise ExpertChildRepairError(
+                    "regenerated model lacks verified company reasoning flagship evidence"
+                )
+            benchmark_hash = str(row.get("benchmark_evidence_sha256") or "")
+            if len(benchmark_hash) != 64 or any(
+                character not in "0123456789abcdef"
+                for character in benchmark_hash
+            ):
+                raise ExpertChildRepairError(
+                    "repair model benchmark evidence hash is invalid"
+                )
+            if (
+                isinstance(provider_count, bool)
+                or not isinstance(provider_count, int)
+                or provider_count < TASK_ENVELOPE.MINIMUM_QUALIFIED_PROVIDER_COUNT
+            ):
+                raise ExpertChildRepairError(
+                    "model does not satisfy the qualified ZDR provider floor"
+                )
+            if len(endpoint_hash) != 64 or any(
+                character not in "0123456789abcdef"
+                for character in endpoint_hash
+            ):
+                raise ExpertChildRepairError(
+                    "model endpoint inventory hash is invalid"
+                )
+            models.add(model)
+            companies.add(company)
+
+
 def verify_repair(
     source: Mapping[str, Any],
     repaired: Mapping[str, Any],
@@ -121,66 +218,8 @@ def verify_repair(
     if expected_context < TASK_ENVELOPE.MINIMUM_CONTEXT_LENGTH:
         raise ExpertChildRepairError("expert context floor was not enforced")
 
-    selected_rows = list(plan.get("selected_models") or [])
-    recovery_rows = list(plan.get("recovery_models") or [])
-    companies: set[str] = set()
-    models: set[str] = set()
-    for field, rows in (
-        ("selected_models", selected_rows),
-        ("recovery_models", recovery_rows),
-    ):
-        for index, row in enumerate(rows):
-            if not isinstance(row, Mapping):
-                raise ExpertChildRepairError(
-                    f"{field}[{index}] is not an object"
-                )
-            model = str(row.get("model") or "").strip()
-            company = str(row.get("company") or "").strip().casefold()
-            endpoint_hash = str(row.get("endpoint_inventory_sha256") or "")
-            provider_count = row.get("qualified_provider_count")
-            evidence = str(row.get("selection_evidence") or "")
-            if not model or model in models:
-                raise ExpertChildRepairError(
-                    "regenerated plan contains duplicate model"
-                )
-            if not company:
-                raise ExpertChildRepairError(
-                    "regenerated plan model company is missing"
-                )
-            if company in companies:
-                raise ExpertChildRepairError(
-                    "regenerated plan reuses a model company"
-                )
-            basis = str(row.get("flagship_basis") or "")
-            if basis not in {"strict-product-tier", "company-local-natural-top-layer"}:
-                raise ExpertChildRepairError("repair model flagship basis is invalid")
-            if "verified-company-flagship-reasoning" not in evidence or basis not in evidence:
-                raise ExpertChildRepairError(
-                    "regenerated model lacks verified company reasoning flagship evidence"
-                )
-            benchmark_hash = str(row.get("benchmark_evidence_sha256") or "")
-            if len(benchmark_hash) != 64 or any(
-                character not in "0123456789abcdef"
-                for character in benchmark_hash
-            ):
-                raise ExpertChildRepairError("repair model benchmark evidence hash is invalid")
-            if (
-                isinstance(provider_count, bool)
-                or not isinstance(provider_count, int)
-                or provider_count < TASK_ENVELOPE.MINIMUM_QUALIFIED_PROVIDER_COUNT
-            ):
-                raise ExpertChildRepairError(
-                    "model does not satisfy the qualified ZDR provider floor"
-                )
-            if len(endpoint_hash) != 64 or any(
-                character not in "0123456789abcdef"
-                for character in endpoint_hash
-            ):
-                raise ExpertChildRepairError(
-                    "model endpoint inventory hash is invalid"
-                )
-            models.add(model)
-            companies.add(company)
+    _verify_top20_pool(plan)
+    _verify_model_rows(plan)
 
 
 def regenerate(
@@ -223,6 +262,13 @@ def main() -> int:
                 "task_id": args.expected_task_id,
                 "retry_id": args.retry_id,
                 "plan_sha256": plan["plan_sha256"],
+                "top20_reasoning_pool_size": plan["top20_reasoning_pool_size"],
+                "top20_reasoning_pool_sha256": plan[
+                    "top20_reasoning_pool_sha256"
+                ],
+                "expert_selectable_candidate_count": plan[
+                    "expert_selectable_candidate_count"
+                ],
                 "expert_count": plan["expert_count"],
                 "recovery_count": plan["recovery_count"],
                 "required_context_tokens": plan["required_context_tokens"],
