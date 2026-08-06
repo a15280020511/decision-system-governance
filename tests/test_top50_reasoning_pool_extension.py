@@ -50,7 +50,7 @@ class Top50ReasoningPoolExtensionTests(unittest.TestCase):
         self.assertTrue(all(row["popularity_period"] == "week" for row in pool))
         self.assertTrue(all(row["provider_routing_mode"] == "unrestricted-openrouter" for row in pool))
 
-    def test_patch_uses_model_metadata_without_provider_qualification(self) -> None:
+    def test_patch_delegates_task_adaptive_assignment_without_provider_qualification(self) -> None:
         module = _load_module()
         rows = [_row(index) for index in range(1, 56)]
 
@@ -87,6 +87,20 @@ class Top50ReasoningPoolExtensionTests(unittest.TestCase):
         self.assertEqual(len(plan["top50_reasoning_models"]), 50)
         self.assertEqual(len(candidates), 50)
         self.assertEqual(plan["top50_model_assignment_authority"], "expert-assessment-center-ortools")
+        self.assertTrue(plan["top50_task_adaptive_assignment_required"])
+        self.assertEqual(
+            plan["top50_model_assignment_principles"],
+            [
+                "concrete-problem-concrete-analysis",
+                "dynamic-adaptation",
+                "small-effort-large-return",
+            ],
+        )
+        self.assertTrue(plan["top50_assignment_recomputed_from_current_task"])
+        self.assertFalse(plan["top50_cross_task_history_allowed"])
+        self.assertFalse(plan["top50_semantic_keyword_routing_allowed"])
+        self.assertFalse(plan["top50_domain_hardcoding_allowed"])
+        self.assertFalse(plan["top50_provider_metric_allowed_in_assignment"])
         self.assertEqual(plan["top50_provider_routing_mode"], "unrestricted-openrouter")
         self.assertFalse(plan["top50_provider_restrictions_applied"])
         self.assertFalse(plan["top50_provider_endpoint_qualification_required"])
