@@ -151,10 +151,19 @@ def verify_repair(
                 raise ExpertChildRepairError(
                     "regenerated plan reuses a model company"
                 )
-            if "strict-tier+company-highest-intelligence-reasoning-flagship" not in evidence:
+            basis = str(row.get("flagship_basis") or "")
+            if basis not in {"strict-product-tier", "company-local-natural-top-layer"}:
+                raise ExpertChildRepairError("repair model flagship basis is invalid")
+            if "verified-company-flagship-reasoning" not in evidence or basis not in evidence:
                 raise ExpertChildRepairError(
-                    "regenerated model lacks strict-tier reasoning flagship evidence"
+                    "regenerated model lacks verified company reasoning flagship evidence"
                 )
+            benchmark_hash = str(row.get("benchmark_evidence_sha256") or "")
+            if len(benchmark_hash) != 64 or any(
+                character not in "0123456789abcdef"
+                for character in benchmark_hash
+            ):
+                raise ExpertChildRepairError("repair model benchmark evidence hash is invalid")
             if (
                 isinstance(provider_count, bool)
                 or not isinstance(provider_count, int)

@@ -44,7 +44,17 @@ def candidate(model_id: str, rank: int) -> dict[str, object]:
         "request_usd": 0.0,
         "price_rank_usd_per_million": float(rank) * 0.3,
         "estimated_task_cost_usd": float(rank) * 0.3,
-        "flagship_basis": "explicit-product-tier",
+        "flagship_verified": True,
+        "flagship_basis": "strict-product-tier",
+        "company_flagship_method": "fixture-strict-tier",
+        "benchmark_source": "artificial-analysis-via-openrouter",
+        "intelligence_index": 50.0,
+        "coding_index": 50.0,
+        "agentic_index": 50.0,
+        "balanced_score": 50.0,
+        "benchmark_evidence_sha256": hashlib.sha256(
+            (model_id + "-benchmark").encode("utf-8")
+        ).hexdigest(),
     }
 
 

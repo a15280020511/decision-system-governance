@@ -43,6 +43,7 @@ def model(
     inputs: list[str] | None = None,
     outputs: list[str] | None = None,
     request: float | None = None,
+    reasoning: bool = True,
 ) -> dict[str, Any]:
     pricing: dict[str, str] = {
         "prompt": per_token(prompt),
@@ -55,6 +56,7 @@ def model(
         "canonical_slug": canonical or model_id,
         "name": name or model_id,
         "description": description,
+        "supported_parameters": (["max_tokens", "reasoning"] if reasoning else ["max_tokens"]),
         "pricing": pricing,
         "architecture": {
             "input_modalities": inputs or ["text"],
@@ -217,10 +219,29 @@ class SelectorPipelineTests(unittest.TestCase):
             "vendor/Embed-Pro",
             "vendor/RERANK-Pro",
             "vendor/moderation-pro",
+            "perplexity/sonar-pro-search",
         ):
             self.assertFalse(selector._is_general_governance_identity(model_id))
         self.assertTrue(
             selector._is_general_governance_identity("deepseek/deepseek-v4-pro")
+        )
+
+    def test_luna_and_non_reasoning_models_are_excluded(self):
+        models, benchmarks = self.standard_fixture()
+        models.insert(5, model("openai/gpt-5.6-luna-pro", prompt=0.01, completion=0.02))
+        models.insert(6, model("vendor/nonreasoning-pro", prompt=0.01, completion=0.02, reasoning=False))
+        benchmarks.extend(
+            [
+                benchmark("openai/gpt-5.6-luna-pro", 99),
+                benchmark("vendor/nonreasoning-pro", 99),
+            ]
+        )
+        result = run_pipeline(models, benchmarks)
+        ids = {row["model_id"] for row in result["cheapest_paid_flagship_candidates"]}
+        self.assertNotIn("openai/gpt-5.6-luna-pro", ids)
+        self.assertNotIn("vendor/nonreasoning-pro", ids)
+        self.assertTrue(
+            result["flagship_false_positive_controls"]["native_reasoning_required"]
         )
 
     def test_duplicate_model_ids_are_deduplicated_in_first_seen_order(self):
