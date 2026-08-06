@@ -196,7 +196,7 @@ def _distinct_company_rows(
         if len(chosen) == count:
             return chosen
     raise ExpertPlanError(
-        f"not enough distinct-company flagship models: need {count}, found {len(chosen)}"
+        f"not enough distinct-company strict flagship models: need {count}, found {len(chosen)}"
     )
 
 
@@ -228,10 +228,21 @@ def build_plan(ticket: Mapping[str, Any], token: str = "") -> dict[str, Any]:
     if not isinstance(rows, list):
         raise ExpertPlanError("governance cost ranking produced no candidate list")
 
-    selected_rows = _distinct_company_rows(rows, expert_count)
+    strict_rows = [
+        row
+        for row in rows
+        if row.get("strict_product_tier") is True
+        and str(row.get("flagship_basis") or "") == "strict-product-tier"
+    ]
+    if not strict_rows:
+        raise ExpertPlanError(
+            "governance cost ranking produced no strict flagship candidates"
+        )
+
+    selected_rows = _distinct_company_rows(strict_rows, expert_count)
     selected_companies = {str(row["company"]) for row in selected_rows}
     recovery_rows = _distinct_company_rows(
-        rows,
+        strict_rows,
         recovery_count,
         excluded=selected_companies,
     ) if recovery_count else []
@@ -248,8 +259,8 @@ def build_plan(ticket: Mapping[str, Any], token: str = "") -> dict[str, Any]:
         "schema_version": SCHEMA_VERSION,
         "selection_authority": SELECTION_AUTHORITY,
         "selection_policy": (
-            "qualified-paid-general-purpose-flagships -> estimated-task-cost-ascending "
-            "-> distinct-model-companies"
+            "strict-product-tier-paid-general-purpose-flagships "
+            "-> estimated-task-cost-ascending -> distinct-model-companies"
         ),
         "task_sha256": task_sha256(ticket),
         "task_cost_profile": {
