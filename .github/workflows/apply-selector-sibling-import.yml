@@ -1,0 +1,122 @@
+name: Apply Selector Sibling Import Fix
+
+on:
+  push:
+    branches:
+      - fix/expert-selector-sibling-import
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: fix/expert-selector-sibling-import
+          persist-credentials: true
+          fetch-depth: 0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - name: Use explicit sibling module loading
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one match, found {count}")
+              return text.replace(old, new)
+
+          path = Path("governance-copilot/select_expert_team_plan.py")
+          text = path.read_text(encoding="utf-8")
+          text = replace_once(
+              text,
+              "import hashlib\n",
+              "import hashlib\nimport importlib.util\n",
+              "importlib import",
+          )
+          text = replace_once(
+              text,
+              "import select_paid_governance_flagship_model as FLAGSHIP_POLICY\n",
+              "def _load_flagship_policy():\n"
+              "    path = Path(__file__).with_name(\n"
+              "        \"select_paid_governance_flagship_model.py\"\n"
+              "    )\n"
+              "    spec = importlib.util.spec_from_file_location(\n"
+              "        \"governance_expert_flagship_policy\", path\n"
+              "    )\n"
+              "    if spec is None or spec.loader is None:\n"
+              "        raise RuntimeError(\"cannot load governance flagship policy\")\n"
+              "    module = importlib.util.module_from_spec(spec)\n"
+              "    spec.loader.exec_module(module)\n"
+              "    return module\n\n\n"
+              "FLAGSHIP_POLICY = _load_flagship_policy()\n",
+              "sibling policy loader",
+          )
+          path.write_text(text, encoding="utf-8")
+
+          path = Path("tests/test_expert_plan_preview_workflow.py")
+          text = path.read_text(encoding="utf-8")
+          text = replace_once(
+              text,
+              "from pathlib import Path\nimport unittest\n",
+              "import importlib.util\nfrom pathlib import Path\nimport unittest\n",
+              "test importlib import",
+          )
+          marker = "    def test_owner_only_issue_entrypoint(self) -> None:\n"
+          test = "\n".join((
+              "    def test_signer_loads_selector_without_copilot_on_sys_path(self) -> None:",
+              "        spec = importlib.util.spec_from_file_location(",
+              "            \"standalone_signer_import_test\", SIGNER",
+              "        )",
+              "        self.assertIsNotNone(spec)",
+              "        self.assertIsNotNone(spec.loader)",
+              "        module = importlib.util.module_from_spec(spec)",
+              "        spec.loader.exec_module(module)",
+              "        self.assertEqual(",
+              "            module.SELECTOR.SELECTION_AUTHORITY,",
+              "            \"decision-system-governance\",",
+              "        )",
+              "",
+              "",
+          ))
+          if marker not in text:
+              raise SystemExit("test insertion marker missing")
+          text = text.replace(marker, test + marker, 1)
+          path.write_text(text, encoding="utf-8")
+          PY
+      - name: Run zero-call production-entry tests
+        run: |
+          set -euo pipefail
+          python -m unittest \
+            tests.test_expert_plan_preview_workflow \
+            tests.test_expert_plan_strict_flagship_policy \
+            tests.test_eight_model_ordered_recovery \
+            tests.test_expert_zdr_endpoint_parity -v
+      - name: Clean and refresh manifest
+        run: |
+          set -euo pipefail
+          rm .github/workflows/apply-selector-sibling-import.yml
+          find . -type d -name __pycache__ -prune -exec rm -rf {} +
+          version="$(jq -r '.governance_version' governance-release-manifest.json)"
+          python tools/generate_governance_release_manifest.py \
+            --root . \
+            --output /tmp/governance-release-manifest.json \
+            --version "$version"
+          mv /tmp/governance-release-manifest.json governance-release-manifest.json
+          test "$(find . -type d -name __pycache__ | wc -l)" -eq 0
+      - name: Commit patch
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: load expert selector sibling policy explicitly"
+          git push origin HEAD:fix/expert-selector-sibling-import
