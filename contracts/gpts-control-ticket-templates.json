@@ -31,6 +31,39 @@
     "post_attempts_per_logical_task": 1,
     "automatic_post_retry": false
   },
+  "bounded_ingress_compatibility": {
+    "purpose": "recover the exact legacy GPT ticket shape observed in Governance Issue #153 without widening the public contract",
+    "frontend_aliases_remain_forbidden": true,
+    "schema_repairs": {
+      "4": "governance-control-ticket-v4",
+      "v4": "governance-control-ticket-v4",
+      "governance-v4": "governance-control-ticket-v4"
+    },
+    "route_repairs": {
+      "research": "expert"
+    },
+    "research_repair_requires_exact_ticket_fields": [
+      "title",
+      "user_request",
+      "requirements",
+      "output_language"
+    ],
+    "research_repair_requires_user_request": true,
+    "unknown_fields_fail_closed": true,
+    "other_route_aliases_fail_closed": [
+      "analysis",
+      "strategy",
+      "api",
+      "simulation"
+    ],
+    "normalization_is_audited": true,
+    "normalization_status_fields": [
+      "request_schema_version_original",
+      "request_schema_version",
+      "compatibility_normalized",
+      "compatibility_normalizations"
+    ]
+  },
   "templates": {
     "intelligence": {
       "schema_version": "governance-control-ticket-v4",
