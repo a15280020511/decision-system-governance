@@ -3,8 +3,8 @@
   "governance_version": "4.2.3",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
-  "file_count": 139,
-  "total_bytes": 872882,
+  "file_count": 140,
+  "total_bytes": 877639,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -418,8 +418,8 @@
     },
     {
       "path": "control-plane/resilient_control.py",
-      "size_bytes": 3764,
-      "sha256": "bd8ad9ee4bc66bee2ae1d73792c3999f9d72b5f8030e3a2b4aee7824c1114951"
+      "size_bytes": 5494,
+      "sha256": "5a9923f730a7324dc314fc102e674ff789b3194fcfaee9803636aa6ecf83d875"
     },
     {
       "path": "control-plane/resilient_http.py",
@@ -595,6 +595,11 @@
       "path": "tests/test_deferred_reconcile.py",
       "size_bytes": 2921,
       "sha256": "f604348ff11496be5140080d2d0582436e886a7b19cba0e004b24d7c4a86090c"
+    },
+    {
+      "path": "tests/test_expert_child_contract_adapter.py",
+      "size_bytes": 3027,
+      "sha256": "fc53564bd51d072503599e8d27a690057e6123c3b8d2af5184f77808311b7378"
     },
     {
       "path": "tests/test_expert_plan_strict_flagship_policy.py",
