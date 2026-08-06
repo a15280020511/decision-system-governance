@@ -241,33 +241,54 @@ def _candidate_record(
     }
 
 
+def _exclusion(pool_row: Mapping[str, Any], reason: str) -> dict[str, Any]:
+    return {
+        "model": str(pool_row.get("model") or ""),
+        "company": str(pool_row.get("company") or "").strip().casefold(),
+        "popularity_rank": int(pool_row.get("popularity_rank") or 0),
+        "reason": reason,
+        "expert_center_selectable": False,
+    }
+
+
 def _eligible_records(
     selector: Any,
     ticket: Mapping[str, Any],
     token: str,
     raw_pool: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     intelligence = _intelligence_rank_map(selector, token)
     required_context = selector._required_context_tokens(ticket)
     qualified: list[dict[str, Any]] = []
+    exclusions: list[dict[str, Any]] = []
     seen_models: set[str] = set()
+    stable_model_id = getattr(selector, "_stable_model_id", None)
     for pool_row in raw_pool:
         model_id = str(pool_row.get("model") or "").strip()
         if not model_id or model_id in seen_models:
+            continue
+        seen_models.add(model_id)
+        if callable(stable_model_id) and not stable_model_id(model_id):
+            exclusions.append(
+                _exclusion(pool_row, "unstable-or-route-suffixed-model-id")
+            )
             continue
         candidate = _direct_candidate(
             pool_row,
             int(intelligence.get(model_id, 1_000_000)),
         )
         if candidate is None:
+            exclusions.append(_exclusion(pool_row, "invalid-or-missing-price-metadata"))
             continue
         row = selector._qualify_candidate(candidate, token, required_context)
         if not isinstance(row, Mapping):
+            exclusions.append(
+                _exclusion(pool_row, "no-compatible-authenticated-zdr-endpoint")
+            )
             continue
         normalized = dict(row)
         normalized["popularity_rank"] = int(pool_row["popularity_rank"])
         qualified.append(_candidate_record(normalized, len(qualified) + 1))
-        seen_models.add(model_id)
 
     qualified.sort(
         key=lambda row: (
@@ -281,6 +302,12 @@ def _eligible_records(
         row["slot"] = slot
         row["candidate_price_rank"] = slot
 
+    exclusions.sort(
+        key=lambda row: (
+            int(row["popularity_rank"]),
+            str(row["model"]),
+        )
+    )
     distinct_companies = {
         str(row.get("company") or "").strip().casefold()
         for row in qualified
@@ -292,7 +319,7 @@ def _eligible_records(
             f"candidates: need {MINIMUM_EXECUTABLE_CANDIDATES}, "
             f"found {len(distinct_companies)}"
         )
-    return qualified
+    return qualified, exclusions
 
 
 def attach_pool(
@@ -302,7 +329,7 @@ def attach_pool(
     token: str,
 ) -> dict[str, Any]:
     raw_pool, _ = _raw_pool_rows(selector, token)
-    eligible = _eligible_records(selector, ticket, token, raw_pool)
+    eligible, exclusions = _eligible_records(selector, ticket, token, raw_pool)
     distinct_company_count = len(
         {
             str(row["company"]).strip().casefold()
@@ -319,6 +346,8 @@ def attach_pool(
             "expert_selectable_candidates": eligible,
             "expert_selectable_candidate_count": len(eligible),
             "expert_selectable_distinct_company_count": distinct_company_count,
+            "expert_ineligible_top20_models": exclusions,
+            "expert_ineligible_top20_model_count": len(exclusions),
             "candidate_pool_authority": "decision-system-governance",
             "model_assignment_authority": "expert-assessment-center",
             "expert_center_pool_selection_allowed": True,
@@ -328,6 +357,7 @@ def attach_pool(
                 "price-ascending -> four-primary-four-recovery"
             ),
             "old_flagship_filter_applied_to_top20_pool": False,
+            "route_suffixed_models_preserved_in_raw_pool_but_not_executed": True,
             "legacy_governance_selected_models_are_preview_only": True,
         }
     )
@@ -336,6 +366,9 @@ def attach_pool(
     ).hexdigest()
     enriched["expert_selectable_candidates_sha256"] = hashlib.sha256(
         _canonical_json(eligible)
+    ).hexdigest()
+    enriched["expert_ineligible_top20_models_sha256"] = hashlib.sha256(
+        _canonical_json(exclusions)
     ).hexdigest()
     material = dict(enriched)
     material.pop("plan_sha256", None)
