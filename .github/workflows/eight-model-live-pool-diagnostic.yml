@@ -1,0 +1,105 @@
+name: Eight Model Live Pool Diagnostic
+
+on:
+  push:
+    branches:
+      - fix/eight-model-live-pool
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: fix/eight-model-live-pool
+          persist-credentials: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: '3.12'
+      - name: Measure eligible flagship pool without model calls
+        run: |
+          set -euo pipefail
+          test -n "${OPENROUTER_API_KEY:-}"
+          python - <<'PY'
+          import importlib.util
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path.cwd()
+          selector_path = root / 'governance-copilot' / 'select_expert_team_plan.py'
+          envelope_path = root / 'governance-copilot' / 'expert_task_envelope.py'
+
+          def load(name, path):
+              spec = importlib.util.spec_from_file_location(name, path)
+              module = importlib.util.module_from_spec(spec)
+              assert spec.loader is not None
+              spec.loader.exec_module(module)
+              return module
+
+          selector = load('eight_model_pool_selector', selector_path)
+          envelope = load('eight_model_pool_envelope', envelope_path)
+          envelope.patch_selector(selector)
+          token = os.environ['OPENROUTER_API_KEY']
+          ticket = {
+              'task': {
+                  'question': 'Zero-call live catalog qualification diagnostic.',
+                  'requirements': [],
+                  'language': 'zh-CN',
+              },
+              'approved_budget': {
+                  'calls': 8,
+                  'maximum_recovery_calls': 4,
+                  'cost_policy': 'prompt_led_soft_governance',
+              },
+          }
+
+          results = []
+          for limit in (150, 300, 500, 1000):
+              selector.OFFICIAL_INTELLIGENCE_RANK_LIMIT = limit
+              try:
+                  rows = selector._live_executable_flagship_rows(
+                      ticket,
+                      token,
+                      4,
+                      8,
+                  )
+              except Exception as exc:
+                  results.append({
+                      'rank_limit': limit,
+                      'status': 'INSUFFICIENT',
+                      'error': str(exc),
+                  })
+                  continue
+              results.append({
+                  'rank_limit': limit,
+                  'status': 'PASS',
+                  'count': len(rows),
+                  'distinct_companies': len({row['company'] for row in rows}),
+                  'models': [
+                      {
+                          'model': row['model_id'],
+                          'company': row['company'],
+                          'price_rank_usd_per_million': row['price_rank_usd_per_million'],
+                          'official_intelligence_rank': row['official_intelligence_rank'],
+                          'qualified_provider_count': row['qualified_provider_count'],
+                      }
+                      for row in rows
+                  ],
+              })
+              break
+
+          print('EIGHT_MODEL_POOL_DIAGNOSTIC=' + json.dumps(
+              results,
+              ensure_ascii=False,
+              sort_keys=True,
+          ))
+          if not any(row.get('status') == 'PASS' for row in results):
+              raise SystemExit('no tested intelligence-rank limit produced eight qualified models')
+          PY
