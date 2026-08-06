@@ -118,6 +118,46 @@ class Top50ReasoningPoolExtensionTests(unittest.TestCase):
             all(provider_qualification_fields.isdisjoint(row) for row in candidates)
         )
 
+    def test_missing_intelligence_rank_is_audited_but_not_selectable(self) -> None:
+        module = _load_module()
+        rows = [_row(index) for index in range(1, 56)]
+        missing_model = rows[0]["id"]
+
+        class FakeSelector:
+            MODELS_API = "https://example.invalid/models"
+
+            @staticmethod
+            def build_plan(ticket, token=""):
+                return {"plan_sha256": "old"}
+
+            @staticmethod
+            def _fetch_json(url: str, token: str):
+                if "intelligence-high-to-low" in url:
+                    return {"data": [{"id": row["id"]} for row in rows[1:]]}
+                return {"data": rows}
+
+            @staticmethod
+            def _required_context_tokens(ticket):
+                return 8192
+
+            @staticmethod
+            def _stable_model_id(model_id):
+                return True
+
+        module.patch_selector(FakeSelector)
+        plan = FakeSelector.build_plan({}, "token")
+        self.assertEqual(len(plan["top50_reasoning_models"]), 50)
+        self.assertEqual(len(plan["top50_expert_selectable_candidates"]), 49)
+        self.assertNotIn(
+            missing_model,
+            {row["model"] for row in plan["top50_expert_selectable_candidates"]},
+        )
+        exclusion = next(
+            row for row in plan["top50_expert_ineligible_models"]
+            if row["model"] == missing_model
+        )
+        self.assertEqual(exclusion["reason"], "missing-or-invalid-intelligence-rank")
+
 
 if __name__ == "__main__":
     unittest.main()
