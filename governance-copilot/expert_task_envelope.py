@@ -2,8 +2,10 @@
 """Frozen execution compatibility shared by governance expert selection paths.
 
 Governance and expert production must use the same task envelope, authenticated
-ZDR endpoint inventory, and provider redundancy floor. A model is executable
-only when at least two exact provider routes survive the ZDR intersection.
+ZDR endpoint inventory, provider redundancy floor, and role assignment. The
+price-minimal distinct-company set is selected first; within that frozen set,
+the strongest official intelligence rank performs final synthesis and the
+second strongest performs cross-review.
 """
 from __future__ import annotations
 
@@ -20,6 +22,11 @@ ZDR_ENDPOINTS_API = "https://openrouter.ai/api/v1/endpoints/zdr"
 ZDR_SELECTOR_SCHEMA_VERSION = (
     "governance-openrouter-zdr-redundant-executable-flagship-price-v3"
 )
+ROLE_ASSIGNMENT_POLICY = (
+    "price-minimal-distinct-company-set -> official-intelligence-rank-ascending -> "
+    "strongest-final-synthesis -> second-strongest-cross-review -> remaining-independent"
+)
+_ROLE_FIELDS = frozenset({"slot", "role", "role_id", "role_kind"})
 
 
 class ExpertTaskEnvelopeError(RuntimeError):
@@ -84,8 +91,81 @@ def _provider_count_is_sufficient(qualified: Mapping[str, Any]) -> bool:
     )
 
 
+def _official_rank(row: Mapping[str, Any]) -> int | None:
+    value = row.get("official_intelligence_rank")
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        return None
+    return value
+
+
+def _without_role(row: Mapping[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in row.items() if key not in _ROLE_FIELDS}
+
+
+def _assign_intelligence_ranked_roles(selector: Any, plan: dict[str, Any]) -> None:
+    """Assign roles inside the already selected price-minimal company set."""
+    rows = plan.get("selected_models")
+    if not isinstance(rows, list) or not 3 <= len(rows) <= 6:
+        raise ExpertTaskEnvelopeError("selected expert set is outside constitutional bounds")
+    records = [dict(row) for row in rows if isinstance(row, Mapping)]
+    if len(records) != len(rows):
+        raise ExpertTaskEnvelopeError("selected expert rows must be objects")
+    ranks = [_official_rank(row) for row in records]
+    if any(rank is None for rank in ranks):
+        # Synthetic unit fixtures created before official-rank evidence existed are
+        # left unchanged. Live production records always carry a positive rank.
+        return
+
+    ranked = sorted(
+        records,
+        key=lambda row: (
+            int(row["official_intelligence_rank"]),
+            float(row.get("estimated_task_cost_usd") or 0.0),
+            str(row.get("model") or ""),
+        ),
+    )
+    synthesis_model = str(ranked[0].get("model") or "")
+    review_model = str(ranked[1].get("model") or "")
+    if not synthesis_model or not review_model or synthesis_model == review_model:
+        raise ExpertTaskEnvelopeError("ranked review role models are invalid")
+
+    independent = [
+        row
+        for row in records
+        if str(row.get("model") or "") not in {synthesis_model, review_model}
+    ]
+    if len(independent) != len(records) - 2:
+        raise ExpertTaskEnvelopeError("selected expert model identities are not unique")
+    review = next(
+        row for row in records if str(row.get("model") or "") == review_model
+    )
+    synthesis = next(
+        row for row in records if str(row.get("model") or "") == synthesis_model
+    )
+
+    role_templates = selector._roles(len(records))
+    if len(role_templates) != len(records):
+        raise ExpertTaskEnvelopeError("selector role template count mismatch")
+    assigned: list[dict[str, Any]] = []
+    for row, role in zip(independent, role_templates[:-2], strict=True):
+        assigned.append({**_without_role(row), **dict(role)})
+    assigned.append({**_without_role(review), **dict(role_templates[-2])})
+    assigned.append({**_without_role(synthesis), **dict(role_templates[-1])})
+    for slot, row in enumerate(assigned, 1):
+        row["slot"] = slot
+
+    plan["selected_models"] = assigned
+    plan["role_assignment_policy"] = ROLE_ASSIGNMENT_POLICY
+    plan["final_synthesis_official_intelligence_rank"] = int(
+        synthesis["official_intelligence_rank"]
+    )
+    plan["cross_review_official_intelligence_rank"] = int(
+        review["official_intelligence_rank"]
+    )
+
+
 def patch_selector(selector: Any) -> None:
-    """Bind one selector to the frozen runtime, ZDR, and redundancy contract."""
+    """Bind one selector to the frozen runtime, ZDR, redundancy and role contract."""
     selector._required_context_tokens = required_context_tokens
     selector.EXPERT_RUNTIME_MINIMUM_CONTEXT_LENGTH = MINIMUM_CONTEXT_LENGTH
     selector.EXPERT_RUNTIME_TASK_ENVELOPE_SCHEMA_VERSION = (
@@ -185,6 +265,7 @@ def patch_selector(selector: Any) -> None:
             ticket: Mapping[str, Any], token: str = ""
         ) -> dict[str, Any]:
             plan = original_build_plan(ticket, token)
+            _assign_intelligence_ranked_roles(selector, plan)
             plan["selection_policy"] = (
                 "openrouter-official-intelligence-top-150 -> paid-general-purpose-"
                 "flagships -> live-exact-endpoint-qualified -> authenticated-zdr-"
@@ -210,3 +291,4 @@ def patch_selector(selector: Any) -> None:
 
     selector._expert_runtime_endpoint_contract_patched = True
     selector._provider_redundancy_floor_patched = True
+    selector._intelligence_ranked_role_assignment_patched = True
