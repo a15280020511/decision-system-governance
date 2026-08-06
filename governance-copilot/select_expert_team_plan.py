@@ -3,7 +3,7 @@
 
 Selection remains deliberately simple: use OpenRouter's official intelligence
 order, require native reasoning support, retain only each company's highest-ranked
-stable paid general-purpose reasoning model as that company's flagship, verify a
+strict-tier stable paid general-purpose reasoning model as that company's flagship, verify a
 real exact provider endpoint, then sort company flagships by combined token price.
 The first four companies are active experts and the next four are ordered standbys.
 """
@@ -26,7 +26,7 @@ from typing import Any, Mapping, Sequence
 MODELS_API = "https://openrouter.ai/api/v1/models"
 ENDPOINTS_API = "https://openrouter.ai/api/v1/models/{author}/{slug}/endpoints"
 SCHEMA_VERSION = "governance-expert-model-plan-v1"
-SELECTOR_SCHEMA_VERSION = "governance-openrouter-reasoning-flagship-price-v5"
+SELECTOR_SCHEMA_VERSION = "governance-openrouter-strict-reasoning-flagship-price-v6"
 SELECTION_AUTHORITY = "decision-system-governance"
 DEFAULT_EXPERT_COUNT = 4
 MIN_EXPERT_COUNT = 3
@@ -213,7 +213,8 @@ def _supports_reasoning(row: Mapping[str, Any]) -> bool:
 def _is_general_reasoning_candidate(identity: str) -> bool:
     lowered = identity.lower()
     return (
-        not EXCLUDED_TIER.search(identity)
+        bool(FLAGSHIP_TIER.search(identity))
+        and not EXCLUDED_TIER.search(identity)
         and not any(marker in lowered for marker in SPECIALIZED_MARKERS)
     )
 
@@ -224,7 +225,7 @@ def _catalog_candidates(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
 
     # The API rows are requested in official intelligence-high-to-low order.
     # The first eligible reasoning model encountered for a company is therefore
-    # that company's strongest current stable paid general-purpose reasoning model.
+    # that company's strongest current strict-tier stable paid general-purpose reasoning model.
     company_flagships: dict[str, dict[str, Any]] = {}
     seen_models: set[str] = set()
     for official_rank, row in enumerate(rows, 1):
@@ -268,7 +269,7 @@ def _catalog_candidates(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
             "price_rank_usd_per_million": combined,
             "estimated_task_cost_usd": combined,
             "flagship_basis": (
-                "company-highest-intelligence-stable-paid-general-reasoning-model"
+                "company-highest-intelligence-strict-tier-stable-paid-general-reasoning-model"
             ),
             "reasoning_parameter_required": True,
         }
@@ -286,7 +287,7 @@ def _catalog_candidates(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
     )
     if not candidates:
         raise ExpertPlanError(
-            "no paid stable general-purpose reasoning flagship is available "
+            "no paid strict-tier stable general-purpose reasoning flagship is available "
             "within the official intelligence top 1000"
         )
     return candidates
@@ -592,7 +593,7 @@ def _model_record(row: Mapping[str, Any], *, slot: int) -> dict[str, Any]:
         "qualified_provider_count": int(row["qualified_provider_count"]),
         "endpoint_inventory_sha256": str(row["endpoint_inventory_sha256"]),
         "selection_evidence": (
-            "company-highest-intelligence-reasoning-flagship+price-order+live-exact-endpoint-qualified"
+            "strict-tier+company-highest-intelligence-reasoning-flagship+price-order+live-exact-endpoint-qualified"
         ),
     }
 
@@ -651,7 +652,8 @@ def build_plan(ticket: Mapping[str, Any], token: str = "") -> dict[str, Any]:
         "selection_authority": SELECTION_AUTHORITY,
         "selection_policy": (
             "openrouter-official-intelligence-top-1000 -> reasoning-parameter-required -> "
-            "stable-paid-general-purpose-models -> highest-intelligence-model-per-"
+            "strict-flagship-tier-required -> stable-paid-general-purpose-models -> "
+            "highest-intelligence-model-per-"
             "company-as-flagship -> live-exact-endpoint-qualified -> combined-token-"
             "price-ascending -> one-flagship-per-company -> "
             "eight-distinct-companies -> four-primary-four-recovery"
@@ -669,7 +671,7 @@ def build_plan(ticket: Mapping[str, Any], token: str = "") -> dict[str, Any]:
         "catalog_fetch_mode": "live-per-task-no-cross-task-cache",
         "company_uniqueness_scope": "selected-and-recovery",
         "company_model_policy": (
-            "one-highest-intelligence-reasoning-flagship-per-company-then-price-rank"
+            "one-highest-intelligence-strict-tier-reasoning-flagship-per-company-then-price-rank"
         ),
         "provider_selection_authority": (
             "expert-runtime-cheapest-compatible-exact-endpoint-resolution-only"
