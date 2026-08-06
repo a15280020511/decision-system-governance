@@ -81,16 +81,28 @@ class Top50ReasoningPoolExtensionTests(unittest.TestCase):
 
         module.patch_selector(FakeSelector)
         plan = FakeSelector.build_plan({}, "token")
+        candidates = plan["top50_expert_selectable_candidates"]
         self.assertTrue(plan["legacy_top20_marker"])
         self.assertEqual(plan["top50_reasoning_pool_size"], 50)
         self.assertEqual(len(plan["top50_reasoning_models"]), 50)
-        self.assertEqual(len(plan["top50_expert_selectable_candidates"]), 50)
+        self.assertEqual(len(candidates), 50)
         self.assertEqual(plan["top50_model_assignment_authority"], "expert-assessment-center-ortools")
         self.assertEqual(plan["top50_provider_routing_mode"], "unrestricted-openrouter")
         self.assertFalse(plan["top50_provider_restrictions_applied"])
         self.assertFalse(plan["top50_provider_endpoint_qualification_required"])
         self.assertFalse(plan["top50_zdr_provider_qualification_required"])
-        self.assertTrue(all(row["provider_restrictions_applied"] is False for row in plan["top50_expert_selectable_candidates"]))
+        self.assertTrue(all(row["provider_restrictions_applied"] is False for row in candidates))
+        provider_qualification_fields = {
+            "qualified_provider_count",
+            "endpoint_inventory_sha256",
+            "provider",
+            "provider_endpoint",
+            "zdr",
+            "data_collection",
+        }
+        self.assertTrue(
+            all(provider_qualification_fields.isdisjoint(row) for row in candidates)
+        )
 
 
 if __name__ == "__main__":
