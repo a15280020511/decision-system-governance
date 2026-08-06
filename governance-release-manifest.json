@@ -4,7 +4,7 @@
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 152,
-  "total_bytes": 980839,
+  "total_bytes": 982005,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -638,8 +638,8 @@
     },
     {
       "path": "tests/test_expert_plan_strict_flagship_policy.py",
-      "size_bytes": 9320,
-      "sha256": "f4ba3708a3079950a5ea0afe4f77995bc634f57f360abfc68b678e2d8a8ac867"
+      "size_bytes": 10486,
+      "sha256": "811161dc001b6186cd5184a5c13fd78969c7b6c7e1ae1b3848a20e243757dc4a"
     },
     {
       "path": "tests/test_expert_plan_workflow_secret.py",
