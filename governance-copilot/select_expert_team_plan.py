@@ -3,7 +3,7 @@
 
 Selection remains deliberately simple: use OpenRouter's official intelligence
 order, require native reasoning support, retain only each company's highest-ranked
-strict-tier stable paid general-purpose reasoning model as that company's flagship, verify a
+strict-tier stable paid general-purpose non-search reasoning model as that company's flagship, verify a
 real exact provider endpoint, then sort company flagships by combined token price.
 The first four companies are active experts and the next four are ordered standbys.
 """
@@ -26,7 +26,7 @@ from typing import Any, Mapping, Sequence
 MODELS_API = "https://openrouter.ai/api/v1/models"
 ENDPOINTS_API = "https://openrouter.ai/api/v1/models/{author}/{slug}/endpoints"
 SCHEMA_VERSION = "governance-expert-model-plan-v1"
-SELECTOR_SCHEMA_VERSION = "governance-openrouter-strict-reasoning-flagship-price-v6"
+SELECTOR_SCHEMA_VERSION = "governance-openrouter-general-reasoning-flagship-price-v7"
 SELECTION_AUTHORITY = "decision-system-governance"
 DEFAULT_EXPERT_COUNT = 4
 MIN_EXPERT_COUNT = 3
@@ -66,6 +66,7 @@ SPECIALIZED_MARKERS = (
     "embed",
     "rerank",
     "moderation",
+    "search",
 )
 
 
@@ -225,7 +226,7 @@ def _catalog_candidates(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
 
     # The API rows are requested in official intelligence-high-to-low order.
     # The first eligible reasoning model encountered for a company is therefore
-    # that company's strongest current strict-tier stable paid general-purpose reasoning model.
+    # that company's strongest current strict-tier stable paid general-purpose non-search reasoning model.
     company_flagships: dict[str, dict[str, Any]] = {}
     seen_models: set[str] = set()
     for official_rank, row in enumerate(rows, 1):
@@ -269,7 +270,7 @@ def _catalog_candidates(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
             "price_rank_usd_per_million": combined,
             "estimated_task_cost_usd": combined,
             "flagship_basis": (
-                "company-highest-intelligence-strict-tier-stable-paid-general-reasoning-model"
+                "company-highest-intelligence-strict-tier-stable-paid-general-non-search-reasoning-model"
             ),
             "reasoning_parameter_required": True,
         }
@@ -593,7 +594,7 @@ def _model_record(row: Mapping[str, Any], *, slot: int) -> dict[str, Any]:
         "qualified_provider_count": int(row["qualified_provider_count"]),
         "endpoint_inventory_sha256": str(row["endpoint_inventory_sha256"]),
         "selection_evidence": (
-            "strict-tier+company-highest-intelligence-reasoning-flagship+price-order+live-exact-endpoint-qualified"
+            "non-search+strict-tier+company-highest-intelligence-reasoning-flagship+price-order+live-exact-endpoint-qualified"
         ),
     }
 
@@ -652,7 +653,8 @@ def build_plan(ticket: Mapping[str, Any], token: str = "") -> dict[str, Any]:
         "selection_authority": SELECTION_AUTHORITY,
         "selection_policy": (
             "openrouter-official-intelligence-top-1000 -> reasoning-parameter-required -> "
-            "strict-flagship-tier-required -> stable-paid-general-purpose-models -> "
+            "strict-flagship-tier-required -> search-specialists-excluded -> "
+            "stable-paid-general-purpose-models -> "
             "highest-intelligence-model-per-"
             "company-as-flagship -> live-exact-endpoint-qualified -> combined-token-"
             "price-ascending -> one-flagship-per-company -> "

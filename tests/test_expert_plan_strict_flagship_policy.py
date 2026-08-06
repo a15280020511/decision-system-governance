@@ -73,7 +73,7 @@ def candidate(
         "price_rank_usd_per_million": prompt + completion,
         "estimated_task_cost_usd": prompt + completion,
         "flagship_basis": (
-            "company-highest-intelligence-strict-tier-stable-paid-general-reasoning-model"
+            "company-highest-intelligence-strict-tier-stable-paid-general-non-search-reasoning-model"
         ),
         "reasoning_parameter_required": True,
         "exact_endpoint_qualified": True,
@@ -161,6 +161,7 @@ class ReasoningFlagshipPriceSelectionTests(unittest.TestCase):
             model("google/gemma-4-31b-it", 0.1, 0.34),
             model("tencent/hunyuan-a13b-instruct", 0.14, 0.57),
             model("google/gemini-2.5-pro", 1.25, 10.0),
+            model("perplexity/sonar-pro-search", 3.0, 15.0),
             model("third/general-max", 0.3, 0.5),
         ]
         filtered = planner._catalog_candidates({"data": rows})
@@ -171,6 +172,10 @@ class ReasoningFlagshipPriceSelectionTests(unittest.TestCase):
         self.assertNotIn("google/gemma-4-31b-it", [row["model_id"] for row in filtered])
         self.assertNotIn(
             "tencent/hunyuan-a13b-instruct",
+            [row["model_id"] for row in filtered],
+        )
+        self.assertNotIn(
+            "perplexity/sonar-pro-search",
             [row["model_id"] for row in filtered],
         )
 
@@ -243,6 +248,10 @@ class ReasoningFlagshipPriceSelectionTests(unittest.TestCase):
         )
         self.assertIn(
             "strict-flagship-tier-required",
+            plan["selection_policy"],
+        )
+        self.assertIn(
+            "search-specialists-excluded",
             plan["selection_policy"],
         )
         self.assertIn(
