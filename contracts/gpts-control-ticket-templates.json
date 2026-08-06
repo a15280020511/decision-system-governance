@@ -16,7 +16,8 @@
     "analysis",
     "strategy",
     "api",
-    "simulation"
+    "simulation",
+    "strategic_intelligence_analysis"
   ],
   "route_mapping": {
     "current public-data retrieval, source collection and evidence acquisition": "intelligence",
@@ -32,30 +33,38 @@
     "automatic_post_retry": false
   },
   "bounded_ingress_compatibility": {
-    "purpose": "recover the exact legacy GPT ticket shape observed in Governance Issue #153 without widening the public contract",
+    "purpose": "recover structurally unambiguous client representations without widening the public three-route contract",
     "frontend_aliases_remain_forbidden": true,
+    "canonical_public_routes_remain": [
+      "intelligence",
+      "compute",
+      "expert"
+    ],
+    "resolution_order": [
+      "accept an exact canonical route",
+      "otherwise infer exactly one canonical route from ticket structure",
+      "reject malformed, conflicting or ambiguous structures"
+    ],
     "schema_repairs": {
       "4": "governance-control-ticket-v4",
+      "4.0": "governance-control-ticket-v4",
       "v4": "governance-control-ticket-v4",
       "governance-v4": "governance-control-ticket-v4"
     },
-    "route_repairs": {
-      "research": "expert"
+    "structural_route_repairs": {
+      "ticket containing operation": "compute",
+      "ticket containing objective, data_policy, requests and acceptance": "intelligence",
+      "canonical expert ticket": "expert",
+      "narrative title/user_request/requirements ticket": "expert",
+      "strategic task/constraints/evidence_requirements/output_structure/scope ticket": "expert"
     },
-    "research_repair_requires_exact_ticket_fields": [
-      "title",
-      "user_request",
-      "requirements",
-      "output_language"
-    ],
-    "research_repair_requires_user_request": true,
+    "route_name_policy": {
+      "noncanonical_names_are_not_individually_whitelisted": true,
+      "route_label_is_secondary_to_unique_ticket_structure": true,
+      "invalid_or_overlong_route_labels_fail_closed": true
+    },
     "unknown_fields_fail_closed": true,
-    "other_route_aliases_fail_closed": [
-      "analysis",
-      "strategy",
-      "api",
-      "simulation"
-    ],
+    "generic_query_without_explicit_connector_plan_fails_closed": true,
     "normalization_is_audited": true,
     "normalization_status_fields": [
       "request_schema_version_original",
@@ -126,7 +135,12 @@
     "title": "ticket.objective",
     "user_request": "ticket.task.question",
     "requirements": "ticket.task.requirements",
-    "output_language": "ticket.task.language"
+    "output_language": "ticket.task.language",
+    "strategic.task": "ticket.task.question",
+    "strategic.constraints": "ticket.task.requirements",
+    "strategic.evidence_requirements": "ticket.task.requirements",
+    "strategic.output_structure": "ticket.task.requirements",
+    "strategic.scope": "ticket.task.requirements"
   },
   "expert_forbidden_top_level_ticket_fields": [
     "title",

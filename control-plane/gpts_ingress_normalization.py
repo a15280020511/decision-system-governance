@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """Deterministic ingress normalization for safely recoverable GPT control tickets.
 
-This adapter runs outside the stable control-plane validator. It only repairs
-representations whose target route and payload meaning can be inferred from
-structure without model calls. Ambiguous payloads still fail closed.
+This adapter runs outside the stable control-plane validator. It repairs only
+representations whose canonical route and payload meaning can be inferred from
+ticket structure without model calls. Route labels are hints, not authorities:
+ambiguous or malformed payloads still fail closed.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -29,12 +31,27 @@ SCHEMA_ALIASES = {
     "governance-control-ticket-v4.0": V4,
 }
 
+CANONICAL_ROUTES = {"compute", "expert", "intelligence"}
+ROUTE_NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._:/-]{0,127}$")
+
 NARRATIVE_FIELDS = {
     "title",
     "user_request",
     "requirements",
     "language",
     "output_language",
+}
+STRATEGIC_ANALYSIS_FIELDS = {
+    "task",
+    "constraints",
+    "evidence_requirements",
+    "language",
+    "output_language",
+    "output_structure",
+    "scope",
+    "title",
+    "objective",
+    "private_output",
 }
 EXPERT_FIELDS = {
     "objective",
@@ -51,7 +68,6 @@ INTELLIGENCE_REQUIRED_FIELDS = {
     "requests",
     "acceptance",
 }
-ROUTE_ALIASES = {"analysis", "strategy", "research", "simulation", "api"}
 
 
 def _packet(control: Any, body: str) -> dict[str, Any]:
@@ -85,23 +101,35 @@ def _string_list(value: Any) -> list[str]:
     return output
 
 
-def _narrative_expert_ticket(ticket: Mapping[str, Any]) -> tuple[dict[str, Any], str]:
-    keys = {str(key) for key in ticket}
-    if "user_request" not in keys or not keys.issubset(NARRATIVE_FIELDS):
-        return {}, (
-            "narrative route alias requires only title, user_request, requirements, "
-            "language or output_language"
-        )
-    question = str(ticket.get("user_request") or "").strip()
-    if not question:
-        return {}, "narrative route alias requires a non-empty user_request"
-    objective = str(ticket.get("title") or question).strip() or question
-    language = str(
-        ticket.get("language") or ticket.get("output_language") or "zh-CN"
-    ).strip() or "zh-CN"
-    requirements = _string_list(ticket.get("requirements"))
-    if not requirements:
-        requirements = ["区分事实、推断和未知，并说明证据局限"]
+def _optional_string_list(
+    ticket: Mapping[str, Any], field: str
+) -> tuple[list[str], str]:
+    if field not in ticket:
+        return [], ""
+    value = ticket.get(field)
+    if isinstance(value, str):
+        item = value.strip()
+        if not item:
+            return [], f"{field} must not be an empty string"
+        return [item], ""
+    if not isinstance(value, list):
+        return [], f"{field} must be a string or an array of non-empty strings"
+    output: list[str] = []
+    for index, raw in enumerate(value):
+        if not isinstance(raw, str) or not raw.strip():
+            return [], f"{field}[{index}] must be a non-empty string"
+        output.append(raw.strip())
+    return output, ""
+
+
+def _governed_expert_ticket(
+    *,
+    objective: str,
+    question: str,
+    requirements: list[str],
+    language: str,
+    private_output: bool = False,
+) -> dict[str, Any]:
     return {
         "objective": objective,
         "pipeline": "expert-team",
@@ -119,50 +147,158 @@ def _narrative_expert_ticket(ticket: Mapping[str, Any]) -> tuple[dict[str, Any],
             "calls": 8,
             "maximum_recovery_calls": 1,
         },
-        "private_output": False,
-    }, ""
+        "private_output": private_output,
+    }
+
+
+def _narrative_expert_ticket(ticket: Mapping[str, Any]) -> tuple[dict[str, Any], str]:
+    keys = {str(key) for key in ticket}
+    if "user_request" not in keys or not keys.issubset(NARRATIVE_FIELDS):
+        return {}, (
+            "narrative compatibility shape requires only title, user_request, "
+            "requirements, language or output_language"
+        )
+    question = str(ticket.get("user_request") or "").strip()
+    if not question:
+        return {}, "narrative compatibility shape requires a non-empty user_request"
+    objective = str(ticket.get("title") or question).strip() or question
+    raw_language = ticket.get("language") or ticket.get("output_language") or "zh-CN"
+    if not isinstance(raw_language, str) or not raw_language.strip():
+        return {}, "language must be a non-empty string"
+    language = raw_language.strip()
+    requirements, error = _optional_string_list(ticket, "requirements")
+    if error:
+        return {}, error
+    if not requirements:
+        requirements = ["区分事实、推断和未知，并说明证据局限"]
+    return _governed_expert_ticket(
+        objective=objective,
+        question=question,
+        requirements=requirements,
+        language=language,
+    ), ""
+
+
+def _strategic_expert_ticket(ticket: Mapping[str, Any]) -> tuple[dict[str, Any], str]:
+    keys = {str(key) for key in ticket}
+    if "task" not in keys or not keys.issubset(STRATEGIC_ANALYSIS_FIELDS):
+        return {}, (
+            "strategic analysis compatibility shape requires task and only "
+            "constraints, evidence_requirements, language, output_language, "
+            "output_structure, scope, title, objective or private_output"
+        )
+
+    raw_task = ticket.get("task")
+    if not isinstance(raw_task, str) or not raw_task.strip():
+        return {}, "strategic analysis task must be a non-empty string"
+    question = raw_task.strip()
+
+    raw_language = ticket.get("language") or ticket.get("output_language") or "zh-CN"
+    if not isinstance(raw_language, str) or not raw_language.strip():
+        return {}, "language must be a non-empty string"
+    language = raw_language.strip()
+
+    requirements: list[str] = []
+    for field in ("constraints", "evidence_requirements"):
+        values, error = _optional_string_list(ticket, field)
+        if error:
+            return {}, error
+        requirements.extend(values)
+
+    output_structure, error = _optional_string_list(ticket, "output_structure")
+    if error:
+        return {}, error
+    if output_structure:
+        requirements.append(
+            "输出结构必须依次包含：" + "；".join(output_structure)
+        )
+
+    scope = ticket.get("scope")
+    if scope is not None:
+        if not isinstance(scope, Mapping):
+            return {}, "scope must be an object"
+        try:
+            scope_text = json.dumps(
+                dict(scope),
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+        except (TypeError, ValueError):
+            return {}, "scope must be JSON-serializable without NaN or Infinity"
+        requirements.append("分析范围（必须遵守）：" + scope_text)
+
+    if not requirements:
+        requirements = ["区分事实、推断和未知，并说明证据局限"]
+
+    raw_objective = ticket.get("objective") or ticket.get("title") or question
+    if not isinstance(raw_objective, str) or not raw_objective.strip():
+        return {}, "objective or title must be a non-empty string when supplied"
+    objective = raw_objective.strip()
+
+    private_output = ticket.get("private_output", False)
+    if not isinstance(private_output, bool):
+        return {}, "private_output must be a boolean"
+
+    return _governed_expert_ticket(
+        objective=objective,
+        question=question,
+        requirements=requirements,
+        language=language,
+        private_output=private_output,
+    ), ""
 
 
 def _infer_route_and_ticket(
-    alias: str, ticket: Any
+    route_label: str, ticket: Any
 ) -> tuple[str, dict[str, Any], list[str], str]:
+    """Infer one canonical route from structure; never from an alias list."""
     if not isinstance(ticket, Mapping):
-        return "", {}, [], "route alias requires an object ticket"
+        return "", {}, [], "non-canonical route requires an object ticket"
 
     keys = {str(key) for key in ticket}
     changes: list[str] = []
 
     if "operation" in keys:
-        if alias not in {"analysis", "simulation"}:
-            return "", {}, [], f"route alias {alias} conflicts with a compute ticket"
-        operation = str(ticket.get("operation") or "").strip()
-        if not operation:
-            return "", {}, [], "compute-shaped route alias requires a non-empty operation"
-        changes.append(f"route:{alias}->compute")
+        operation = ticket.get("operation")
+        if not isinstance(operation, str) or not operation.strip():
+            return "", {}, [], "compute-shaped ticket requires a non-empty operation"
+        changes.append(f"route:{route_label}->compute")
         return "compute", dict(ticket), changes, ""
 
     if INTELLIGENCE_REQUIRED_FIELDS.issubset(keys):
-        if alias not in {"analysis", "api", "research"}:
-            return "", {}, [], f"route alias {alias} conflicts with an intelligence ticket"
-        changes.append(f"route:{alias}->intelligence")
+        changes.append(f"route:{route_label}->intelligence")
         return "intelligence", dict(ticket), changes, ""
 
     if {"objective", "task"}.issubset(keys) and keys.issubset(EXPERT_FIELDS):
-        if alias not in {"analysis", "strategy", "research"}:
-            return "", {}, [], f"route alias {alias} conflicts with an expert ticket"
-        changes.append(f"route:{alias}->expert")
+        changes.append(f"route:{route_label}->expert")
         return "expert", dict(ticket), changes, ""
 
     if keys.issubset(NARRATIVE_FIELDS) and "user_request" in keys:
-        if alias not in {"analysis", "strategy", "research"}:
-            return "", {}, [], f"route alias {alias} conflicts with a narrative expert ticket"
         transformed, error = _narrative_expert_ticket(ticket)
         if error:
             return "", {}, [], error
         changes.extend(
             [
-                f"route:{alias}->expert",
+                f"route:{route_label}->expert",
                 "ticket:narrative->governed-expert",
+            ]
+        )
+        return "expert", transformed, changes, ""
+
+    if (
+        keys.issubset(STRATEGIC_ANALYSIS_FIELDS)
+        and "task" in keys
+        and isinstance(ticket.get("task"), str)
+    ):
+        transformed, error = _strategic_expert_ticket(ticket)
+        if error:
+            return "", {}, [], error
+        changes.extend(
+            [
+                f"route:{route_label}->expert",
+                "ticket:strategic-analysis->governed-expert",
             ]
         )
         return "expert", transformed, changes, ""
@@ -174,8 +310,32 @@ def _infer_route_and_ticket(
         )
 
     return "", {}, [], (
-        f"route alias {alias} is ambiguous for ticket fields {sorted(keys)}"
+        f"route {route_label} is ambiguous for ticket fields {sorted(keys)}"
     )
+
+
+def _normalize_canonical_expert_ticket(
+    ticket: Any,
+) -> tuple[dict[str, Any] | None, str, str]:
+    """Repair safe expert representations even when route is already canonical."""
+    if not isinstance(ticket, Mapping):
+        return None, "", ""
+    keys = {str(key) for key in ticket}
+    if keys.issubset(NARRATIVE_FIELDS) and "user_request" in keys:
+        transformed, error = _narrative_expert_ticket(ticket)
+        return transformed if not error else None, "ticket:narrative->governed-expert", error
+    if (
+        keys.issubset(STRATEGIC_ANALYSIS_FIELDS)
+        and "task" in keys
+        and isinstance(ticket.get("task"), str)
+    ):
+        transformed, error = _strategic_expert_ticket(ticket)
+        return (
+            transformed if not error else None,
+            "ticket:strategic-analysis->governed-expert",
+            error,
+        )
+    return None, "", ""
 
 
 def _normalize_wait(value: Any) -> tuple[Any, str, str]:
@@ -213,8 +373,29 @@ def normalize_packet(
             normalized["schema_version"] = canonical
             changes.append(f"schema_version:{raw_schema}->{canonical}")
 
-    raw_route = str(packet.get("route") or "").strip().lower()
-    if raw_route in ROUTE_ALIASES:
+    raw_route_value = packet.get("route")
+    raw_route_text = str(raw_route_value or "").strip()
+    raw_route = raw_route_text.lower()
+
+    if raw_route in CANONICAL_ROUTES:
+        if raw_route_text != raw_route:
+            normalized["route"] = raw_route
+            changes.append(f"route:{raw_route_text}->{raw_route}")
+        if raw_route == "expert":
+            transformed, ticket_change, error = _normalize_canonical_expert_ticket(
+                packet.get("ticket")
+            )
+            if error:
+                return normalized, changes, error
+            if transformed is not None:
+                normalized["ticket"] = transformed
+                changes.append(ticket_change)
+    elif raw_route:
+        if not ROUTE_NAME_PATTERN.fullmatch(raw_route):
+            return normalized, changes, (
+                "non-canonical route must use 1-128 lowercase letters, digits, "
+                "periods, underscores, colons, slashes or hyphens"
+            )
         route, ticket, route_changes, error = _infer_route_and_ticket(
             raw_route, packet.get("ticket")
         )
