@@ -113,6 +113,30 @@ class ExpertChildPlanRepairTests(unittest.TestCase):
         repaired["governance_model_plan"] = new_plan
         repair.verify_repair(source, repaired, new_plan)
 
+
+    def test_verify_repair_allows_openai_as_unique_company(self) -> None:
+        source = source_ticket()
+        repaired = dict(source)
+        new_plan = plan(repaired, provider_count=1)
+        new_plan["selected_models"][0]["model"] = "openai/gpt-5.6-luna-pro"
+        new_plan["selected_models"][0]["company"] = "openai"
+        new_plan["plan_sha256"] = repair._plan_digest(new_plan)
+        repaired["governance_model_plan"] = new_plan
+        repair.verify_repair(source, repaired, new_plan)
+
+    def test_verify_repair_rejects_company_reuse_across_recovery(self) -> None:
+        source = source_ticket()
+        repaired = dict(source)
+        new_plan = plan(repaired, provider_count=1)
+        new_plan["recovery_models"][0]["company"] = new_plan["selected_models"][0]["company"]
+        new_plan["plan_sha256"] = repair._plan_digest(new_plan)
+        repaired["governance_model_plan"] = new_plan
+        with self.assertRaisesRegex(
+            repair.ExpertChildRepairError,
+            "regenerated plan reuses a model company",
+        ):
+            repair.verify_repair(source, repaired, new_plan)
+
     def test_verify_repair_rejects_preproduction_context_floor(self) -> None:
         source = source_ticket()
         repaired = dict(source)
