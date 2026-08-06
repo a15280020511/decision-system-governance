@@ -1,0 +1,248 @@
+name: Execute Benchmarked Reasoning Flagships V2
+
+on:
+  push:
+    branches:
+      - fix/benchmarked-reasoning-company-flagships
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: fix/benchmarked-reasoning-company-flagships
+          persist-credentials: true
+          fetch-depth: 0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - name: Apply staged patch
+        run: |
+          set -euo pipefail
+          python tools/_apply_benchmarked_reasoning_flagship_patch.py
+      - name: Correct company topology and fixtures
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one match, found {count}")
+              return text.replace(old, new)
+
+          path = Path("governance-copilot/select_paid_governance_flagship_model.py")
+          text = path.read_text(encoding="utf-8")
+          old = '''    by_company: dict[str, list[dict[str, Any]]] = defaultdict(list)
+          for row in globally_high:
+              by_company[str(row["company"])].append(row)
+
+          flagship_ids: set[str] = set()
+          company_evidence: dict[str, Any] = {}
+          for company, rows in by_company.items():
+              strict = [row for row in rows if row["strict_product_tier"]]
+              if len(rows) == 1:
+                  chosen = strict
+                  company_evidence[company] = {
+                      "eligible_high_count": 1,
+                      "method": "singleton-requires-strict-product-tier",
+                  }
+              else:
+                  assignments, lower_center, flagship_center = _natural_high(
+                      [float(row["balanced_score"]) for row in rows]
+                  )
+                  natural_top = [
+                      row for row, is_high in zip(rows, assignments) if is_high
+                  ]
+                  chosen_by_id = {
+                      str(row["model_id"]): row for row in natural_top + strict
+                  }
+                  chosen = list(chosen_by_id.values())
+                  company_evidence[company] = {
+                      "eligible_high_count": len(rows),
+                      "lower_center": lower_center,
+                      "flagship_center": flagship_center,
+                      "method": "company-natural-top-plus-strict-product-tier",
+                  }
+              for row in chosen:
+                  flagship_ids.add(str(row["model_id"]))
+          '''
+          new = '''    eligible_by_company: dict[str, list[dict[str, Any]]] = defaultdict(list)
+          for row in eligible:
+              eligible_by_company[str(row["company"])].append(row)
+
+          high_by_company: dict[str, list[dict[str, Any]]] = defaultdict(list)
+          globally_high_ids = {str(row["model_id"]) for row in globally_high}
+          for row in globally_high:
+              high_by_company[str(row["company"])].append(row)
+
+          flagship_ids: set[str] = set()
+          company_evidence: dict[str, Any] = {}
+          for company, high_rows in high_by_company.items():
+              company_rows = eligible_by_company[company]
+              strict = [row for row in high_rows if row["strict_product_tier"]]
+              if len(company_rows) == 1:
+                  chosen = strict
+                  company_evidence[company] = {
+                      "eligible_count": 1,
+                      "eligible_high_count": len(high_rows),
+                      "method": "singleton-requires-strict-product-tier",
+                  }
+              else:
+                  assignments, lower_center, flagship_center = _natural_high(
+                      [float(row["balanced_score"]) for row in company_rows]
+                  )
+                  natural_top = [
+                      row
+                      for row, is_high in zip(company_rows, assignments)
+                      if is_high and str(row["model_id"]) in globally_high_ids
+                  ]
+                  chosen_by_id = {
+                      str(row["model_id"]): row for row in natural_top + strict
+                  }
+                  chosen = list(chosen_by_id.values())
+                  company_evidence[company] = {
+                      "eligible_count": len(company_rows),
+                      "eligible_high_count": len(high_rows),
+                      "lower_center": lower_center,
+                      "flagship_center": flagship_center,
+                      "method": "company-natural-top-plus-strict-product-tier",
+                  }
+              for row in chosen:
+                  flagship_ids.add(str(row["model_id"]))
+          '''
+          text = replace_once(text, old, new, "company natural-top topology")
+          path.write_text(text, encoding="utf-8")
+
+          path = Path("tests/test_expert_plan_strict_flagship_policy.py")
+          text = path.read_text(encoding="utf-8")
+          text = text.replace('"openai/gpt-5.6-terra": 89,', '"openai/gpt-5.6-terra": 70,', 1)
+          text = text.replace('"deepseek/deepseek-v4-pro": 86,', '"deepseek/deepseek-v4-pro": 90,', 1)
+          old = '''        rows = [
+              model("openai/gpt-5.6-luna-pro", 0.1, 0.6),
+              model("other/reasoning-max", 0.2, 0.4),
+          ]
+          scores = {
+              "openai/gpt-5.6-luna-pro": 90,
+              "other/reasoning-max": 90,
+          }'''
+          new = '''        rows = [
+              model("openai/gpt-5.6-luna-pro", 0.1, 0.6),
+              model("other/reasoning-max", 0.2, 0.4),
+              model("third/reasoning-pro", 0.3, 0.5),
+          ]
+          scores = {
+              "openai/gpt-5.6-luna-pro": 90,
+              "other/reasoning-max": 90,
+              "third/reasoning-pro": 90,
+          }'''
+          text = replace_once(text, old, new, "Luna exclusion fixture")
+          old = '''        rows = [
+              model("vendor/cheap-pro", 0.01, 0.02, reasoning=False),
+              model("other/reasoning-max", 0.2, 0.4),
+          ]
+          scores = {row["id"]: 90 for row in rows}'''
+          new = '''        rows = [
+              model("vendor/cheap-pro", 0.01, 0.02, reasoning=False),
+              model("other/reasoning-max", 0.2, 0.4),
+              model("third/reasoning-pro", 0.3, 0.5),
+          ]
+          scores = {row["id"]: 90 for row in rows}'''
+          text = replace_once(text, old, new, "non-reasoning exclusion fixture")
+          path.write_text(text, encoding="utf-8")
+
+          path = Path("tests/test_eight_model_ordered_recovery.py")
+          text = path.read_text(encoding="utf-8")
+          text = replace_once(
+              text,
+              'def qualified(model_id: str, rank: int, price: float, providers: int = 1) -> dict:',
+              'def qualified(\n    model_id: str,\n    rank: int,\n    price: float,\n    providers: int = 1,\n    basis: str = "strict-product-tier",\n) -> dict:',
+              "eight-model helper signature",
+          )
+          text = replace_once(
+              text,
+              '        "flagship_basis": "explicit-product-tier",\n        "exact_endpoint_qualified": True,',
+              '        "flagship_verified": True,\n        "flagship_basis": basis,\n        "company_flagship_method": "fixture-company-top",\n        "benchmark_source": "artificial-analysis-via-openrouter",\n        "intelligence_index": 50.0,\n        "coding_index": 50.0,\n        "agentic_index": 50.0,\n        "balanced_score": 50.0,\n        "benchmark_evidence_sha256": hashlib.sha256(\n            (model_id + "-benchmark").encode()\n        ).hexdigest(),\n        "exact_endpoint_qualified": True,',
+              "eight-model benchmark evidence",
+          )
+          start = text.index('        rows = [\n', text.index('def test_live_price_ranking_contains_one_model_per_company'))
+          end = text.index('        with mock.patch.object(', start)
+          rows_block = '''        rows = [
+              qualified("nex-agi/nex-n2-pro", 28, 1.25),
+              qualified("deepseek/deepseek-v4-pro", 23, 1.305, 8),
+              qualified("xiaomi/mimo-v2.5-pro", 25, 1.305, 2),
+              qualified("minimax/minimax-m3", 30, 1.5, 2, "company-local-natural-top-layer"),
+              qualified("amazon/nova-pro-v1", 129, 4.0, 2),
+              qualified("nvidia/nemotron-3-ultra", 38, 4.2, 3),
+              qualified("google/gemini-2.5-pro", 63, 11.25, 5),
+              qualified("anthropic/claude-opus-5", 1, 30.0, 5),
+              qualified("openai/gpt-5.6-sol", 2, 35.0, 2, "company-local-natural-top-layer"),
+          ]
+          '''
+          text = text[:start] + rows_block + text[end:]
+          old_expected_start = text.index('            [\n', text.index('[row["model"] for row in ranked]'))
+          old_expected_end = text.index('            ],\n        )', old_expected_start) + len('            ],\n')
+          expected = '''            [
+                  "nex-agi/nex-n2-pro",
+                  "deepseek/deepseek-v4-pro",
+                  "xiaomi/mimo-v2.5-pro",
+                  "minimax/minimax-m3",
+                  "amazon/nova-pro-v1",
+                  "nvidia/nemotron-3-ultra",
+                  "google/gemini-2.5-pro",
+                  "anthropic/claude-opus-5",
+              ],
+          '''
+          text = text[:old_expected_start] + expected + text[old_expected_end:]
+          path.write_text(text, encoding="utf-8")
+
+          path = Path("tests/test_expert_zdr_endpoint_parity.py")
+          text = path.read_text(encoding="utf-8")
+          text = replace_once(
+              text,
+              '        "flagship_basis": "explicit-product-tier",\n    }',
+              '        "flagship_verified": True,\n        "flagship_basis": "strict-product-tier",\n        "company_flagship_method": "fixture-strict-tier",\n        "benchmark_source": "artificial-analysis-via-openrouter",\n        "intelligence_index": 50.0,\n        "coding_index": 50.0,\n        "agentic_index": 50.0,\n        "balanced_score": 50.0,\n        "benchmark_evidence_sha256": hashlib.sha256(\n            (model_id + "-benchmark").encode("utf-8")\n        ).hexdigest(),\n    }',
+              "ZDR benchmark evidence",
+          )
+          path.write_text(text, encoding="utf-8")
+          PY
+      - name: Run zero-call targeted tests
+        run: |
+          set -euo pipefail
+          python -m unittest \
+            tests.test_openrouter_governance_selector \
+            tests.test_expert_plan_strict_flagship_policy \
+            tests.test_eight_model_ordered_recovery \
+            tests.test_expert_zdr_endpoint_parity \
+            tests.test_expert_child_plan_repair \
+            tests.test_expert_plan_preview_workflow -v
+      - name: Clean temporary files and refresh manifest
+        run: |
+          set -euo pipefail
+          rm -f \
+            tools/_apply_benchmarked_reasoning_flagship_patch.py \
+            .github/workflows/apply-benchmarked-reasoning-flagships.yml \
+            .github/workflows/execute-benchmarked-reasoning-flagships-v2.yml
+          find . -type d -name __pycache__ -prune -exec rm -rf {} +
+          version="$(jq -r '.governance_version' governance-release-manifest.json)"
+          python tools/generate_governance_release_manifest.py \
+            --root . \
+            --output /tmp/governance-release-manifest.json \
+            --version "$version"
+          mv /tmp/governance-release-manifest.json governance-release-manifest.json
+          test "$(find . -type d -name __pycache__ | wc -l)" -eq 0
+      - name: Commit patch
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: rank benchmarked company reasoning flagships"
+          git push origin HEAD:fix/benchmarked-reasoning-company-flagships
