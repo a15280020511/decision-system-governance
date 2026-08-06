@@ -42,7 +42,12 @@ TASK_ENVELOPE = _load(
     "governance_expert_task_envelope_runtime",
     COPILOT_ROOT / "expert_task_envelope.py",
 )
+TOP20_POOL = _load(
+    "governance_top20_reasoning_pool_runtime",
+    COPILOT_ROOT / "top20_reasoning_pool.py",
+)
 TASK_ENVELOPE.patch_selector(EXPERT_SELECTOR)
+TOP20_POOL.patch_selector(EXPERT_SELECTOR)
 
 
 def _write_status(root: Path, status: dict[str, Any]) -> None:
@@ -123,11 +128,19 @@ def _attach_expert_model_plan(arguments: Any) -> int:
         CONTROL._write_json(root / "expert-model-plan.json", plan)
         status.update(
             {
-                "model_selection_authority": "decision-system-governance",
+                "model_selection_authority": "expert-assessment-center-from-governance-top20-pool",
+                "candidate_pool_authority": "decision-system-governance",
+                "model_assignment_authority": "expert-assessment-center",
                 "model_plan_sha256": plan["plan_sha256"],
                 "selected_expert_count": plan["expert_count"],
                 "selected_recovery_count": plan["recovery_count"],
-                "expert_center_model_selection_allowed": False,
+                "top20_reasoning_pool_size": plan["top20_reasoning_pool_size"],
+                "top20_reasoning_pool_sha256": plan["top20_reasoning_pool_sha256"],
+                "expert_selectable_candidate_count": plan[
+                    "expert_selectable_candidate_count"
+                ],
+                "expert_center_model_selection_allowed": True,
+                "expert_center_selection_scope": "frozen-governance-top20-reasoning-pool-only",
                 "expert_child_contract": "execution-ticket-v5",
                 "expert_child_route": "expert-team",
                 "expert_child_cost_policy": "prompt_led_soft_governance",
@@ -143,9 +156,12 @@ def _attach_expert_model_plan(arguments: Any) -> int:
         return 0
     except Exception as exc:  # noqa: BLE001 - fail closed at the boundary
         status["accepted"] = False
-        status["reason"] = f"governance expert-model selection failed: {exc}"
-        status["model_selection_authority"] = "decision-system-governance"
-        status["expert_center_model_selection_allowed"] = False
+        status["reason"] = f"governance top-20 reasoning pool creation failed: {exc}"
+        status["model_selection_authority"] = (
+            "expert-assessment-center-from-governance-top20-pool"
+        )
+        status["candidate_pool_authority"] = "decision-system-governance"
+        status["expert_center_model_selection_allowed"] = True
         _write_status(root, status)
         return 2
 
