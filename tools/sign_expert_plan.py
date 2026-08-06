@@ -186,43 +186,55 @@ def verify_signed_plan(
     if not isinstance(recovery, list):
         raise ExpertPlanSigningError("recovery model list is invalid")
 
-    rows = [*selected, *recovery]
-    companies: set[str] = set()
+    selected_companies: set[str] = set()
     models: set[str] = set()
-    for index, row in enumerate(rows):
-        if not isinstance(row, Mapping):
-            raise ExpertPlanSigningError(f"plan model row {index} is not an object")
-        model = str(row.get("model") or "").strip()
-        company = str(row.get("company") or "").strip().casefold()
-        provider_count = row.get("qualified_provider_count")
-        endpoint_hash = str(row.get("endpoint_inventory_sha256") or "")
-        evidence = str(row.get("selection_evidence") or "")
-        if not model or model in models:
-            raise ExpertPlanSigningError("expert models are not globally distinct")
-        if not company or company in companies:
-            raise ExpertPlanSigningError("expert companies are not globally distinct")
-        if company in {"openai", "anthropic"}:
-            raise ExpertPlanSigningError(
-                "governance companies cannot be expert companies"
-            )
-        if (
-            isinstance(provider_count, bool)
-            or not isinstance(provider_count, int)
-            or provider_count < TASK_ENVELOPE.MINIMUM_QUALIFIED_PROVIDER_COUNT
-        ):
-            raise ExpertPlanSigningError(
-                "model does not satisfy the qualified provider redundancy floor"
-            )
-        if "authenticated-zdr-endpoint-qualified" not in evidence:
-            raise ExpertPlanSigningError(
-                "model lacks authenticated ZDR selection evidence"
-            )
-        if len(endpoint_hash) != 64 or any(
-            character not in "0123456789abcdef" for character in endpoint_hash
-        ):
-            raise ExpertPlanSigningError("model endpoint inventory hash is invalid")
-        models.add(model)
-        companies.add(company)
+    for field, rows in (("selected_models", selected), ("recovery_models", recovery)):
+        for index, row in enumerate(rows):
+            if not isinstance(row, Mapping):
+                raise ExpertPlanSigningError(
+                    f"{field}[{index}] is not an object"
+                )
+            model = str(row.get("model") or "").strip()
+            company = str(row.get("company") or "").strip().casefold()
+            provider_count = row.get("qualified_provider_count")
+            endpoint_hash = str(row.get("endpoint_inventory_sha256") or "")
+            evidence = str(row.get("selection_evidence") or "")
+            if not model or model in models:
+                raise ExpertPlanSigningError(
+                    "expert models are not globally distinct"
+                )
+            if not company:
+                raise ExpertPlanSigningError("expert model company is missing")
+            if field == "selected_models" and company in selected_companies:
+                raise ExpertPlanSigningError(
+                    "selected expert companies are not distinct"
+                )
+            if company in {"openai", "anthropic"}:
+                raise ExpertPlanSigningError(
+                    "governance companies cannot be expert companies"
+                )
+            if (
+                isinstance(provider_count, bool)
+                or not isinstance(provider_count, int)
+                or provider_count < TASK_ENVELOPE.MINIMUM_QUALIFIED_PROVIDER_COUNT
+            ):
+                raise ExpertPlanSigningError(
+                    "model does not satisfy the qualified provider redundancy floor"
+                )
+            if "authenticated-zdr-endpoint-qualified" not in evidence:
+                raise ExpertPlanSigningError(
+                    "model lacks authenticated ZDR selection evidence"
+                )
+            if len(endpoint_hash) != 64 or any(
+                character not in "0123456789abcdef"
+                for character in endpoint_hash
+            ):
+                raise ExpertPlanSigningError(
+                    "model endpoint inventory hash is invalid"
+                )
+            models.add(model)
+            if field == "selected_models":
+                selected_companies.add(company)
 
 
 def sign(ticket: Mapping[str, Any], token: str) -> tuple[dict[str, Any], dict[str, Any]]:

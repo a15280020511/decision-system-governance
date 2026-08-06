@@ -4,7 +4,8 @@
 Selection remains deliberately simple: use OpenRouter's official intelligence
 order as the eligibility ceiling, retain explicit paid flagship tiers, verify a
 real exact provider endpoint for the current task, sort by combined token price,
-and take the cheapest models from different executable companies.
+choose active experts from different companies, and continue down the same price
+order for distinct standby models.
 """
 from __future__ import annotations
 
@@ -25,7 +26,7 @@ from typing import Any, Mapping, Sequence
 MODELS_API = "https://openrouter.ai/api/v1/models"
 ENDPOINTS_API = "https://openrouter.ai/api/v1/models/{author}/{slug}/endpoints"
 SCHEMA_VERSION = "governance-expert-model-plan-v1"
-SELECTOR_SCHEMA_VERSION = "governance-openrouter-executable-flagship-price-v2"
+SELECTOR_SCHEMA_VERSION = "governance-openrouter-executable-flagship-price-v3"
 SELECTION_AUTHORITY = "decision-system-governance"
 DEFAULT_EXPERT_COUNT = 4
 MIN_EXPERT_COUNT = 3
@@ -391,27 +392,49 @@ def _live_flagship_rows(token: str) -> list[dict[str, Any]]:
 
 
 def _live_executable_flagship_rows(
-    ticket: Mapping[str, Any], token: str, required_company_count: int
+    ticket: Mapping[str, Any],
+    token: str,
+    required_company_count: int,
+    required_model_count: int | None = None,
 ) -> list[dict[str, Any]]:
     required_context = _required_context_tokens(ticket)
+    required_models = (
+        required_company_count
+        if required_model_count is None
+        else required_model_count
+    )
+    if required_company_count < 1 or required_models < required_company_count:
+        raise ExpertPlanError("invalid executable flagship selection target")
+
     candidates = _live_flagship_rows(token)
     qualified: list[dict[str, Any]] = []
     companies: set[str] = set()
+    models: set[str] = set()
     for candidate in candidates:
-        company = str(candidate.get("company") or "")
-        if not company or company in companies:
+        model_id = str(candidate.get("model_id") or "").strip()
+        company = str(candidate.get("company") or "").strip()
+        if not model_id or not company or model_id in models:
             continue
         row = _qualify_candidate(candidate, token, required_context)
         if row is None:
             continue
         qualified.append(row)
+        models.add(model_id)
         companies.add(company)
-        if len(companies) == required_company_count:
+        if (
+            len(qualified) >= required_models
+            and len(companies) >= required_company_count
+        ):
             break
     if len(companies) < required_company_count:
         raise ExpertPlanError(
             "not enough distinct-company executable flagship models: "
             f"need {required_company_count}, found {len(companies)}"
+        )
+    if len(qualified) < required_models:
+        raise ExpertPlanError(
+            "not enough executable flagship models for primary and recovery slots: "
+            f"need {required_models}, found {len(qualified)}"
         )
     return qualified
 
@@ -510,6 +533,35 @@ def _distinct_company_rows(
     )
 
 
+def _distinct_model_rows(
+    rows: Sequence[Mapping[str, Any]],
+    count: int,
+    excluded_models: set[str] | None = None,
+) -> list[Mapping[str, Any]]:
+    excluded = set(excluded_models or ())
+    chosen: list[Mapping[str, Any]] = []
+    models = set(excluded)
+    for row in rows:
+        model = str(row.get("model_id") or "").strip()
+        company = str(row.get("company") or "").strip()
+        if (
+            not model
+            or not company
+            or company in GOVERNANCE_COMPANIES
+            or model in models
+        ):
+            continue
+        _finite_cost(row)
+        chosen.append(row)
+        models.add(model)
+        if len(chosen) == count:
+            return chosen
+    raise ExpertPlanError(
+        f"not enough unique executable flagship recovery models: need {count}, "
+        f"found {len(chosen)}"
+    )
+
+
 def _model_record(row: Mapping[str, Any], *, slot: int) -> dict[str, Any]:
     return {
         "slot": slot,
@@ -550,20 +602,21 @@ def _catalog_sha256(rows: Sequence[Mapping[str, Any]]) -> str:
 
 def build_plan(ticket: Mapping[str, Any], token: str = "") -> dict[str, Any]:
     _, recovery_count, expert_count = _budget(ticket)
-    required_company_count = expert_count + recovery_count
+    required_model_count = expert_count + recovery_count
     rows = _live_executable_flagship_rows(
         ticket,
         token,
-        required_company_count,
+        expert_count,
+        required_model_count,
     )
 
     selected_rows = _distinct_company_rows(rows, expert_count)
-    selected_companies = {str(row["company"]) for row in selected_rows}
+    selected_model_ids = {str(row["model_id"]) for row in selected_rows}
     recovery_rows = (
-        _distinct_company_rows(
+        _distinct_model_rows(
             rows,
             recovery_count,
-            excluded=selected_companies,
+            excluded_models=selected_model_ids,
         )
         if recovery_count
         else []
@@ -586,7 +639,7 @@ def build_plan(ticket: Mapping[str, Any], token: str = "") -> dict[str, Any]:
         "selection_policy": (
             "openrouter-official-intelligence-top-150 -> paid-general-purpose-"
             "flagships -> live-exact-endpoint-qualified -> combined-token-price-"
-            "ascending -> distinct-model-companies"
+            "ascending -> distinct-primary-companies -> unique-recovery-models"
         ),
         "price_rank_basis": "prompt_usd_per_million + completion_usd_per_million",
         "task_sha256": task_sha256(ticket),

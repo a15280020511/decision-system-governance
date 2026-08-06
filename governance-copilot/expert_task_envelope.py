@@ -15,7 +15,7 @@ import hashlib
 import json
 from typing import Any, Mapping
 
-SCHEMA_VERSION = "governance-expert-task-envelope-v5"
+SCHEMA_VERSION = "governance-expert-task-envelope-v6"
 EXPERT_RUNTIME_SCHEMA_VERSION = "v5-minimal-task-envelope-1"
 MINIMUM_CONTEXT_LENGTH = 16_384
 FIXED_PROTOCOL_RESERVE = 8_192
@@ -24,7 +24,7 @@ MINIMUM_GOVERNANCE_RECOVERY_MODELS = 4
 MAXIMUM_TOTAL_MODEL_CALLS = 16
 ZDR_ENDPOINTS_API = "https://openrouter.ai/api/v1/endpoints/zdr"
 ZDR_SELECTOR_SCHEMA_VERSION = (
-    "governance-openrouter-zdr-redundant-executable-flagship-price-v5"
+    "governance-openrouter-zdr-redundant-executable-flagship-price-v6"
 )
 ROLE_ASSIGNMENT_POLICY = (
     "price-minimal-distinct-company-set -> official-intelligence-rank-ascending -> "
@@ -78,7 +78,7 @@ def normalize_recovery_budget(ticket: Mapping[str, Any]) -> dict[str, Any]:
 
     Governance owns this normalization. A submitted 4+0 ticket becomes 8+4
     before the immutable model plan is created: four primary models plus four
-    distinct-company, price-ranked standby models. Healthy runs still perform
+    price-ranked, model-distinct standby models. Healthy runs still perform
     only the four primary calls. Standby calls are consumed sequentially only
     after eligible technical failures.
     """
@@ -361,7 +361,7 @@ def patch_selector(selector: Any) -> None:
                 "openrouter-official-intelligence-top-150 -> paid-general-purpose-"
                 "flagships -> live-exact-endpoint-qualified -> authenticated-zdr-"
                 "endpoint-qualified -> minimum-two-provider-routes -> combined-token-"
-                "price-ascending -> distinct-model-companies"
+                "price-ascending -> distinct-primary-companies -> unique-recovery-models"
             )
             plan["zdr_endpoint_qualification_required"] = True
             plan["zdr_endpoint_inventory_source"] = ZDR_ENDPOINTS_API
