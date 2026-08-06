@@ -95,6 +95,15 @@ jobs:
                   'company-highest-intelligence-explicit-tier-reasoning-flagship',
               )
               path.write_text(value, encoding='utf-8')
+
+          path = Path('tests/test_expert_child_plan_repair.py')
+          value = path.read_text(encoding='utf-8')
+          needle = '                "endpoint_inventory_sha256": hashlib.sha256(\n                    company.encode("utf-8")\n                ).hexdigest(),\n'
+          addition = needle + '                "selection_evidence": (\n                    "company-highest-intelligence-explicit-tier-reasoning-flagship+"\n                    "price-order+live-exact-endpoint-qualified+"\n                    "authenticated-zdr-endpoint-qualified+minimum-one-zdr-provider-route"\n                ),\n'
+          if needle not in value:
+              raise SystemExit('repair fixture endpoint hash marker missing')
+          value = value.replace(needle, addition, 1)
+          path.write_text(value, encoding='utf-8')
           PY
       - name: Run zero-call targeted tests
         run: |
