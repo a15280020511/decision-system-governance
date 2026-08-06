@@ -1,0 +1,22 @@
+name: Governance Control Retry Wake
+
+on:
+  issues:
+    types: [reopened]
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  wake:
+    if: >-
+      github.event.issue.title == '[control]' &&
+      github.event.issue.user.login == github.repository_owner
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Wake existing serial governance worker
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run control-plane-ticket.yml --ref main
