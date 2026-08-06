@@ -39,7 +39,7 @@ class ExpertPlanPreviewWorkflowTests(unittest.TestCase):
             "selection authority is not governance",
             "expert center reranking must be disabled",
             "model substitution must be disabled",
-            "model does not satisfy the qualified provider redundancy floor",
+            "model does not satisfy the qualified ZDR provider floor",
         )
         for value in required:
             with self.subTest(value=value):
@@ -89,8 +89,7 @@ class ExpertPlanPreviewWorkflowTests(unittest.TestCase):
             "route must be expert-team",
             "private_output must be false",
             "budget must leave at least three initial expert calls",
-            "selected expert companies are not distinct",
-            "governance companies cannot be selected expert companies",
+            "expert model companies are not globally distinct",
             "OPENROUTER_API_KEY is required",
         )
         for value in required:

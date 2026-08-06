@@ -177,7 +177,7 @@ def verify_signed_plan(
     if plan.get("minimum_qualified_provider_count") != (
         TASK_ENVELOPE.MINIMUM_QUALIFIED_PROVIDER_COUNT
     ):
-        raise ExpertPlanSigningError("provider redundancy floor is not frozen")
+        raise ExpertPlanSigningError("ZDR provider floor is not frozen")
 
     selected = plan.get("selected_models")
     recovery = plan.get("recovery_models")
@@ -186,7 +186,7 @@ def verify_signed_plan(
     if not isinstance(recovery, list):
         raise ExpertPlanSigningError("recovery model list is invalid")
 
-    selected_companies: set[str] = set()
+    companies: set[str] = set()
     models: set[str] = set()
     for field, rows in (("selected_models", selected), ("recovery_models", recovery)):
         for index, row in enumerate(rows):
@@ -205,16 +205,9 @@ def verify_signed_plan(
                 )
             if not company:
                 raise ExpertPlanSigningError("expert model company is missing")
-            if field == "selected_models" and company in selected_companies:
+            if company in companies:
                 raise ExpertPlanSigningError(
-                    "selected expert companies are not distinct"
-                )
-            if (
-                field == "selected_models"
-                and company in {"openai", "anthropic"}
-            ):
-                raise ExpertPlanSigningError(
-                    "governance companies cannot be selected expert companies"
+                    "expert model companies are not globally distinct"
                 )
             if (
                 isinstance(provider_count, bool)
@@ -222,7 +215,7 @@ def verify_signed_plan(
                 or provider_count < TASK_ENVELOPE.MINIMUM_QUALIFIED_PROVIDER_COUNT
             ):
                 raise ExpertPlanSigningError(
-                    "model does not satisfy the qualified provider redundancy floor"
+                    "model does not satisfy the qualified ZDR provider floor"
                 )
             if "authenticated-zdr-endpoint-qualified" not in evidence:
                 raise ExpertPlanSigningError(
@@ -236,8 +229,7 @@ def verify_signed_plan(
                     "model endpoint inventory hash is invalid"
                 )
             models.add(model)
-            if field == "selected_models":
-                selected_companies.add(company)
+            companies.add(company)
 
 
 def sign(ticket: Mapping[str, Any], token: str) -> tuple[dict[str, Any], dict[str, Any]]:

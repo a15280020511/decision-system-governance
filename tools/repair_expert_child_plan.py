@@ -123,7 +123,7 @@ def verify_repair(
 
     selected_rows = list(plan.get("selected_models") or [])
     recovery_rows = list(plan.get("recovery_models") or [])
-    selected_companies: set[str] = set()
+    companies: set[str] = set()
     models: set[str] = set()
     for field, rows in (
         ("selected_models", selected_rows),
@@ -146,16 +146,9 @@ def verify_repair(
                 raise ExpertChildRepairError(
                     "regenerated plan model company is missing"
                 )
-            if field == "selected_models" and company in selected_companies:
+            if company in companies:
                 raise ExpertChildRepairError(
-                    "regenerated primary plan reuses a model company"
-                )
-            if (
-                field == "selected_models"
-                and company in {"openai", "anthropic"}
-            ):
-                raise ExpertChildRepairError(
-                    "regenerated primary plan contains governance company"
+                    "regenerated plan reuses a model company"
                 )
             if (
                 isinstance(provider_count, bool)
@@ -163,7 +156,7 @@ def verify_repair(
                 or provider_count < TASK_ENVELOPE.MINIMUM_QUALIFIED_PROVIDER_COUNT
             ):
                 raise ExpertChildRepairError(
-                    "model does not satisfy the qualified provider redundancy floor"
+                    "model does not satisfy the qualified ZDR provider floor"
                 )
             if len(endpoint_hash) != 64 or any(
                 character not in "0123456789abcdef"
@@ -173,8 +166,7 @@ def verify_repair(
                     "model endpoint inventory hash is invalid"
                 )
             models.add(model)
-            if field == "selected_models":
-                selected_companies.add(company)
+            companies.add(company)
 
 
 def regenerate(
