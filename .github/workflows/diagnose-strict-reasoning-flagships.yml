@@ -1,0 +1,92 @@
+name: Diagnose Strict Reasoning Flagships
+
+on:
+  push:
+    branches:
+      - "diagnostic/strict-reasoning-flagship-candidates"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: "diagnostic/strict-reasoning-flagship-candidates"
+          persist-credentials: false
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+      - name: Print zero-call candidate diagnostics
+        run: |
+          set -euo pipefail
+          test -n "${OPENROUTER_API_KEY:-}"
+          python - <<'PY'
+          import importlib.util
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("governance-copilot/select_expert_team_plan.py")
+          spec = importlib.util.spec_from_file_location("selector_diag", path)
+          if spec is None or spec.loader is None:
+              raise SystemExit("cannot load selector")
+          selector = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(selector)
+
+          token = os.environ["OPENROUTER_API_KEY"]
+          ticket = {
+              "route": "expert-team",
+              "task": {
+                  "question": "diagnostic strict reasoning flagship candidates",
+                  "requirements": [],
+                  "language": "zh-CN",
+              },
+              "approved_budget": {
+                  "calls": 8,
+                  "maximum_recovery_calls": 4,
+                  "cost_policy": "prompt_led_soft_governance",
+              },
+              "private_output": False,
+          }
+          required_context = selector._required_context_tokens(ticket)
+          candidates = selector._live_flagship_rows(token)
+          rows = []
+          for candidate in candidates:
+              qualified = selector._qualify_candidate(
+                  candidate,
+                  token,
+                  required_context,
+              )
+              rows.append(
+                  {
+                      "model": candidate["model_id"],
+                      "company": candidate["company"],
+                      "official_intelligence_rank": candidate[
+                          "official_intelligence_rank"
+                      ],
+                      "price": candidate["price_rank_usd_per_million"],
+                      "endpoint_qualified": qualified is not None,
+                      "qualified_provider_count": (
+                          qualified.get("qualified_provider_count")
+                          if qualified is not None
+                          else 0
+                      ),
+                  }
+              )
+          print("STRICT_REASONING_FLAGSHIP_CANDIDATES_BEGIN")
+          print(json.dumps(rows, ensure_ascii=False, indent=2, sort_keys=True))
+          print("STRICT_REASONING_FLAGSHIP_CANDIDATES_END")
+          print(json.dumps({
+              "model_calls": 0,
+              "candidate_count": len(rows),
+              "endpoint_qualified_count": sum(
+                  1 for row in rows if row["endpoint_qualified"]
+              ),
+          }, sort_keys=True))
+          PY
