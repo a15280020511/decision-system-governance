@@ -106,16 +106,12 @@ class ExpertChildPlanRepairTests(unittest.TestCase):
         repaired["governance_model_plan"] = new_plan
         repair.verify_repair(source, repaired, new_plan)
 
-    def test_verify_repair_rejects_single_provider_models(self) -> None:
+    def test_verify_repair_accepts_single_zdr_provider_models(self) -> None:
         source = source_ticket()
         repaired = dict(source)
         new_plan = plan(repaired, provider_count=1)
         repaired["governance_model_plan"] = new_plan
-        with self.assertRaisesRegex(
-            repair.ExpertChildRepairError,
-            "provider redundancy floor",
-        ):
-            repair.verify_repair(source, repaired, new_plan)
+        repair.verify_repair(source, repaired, new_plan)
 
     def test_verify_repair_rejects_preproduction_context_floor(self) -> None:
         source = source_ticket()

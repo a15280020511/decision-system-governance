@@ -2,9 +2,9 @@
 """Frozen execution compatibility shared by governance expert selection paths.
 
 Governance and expert production must use the same task envelope, authenticated
-ZDR endpoint inventory, provider redundancy floor, role assignment, and an
-ordered governance-approved recovery reserve. The price-minimal distinct-company
-set is selected first; within that frozen set, the strongest official
+ZDR endpoint inventory, ZDR provider floor, role assignment, and an
+ordered governance-approved recovery reserve. The live price ranking keeps one
+cheapest qualified flagship per company; within that frozen set, the strongest official
 intelligence rank performs final synthesis and the second strongest performs
 cross-review. Four additional price-ranked flagship models remain dormant and
 are attempted sequentially only after an eligible technical failure.
@@ -78,7 +78,7 @@ def normalize_recovery_budget(ticket: Mapping[str, Any]) -> dict[str, Any]:
 
     Governance owns this normalization. A submitted 4+0 ticket becomes 8+4
     before the immutable model plan is created: four primary models plus four
-    price-ranked, model-distinct standby models. Healthy runs still perform
+    price-ranked, company-distinct standby models. Healthy runs still perform
     only the four primary calls. Standby calls are consumed sequentially only
     after eligible technical failures.
     """
@@ -329,13 +329,13 @@ def patch_selector(selector: Any) -> None:
                 )
             if not _provider_count_is_sufficient(row):
                 raise ExpertTaskEnvelopeError(
-                    "ranked model does not satisfy the provider redundancy floor"
+                    "ranked model does not satisfy the ZDR provider floor"
                 )
             record = original_model_record(row, slot=slot)
             if has_live_endpoint_primitives:
                 record["selection_evidence"] = (
                     "explicit-product-tier-price-order+live-exact-endpoint-qualified+"
-                    "authenticated-zdr-endpoint-qualified+two-provider-redundancy"
+                    "authenticated-zdr-endpoint-qualified+minimum-one-zdr-provider-route"
                 )
             return record
 
@@ -358,7 +358,7 @@ def patch_selector(selector: Any) -> None:
                     "governance plan must include four approved recovery models"
                 )
             plan["selection_policy"] = (
-                "openrouter-official-intelligence-top-150 -> paid-general-purpose-"
+                "openrouter-official-intelligence-top-1000 -> paid-general-purpose-"
                 "flagships -> live-exact-endpoint-qualified -> authenticated-zdr-"
                 "endpoint-qualified -> minimum-one-zdr-provider-route -> combined-token-"
                 "price-ascending -> cheapest-qualified-model-per-company -> "

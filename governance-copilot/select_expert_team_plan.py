@@ -630,7 +630,7 @@ def build_plan(ticket: Mapping[str, Any], token: str = "") -> dict[str, Any]:
         "schema_version": SCHEMA_VERSION,
         "selection_authority": SELECTION_AUTHORITY,
         "selection_policy": (
-            "openrouter-official-intelligence-top-150 -> paid-general-purpose-"
+            "openrouter-official-intelligence-top-1000 -> paid-general-purpose-"
             "flagships -> live-exact-endpoint-qualified -> combined-token-price-"
             "ascending -> cheapest-qualified-model-per-company -> "
             "eight-distinct-companies -> four-primary-four-recovery"
