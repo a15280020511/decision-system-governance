@@ -145,6 +145,16 @@ def _plan_digest(plan: Mapping[str, Any]) -> str:
     return hashlib.sha256(_canonical_json(material)).hexdigest()
 
 
+def _distinct_candidate_companies(eligible: Any) -> set[str]:
+    if not isinstance(eligible, list):
+        return set()
+    return {
+        str(row.get("company") or "").strip().casefold()
+        for row in eligible
+        if isinstance(row, Mapping) and str(row.get("company") or "").strip()
+    }
+
+
 def verify_signed_plan(
     unsigned: Mapping[str, Any],
     signed: Mapping[str, Any],
@@ -180,12 +190,21 @@ def verify_signed_plan(
         raise ExpertPlanSigningError("model assignment authority is invalid")
     if plan.get("top20_reasoning_pool_size") != 20:
         raise ExpertPlanSigningError("top-20 reasoning pool is incomplete")
+    if plan.get("old_flagship_filter_applied_to_top20_pool") is not False:
+        raise ExpertPlanSigningError("old flagship filter must not alter the top-20 pool")
     raw_pool = plan.get("top20_reasoning_models")
     eligible = plan.get("expert_selectable_candidates")
     if not isinstance(raw_pool, list) or len(raw_pool) != 20:
         raise ExpertPlanSigningError("top-20 reasoning pool rows are invalid")
-    if not isinstance(eligible, list) or len(eligible) < 8:
-        raise ExpertPlanSigningError("expert selectable pool has fewer than eight models")
+    companies = _distinct_candidate_companies(eligible)
+    if len(companies) < 8:
+        raise ExpertPlanSigningError(
+            "expert selectable pool has fewer than eight distinct companies"
+        )
+    if plan.get("expert_selectable_distinct_company_count") != len(companies):
+        raise ExpertPlanSigningError(
+            "expert selectable distinct-company count is inconsistent"
+        )
 
     expected_context = TASK_ENVELOPE.required_context_tokens(unsigned)
     if plan.get("required_context_tokens") != expected_context:
@@ -206,7 +225,7 @@ def verify_signed_plan(
     if not isinstance(recovery, list):
         raise ExpertPlanSigningError("recovery model list is invalid")
 
-    companies: set[str] = set()
+    companies = set()
     models: set[str] = set()
     for field, rows in (("selected_models", selected), ("recovery_models", recovery)):
         for index, row in enumerate(rows):
@@ -301,6 +320,8 @@ def main() -> int:
         json.dumps(plan, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    preview_selected = [row["model"] for row in plan["selected_models"]]
+    preview_recovery = [row["model"] for row in plan["recovery_models"]]
     receipt = {
         "status": "PASS",
         "task_id": signed["task_id"],
@@ -312,12 +333,13 @@ def main() -> int:
         "expert_selectable_candidate_count": plan[
             "expert_selectable_candidate_count"
         ],
-        "governance_preview_selected_models": [
-            row["model"] for row in plan["selected_models"]
+        "expert_selectable_distinct_company_count": plan[
+            "expert_selectable_distinct_company_count"
         ],
-        "governance_preview_recovery_models": [
-            row["model"] for row in plan["recovery_models"]
-        ],
+        "selected_models": preview_selected,
+        "recovery_models": preview_recovery,
+        "governance_preview_selected_models": preview_selected,
+        "governance_preview_recovery_models": preview_recovery,
         "required_context_tokens": plan["required_context_tokens"],
         "minimum_qualified_provider_count": plan[
             "minimum_qualified_provider_count"
