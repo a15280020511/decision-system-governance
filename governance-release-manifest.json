@@ -1,10 +1,10 @@
 {
   "schema_version": "governance-release-manifest-v1",
-  "governance_version": "4.2.3",
+  "governance_version": "4.2.4",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 133,
-  "total_bytes": 824703,
+  "total_bytes": 828937,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -438,8 +438,8 @@
     },
     {
       "path": "governance-copilot/select_expert_team_plan.py",
-      "size_bytes": 12516,
-      "sha256": "f3096c59629b1cbd54adbc0a4cf69f7fc196714f2aadfb796a7f654d8fe720b4"
+      "size_bytes": 15448,
+      "sha256": "afb939f51ba696bb9a583a3e114cc23c8e41653292727928f65ceef4e86e0a59"
     },
     {
       "path": "governance-copilot/select_paid_governance_flagship_model.py",
@@ -578,8 +578,8 @@
     },
     {
       "path": "tests/test_expert_plan_strict_flagship_policy.py",
-      "size_bytes": 4223,
-      "sha256": "caa2424992ab25ec4154b19383578ac77639410020034295e4ac7a97bb5a9bc0"
+      "size_bytes": 5525,
+      "sha256": "288fbdc44db3b711cc525cdba80ab53234a7416f810fb7aaa8ecd3580afb4d3f"
     },
     {
       "path": "tests/test_expert_plan_workflow_secret.py",
