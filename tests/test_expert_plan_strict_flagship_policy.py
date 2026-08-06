@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 COPILOT = ROOT / "governance-copilot"
 sys.path.insert(0, str(COPILOT))
 SPEC = importlib.util.spec_from_file_location(
-    "strict_expert_plan_test", COPILOT / "select_expert_team_plan.py"
+    "simple_expert_plan_test", COPILOT / "select_expert_team_plan.py"
 )
 if SPEC is None or SPEC.loader is None:
     raise RuntimeError("cannot load expert plan selector")
@@ -18,26 +18,54 @@ planner = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(planner)
 
 
-def candidate(model_id, company, prompt, completion, *, strict):
+def per_token(usd_per_million: float) -> str:
+    return f"{usd_per_million / 1_000_000:.12f}"
+
+
+def model(
+    model_id: str,
+    prompt: float,
+    completion: float,
+    *,
+    name: str | None = None,
+) -> dict[str, object]:
     return {
-        "model_id": model_id,
-        "company": company,
-        "prompt_usd_per_million": prompt,
-        "completion_usd_per_million": completion,
-        "request_usd": None,
-        "balanced_score": 50.0,
-        "strict_product_tier": strict,
-        "flagship_basis": (
-            "strict-product-tier" if strict else "company-local-natural-top-layer"
-        ),
+        "id": model_id,
+        "canonical_slug": model_id,
+        "name": name or model_id,
+        "pricing": {
+            "prompt": per_token(prompt),
+            "completion": per_token(completion),
+        },
+        "architecture": {
+            "input_modalities": ["text"],
+            "output_modalities": ["text"],
+        },
     }
 
 
-def ticket():
+def candidate(
+    model_id: str,
+    prompt: float,
+    completion: float,
+) -> dict[str, object]:
+    return {
+        "model_id": model_id,
+        "company": model_id.split("/", 1)[0],
+        "prompt_usd_per_million": prompt,
+        "completion_usd_per_million": completion,
+        "request_usd": 0.0,
+        "price_rank_usd_per_million": prompt + completion,
+        "estimated_task_cost_usd": prompt + completion,
+        "flagship_basis": "explicit-product-tier",
+    }
+
+
+def ticket() -> dict[str, object]:
     return {
         "route": "expert-team",
         "task": {
-            "question": "Validate strict flagship price ordering.",
+            "question": "Select the cheapest flagship experts.",
             "requirements": [],
             "language": "zh-CN",
         },
@@ -50,67 +78,88 @@ def ticket():
     }
 
 
-class StrictFlagshipExpertPlanTests(unittest.TestCase):
-    def receipt(self):
-        return {
-            "schema_version": "governance-openrouter-paid-governance-flagship-v1",
-            "cheapest_paid_flagship_candidates": [
-                candidate(
-                    "openai/gpt-5.6-luna", "openai", 0.01, 0.02, strict=False
-                ),
-                candidate("nex-agi/nex-n2-pro", "nex-agi", 0.25, 1.0, strict=True),
-                candidate(
-                    "deepseek/deepseek-v4-pro", "deepseek", 0.435, 0.87, strict=True
-                ),
-                candidate("xiaomi/mimo-v2.5-pro", "xiaomi", 0.50, 1.0, strict=True),
-                candidate("anthropic/claude-opus", "anthropic", 1.0, 3.0, strict=True),
-            ],
+class SimpleFlagshipPriceSelectionTests(unittest.TestCase):
+    def test_catalog_is_filtered_then_sorted_only_by_price(self) -> None:
+        payload = {
+            "data": [
+                model("openai/gpt-5.6-luna", 0.01, 0.02),
+                model("vendor/expensive-pro", 4.0, 8.0),
+                model("vendor/cheap-pro", 0.2, 0.4),
+                model("vendor/mini-pro", 0.01, 0.01),
+                model("vendor/coder-pro", 0.01, 0.01),
+                model("vendor/mid-max", 0.5, 0.5),
+            ]
         }
 
-    def test_non_strict_natural_top_model_is_never_selected(self):
-        with mock.patch.object(
-            planner, "_live_flagship_receipt", return_value=self.receipt()
-        ):
-            plan = planner.build_plan(ticket(), token="fixture")
-        all_models = plan["selected_models"] + plan["recovery_models"]
-        ids = [row["model"] for row in all_models]
+        rows = planner._catalog_candidates(payload)
+        ids = [row["model_id"] for row in rows]
+
         self.assertNotIn("openai/gpt-5.6-luna", ids)
+        self.assertNotIn("vendor/mini-pro", ids)
+        self.assertNotIn("vendor/coder-pro", ids)
         self.assertEqual(
             ids,
+            ["vendor/cheap-pro", "vendor/mid-max", "vendor/expensive-pro"],
+        )
+        prices = [row["price_rank_usd_per_million"] for row in rows]
+        self.assertEqual(prices, sorted(prices))
+
+    def test_plan_takes_cheapest_models_from_different_companies(self) -> None:
+        rows = [
+            candidate("openai/gpt-5-pro", 0.1, 0.2),
+            candidate("openai/gpt-6-pro", 0.11, 0.21),
+            candidate("deepseek/deepseek-v4-pro", 0.2, 0.3),
+            candidate("nex-agi/nex-n2-pro", 0.3, 0.4),
+            candidate("anthropic/claude-opus", 0.4, 0.5),
+        ]
+
+        with mock.patch.object(planner, "_live_flagship_rows", return_value=rows):
+            plan = planner.build_plan(ticket(), token="fixture")
+
+        selected = [row["model"] for row in plan["selected_models"]]
+        recovery = [row["model"] for row in plan["recovery_models"]]
+        self.assertEqual(
+            selected,
             [
-                "nex-agi/nex-n2-pro",
+                "openai/gpt-5-pro",
                 "deepseek/deepseek-v4-pro",
-                "xiaomi/mimo-v2.5-pro",
-                "anthropic/claude-opus",
+                "nex-agi/nex-n2-pro",
             ],
         )
-        self.assertTrue(
-            all(row["selection_evidence"] == "strict-product-tier" for row in all_models)
-        )
-        costs = [row["estimated_task_cost_usd"] for row in all_models]
-        self.assertEqual(costs, sorted(costs))
+        self.assertEqual(recovery, ["anthropic/claude-opus"])
         self.assertEqual(
             plan["selection_policy"],
-            "strict-product-tier-paid-general-purpose-flagships "
-            "-> estimated-task-cost-ascending -> distinct-model-companies",
+            "openrouter-paid-general-purpose-flagships "
+            "-> combined-token-price-ascending -> distinct-model-companies",
         )
+        self.assertEqual(
+            plan["price_rank_basis"],
+            "prompt_usd_per_million + completion_usd_per_million",
+        )
+        self.assertNotIn("task_cost_profile", plan)
+        self.assertEqual(plan["model_calls"], 0)
 
-    def test_non_strict_models_cannot_fill_missing_company_slots(self):
-        receipt = self.receipt()
-        receipt["cheapest_paid_flagship_candidates"] = [
-            candidate("vendor/a-pro", "vendor-a", 0.1, 0.2, strict=True),
-            candidate("vendor/b-max", "vendor-b", 0.2, 0.3, strict=True),
-            candidate("cheap/not-flagship", "cheap", 0.001, 0.001, strict=False),
-            candidate("cheap/also-not-flagship", "cheap-2", 0.002, 0.002, strict=False),
+    def test_missing_distinct_flagship_companies_fails_closed(self) -> None:
+        rows = [
+            candidate("vendor/a-pro", 0.1, 0.2),
+            candidate("vendor/b-max", 0.2, 0.3),
+            candidate("vendor/c-opus", 0.3, 0.4),
         ]
-        with mock.patch.object(
-            planner, "_live_flagship_receipt", return_value=receipt
-        ):
+        with mock.patch.object(planner, "_live_flagship_rows", return_value=rows):
             with self.assertRaisesRegex(
                 planner.ExpertPlanError,
-                "not enough distinct-company strict flagship models",
+                "not enough distinct-company flagship models",
             ):
                 planner.build_plan(ticket(), token="fixture")
+
+    def test_expert_selector_has_no_benchmark_or_capability_ranking_dependency(self) -> None:
+        source = (
+            COPILOT / "select_expert_team_plan.py"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("BENCHMARKS_API", source)
+        self.assertNotIn("rank_flagships_by_task_cost", source)
+        self.assertNotIn("balanced_score", source)
+        self.assertNotIn("natural_high", source)
 
 
 if __name__ == "__main__":
