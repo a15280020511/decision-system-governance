@@ -1,0 +1,67 @@
+name: Governance Manifest Sync
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths-ignore:
+      - governance-release-manifest.json
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: governance-manifest-sync-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login == github.repository_owner
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout pull request branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+
+      - name: Generate exact release manifest
+        run: |
+          set -euo pipefail
+          version="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path('governance-release-manifest.json')
+          if path.exists():
+              print(json.loads(path.read_text(encoding='utf-8')).get('governance_version', '4.2.3'))
+          else:
+              print('4.2.3')
+          PY
+          )"
+          python tools/generate_governance_release_manifest.py \
+            --root . \
+            --output governance-release-manifest.json \
+            --version "$version"
+
+      - name: Commit manifest when changed
+        env:
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- governance-release-manifest.json; then
+            echo "Manifest is already exact."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add governance-release-manifest.json
+          git commit -m "chore: synchronize governance release manifest"
+          git push origin "HEAD:${HEAD_BRANCH}"
