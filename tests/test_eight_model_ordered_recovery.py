@@ -27,7 +27,7 @@ def load_selector():
 
 def ticket() -> dict:
     return {
-        "task_id": "eight-model-policy-001",
+        "task_id": "eight-company-policy-001",
         "route": "expert-team",
         "task": {
             "question": "Analyze one decision with four active experts.",
@@ -43,11 +43,10 @@ def ticket() -> dict:
     }
 
 
-def qualified(model_id: str, rank: int, price: float) -> dict:
-    company = model_id.split("/", 1)[0]
+def qualified(model_id: str, rank: int, price: float, providers: int = 1) -> dict:
     return {
         "model_id": model_id,
-        "company": company,
+        "company": model_id.split("/", 1)[0],
         "official_intelligence_rank": rank,
         "context_length": 131_072,
         "max_completion_tokens": 8_192,
@@ -59,83 +58,64 @@ def qualified(model_id: str, rank: int, price: float) -> dict:
         "flagship_basis": "explicit-product-tier",
         "exact_endpoint_qualified": True,
         "zdr_endpoint_qualified": True,
-        "qualified_provider_count": 2,
-        "endpoint_inventory_sha256": hashlib.sha256(
-            model_id.encode("utf-8")
-        ).hexdigest(),
+        "qualified_provider_count": providers,
+        "endpoint_inventory_sha256": hashlib.sha256(model_id.encode()).hexdigest(),
         "required_context_tokens": 16_384,
         "minimum_completion_tokens": 1_024,
     }
 
 
-class EightModelOrderedRecoveryTests(unittest.TestCase):
+class EightCompanyOrderedRecoveryTests(unittest.TestCase):
     def test_four_zero_budget_normalizes_to_eight_four(self) -> None:
         normalized = envelope.normalize_recovery_budget(ticket())
         self.assertEqual(normalized["approved_budget"]["calls"], 8)
-        self.assertEqual(
-            normalized["approved_budget"]["maximum_recovery_calls"],
-            4,
-        )
+        self.assertEqual(normalized["approved_budget"]["maximum_recovery_calls"], 4)
 
-    def test_primary_excludes_governance_vendors_and_recovery_may_use_them(self) -> None:
+    def test_live_price_ranking_contains_one_model_per_company(self) -> None:
         selector = load_selector()
         rows = [
-            qualified("deepseek/deepseek-v4-pro", 23, 1.305),
-            qualified("xiaomi/mimo-v2.5-pro", 25, 1.305),
-            qualified("amazon/nova-pro-v1", 129, 4.0),
-            qualified("nvidia/nemotron-3-ultra", 38, 4.2),
-            qualified("google/gemini-2.5-pro", 63, 11.25),
-            qualified("anthropic/claude-opus-5", 1, 30.0),
-            qualified("anthropic/claude-opus-4.8", 5, 30.0),
-            qualified("anthropic/claude-opus-4.7", 9, 30.0),
+            qualified("openai/gpt-5.6-luna-pro", 251, 0.7, 2),
+            qualified("nex-agi/nex-n2-pro", 28, 1.25),
+            qualified("deepseek/deepseek-v4-pro", 23, 1.305, 8),
+            qualified("xiaomi/mimo-v2.5-pro", 25, 1.305, 2),
+            qualified("amazon/nova-pro-v1", 129, 4.0, 2),
+            qualified("nvidia/nemotron-3-ultra", 38, 4.2, 3),
+            qualified("google/gemini-2.5-pro", 63, 11.25, 5),
+            qualified("perplexity/sonar-pro", 274, 18.0),
+            qualified("anthropic/claude-opus-5", 1, 30.0, 5),
         ]
         with mock.patch.object(
-            selector,
-            "_live_executable_flagship_rows",
-            return_value=rows,
+            selector, "_live_executable_flagship_rows", return_value=rows
         ):
             plan = selector.build_plan(ticket(), token="fixture")
 
-        selected = plan["selected_models"]
-        recovery = plan["recovery_models"]
-        self.assertEqual(len(selected), 4)
-        self.assertEqual(len(recovery), 4)
-        self.assertEqual(len({row["company"] for row in selected}), 4)
-        self.assertFalse(
-            {"openai", "anthropic"}
-            & {row["company"] for row in selected}
-        )
+        ranked = plan["price_ranked_models"]
+        self.assertEqual([row["price_rank"] for row in ranked], list(range(1, 9)))
         self.assertEqual(
-            [row["model"] for row in recovery],
+            [row["model"] for row in ranked],
             [
+                "openai/gpt-5.6-luna-pro",
+                "nex-agi/nex-n2-pro",
+                "deepseek/deepseek-v4-pro",
+                "xiaomi/mimo-v2.5-pro",
+                "amazon/nova-pro-v1",
+                "nvidia/nemotron-3-ultra",
                 "google/gemini-2.5-pro",
-                "anthropic/claude-opus-5",
-                "anthropic/claude-opus-4.8",
-                "anthropic/claude-opus-4.7",
+                "perplexity/sonar-pro",
             ],
         )
+        companies = [row["company"] for row in ranked]
+        self.assertEqual(len(companies), len(set(companies)))
+        prices = [row["price_rank_usd_per_million"] for row in ranked]
+        self.assertEqual(prices, sorted(prices))
+        selected_companies = {row["company"] for row in plan["selected_models"]}
+        recovery_companies = {row["company"] for row in plan["recovery_models"]}
+        self.assertFalse(selected_companies & recovery_companies)
+        self.assertEqual(plan["company_uniqueness_scope"], "selected-and-recovery")
         self.assertEqual(
-            [row["price_rank_usd_per_million"] for row in recovery],
-            [11.25, 30.0, 30.0, 30.0],
+            plan["catalog_fetch_mode"], "live-per-task-no-cross-task-cache"
         )
-        models = [row["model"] for row in selected + recovery]
-        self.assertEqual(len(models), 8)
-        self.assertEqual(len(set(models)), 8)
-        self.assertEqual(
-            plan["governance_companies_excluded_from_primary"],
-            ["anthropic", "openai"],
-        )
-        self.assertTrue(plan["governance_companies_allowed_in_recovery"])
-        self.assertTrue(plan["recovery_models_are_price_ranked"])
-        self.assertTrue(plan["recovery_models_are_sequential"])
-        self.assertIn(
-            "primary-excludes-governance-vendors",
-            plan["selection_policy"],
-        )
-        self.assertIn(
-            "unique-recovery-models",
-            plan["selection_policy"],
-        )
+        self.assertEqual(plan["minimum_qualified_provider_count"], 1)
 
 
 if __name__ == "__main__":

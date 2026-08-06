@@ -71,14 +71,14 @@ class ExpertTaskEnvelopeCompatibilityTests(unittest.TestCase):
         )
         self.assertEqual(
             RUNTIME.EXPERT_SELECTOR.MINIMUM_QUALIFIED_PROVIDER_COUNT,
-            2,
+            1,
         )
         self.assertEqual(
             REPAIR.SELECTOR.MINIMUM_QUALIFIED_PROVIDER_COUNT,
-            2,
+            1,
         )
 
-    def test_single_provider_candidate_is_rejected(self) -> None:
+    def test_single_zdr_provider_candidate_is_accepted(self) -> None:
         selector = SimpleNamespace(
             _qualify_candidate=lambda candidate, token, context: {
                 **candidate,
@@ -86,7 +86,22 @@ class ExpertTaskEnvelopeCompatibilityTests(unittest.TestCase):
             }
         )
         ENVELOPE.patch_selector(selector)
-        self.assertIsNone(selector._qualify_candidate({"model_id": "a/pro"}, "", 16_384))
+        qualified = selector._qualify_candidate({"model_id": "a/pro"}, "", 16_384)
+        self.assertIsNotNone(qualified)
+        assert qualified is not None
+        self.assertEqual(qualified["qualified_provider_count"], 1)
+
+    def test_zero_provider_candidate_is_rejected(self) -> None:
+        selector = SimpleNamespace(
+            _qualify_candidate=lambda candidate, token, context: {
+                **candidate,
+                "qualified_provider_count": 0,
+            }
+        )
+        ENVELOPE.patch_selector(selector)
+        self.assertIsNone(
+            selector._qualify_candidate({"model_id": "a/pro"}, "", 16_384)
+        )
 
     def test_two_provider_candidate_is_accepted(self) -> None:
         selector = SimpleNamespace(

@@ -4,8 +4,8 @@
 Selection remains deliberately simple: use OpenRouter's official intelligence
 order as the eligibility ceiling, retain explicit paid flagship tiers, verify a
 real exact provider endpoint for the current task, sort by combined token price,
-choose active experts from different companies, and continue down the same price
-order for distinct standby models.
+keep only the cheapest qualified flagship from each company, and use the first
+four companies as active experts plus the next four companies as ordered standbys.
 """
 from __future__ import annotations
 
@@ -26,12 +26,12 @@ from typing import Any, Mapping, Sequence
 MODELS_API = "https://openrouter.ai/api/v1/models"
 ENDPOINTS_API = "https://openrouter.ai/api/v1/models/{author}/{slug}/endpoints"
 SCHEMA_VERSION = "governance-expert-model-plan-v1"
-SELECTOR_SCHEMA_VERSION = "governance-openrouter-executable-flagship-price-v3"
+SELECTOR_SCHEMA_VERSION = "governance-openrouter-executable-flagship-price-v4"
 SELECTION_AUTHORITY = "decision-system-governance"
 DEFAULT_EXPERT_COUNT = 4
 MIN_EXPERT_COUNT = 3
 MAX_EXPERT_COUNT = 6
-OFFICIAL_INTELLIGENCE_RANK_LIMIT = 150
+OFFICIAL_INTELLIGENCE_RANK_LIMIT = 1000
 MINIMUM_COMPLETION_TOKENS = 1_024
 FIXED_PROTOCOL_RESERVE = 8_192
 GOVERNANCE_COMPANIES = frozenset({"openai", "anthropic"})
@@ -269,7 +269,7 @@ def _catalog_candidates(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
     if not candidates:
         raise ExpertPlanError(
             "no paid general-purpose flagship model is available within the "
-            "official intelligence top 150"
+            "official intelligence top 1000"
         )
     return candidates
 
@@ -411,7 +411,12 @@ def _live_executable_flagship_rows(
     for candidate in candidates:
         model_id = str(candidate.get("model_id") or "").strip()
         company = str(candidate.get("company") or "").strip()
-        if not model_id or not company or model_id in models:
+        if (
+            not model_id
+            or not company
+            or model_id in models
+            or company in companies
+        ):
             continue
         row = _qualify_candidate(candidate, token, required_context)
         if row is None:
@@ -514,7 +519,6 @@ def _distinct_company_rows(
         if (
             not model
             or not company
-            or company in GOVERNANCE_COMPANIES
             or model in models
             or company in companies
         ):
@@ -599,21 +603,17 @@ def build_plan(ticket: Mapping[str, Any], token: str = "") -> dict[str, Any]:
     rows = _live_executable_flagship_rows(
         ticket,
         token,
-        expert_count,
+        required_model_count,
         required_model_count,
     )
 
-    selected_rows = _distinct_company_rows(rows, expert_count)
-    selected_model_ids = {str(row["model_id"]) for row in selected_rows}
-    recovery_rows = (
-        _distinct_model_rows(
-            rows,
-            recovery_count,
-            excluded_models=selected_model_ids,
-        )
-        if recovery_count
-        else []
-    )
+    ranked_rows = _distinct_company_rows(rows, required_model_count)
+    selected_rows = ranked_rows[:expert_count]
+    recovery_rows = ranked_rows[expert_count:]
+    price_ranked_models = [
+        {**_model_record(row, slot=index), "price_rank": index}
+        for index, row in enumerate(ranked_rows, 1)
+    ]
 
     selected_models = [
         {**_model_record(row, slot=slot), **role}
@@ -630,10 +630,10 @@ def build_plan(ticket: Mapping[str, Any], token: str = "") -> dict[str, Any]:
         "schema_version": SCHEMA_VERSION,
         "selection_authority": SELECTION_AUTHORITY,
         "selection_policy": (
-            "openrouter-official-intelligence-top-150 -> paid-general-purpose-"
+            "openrouter-official-intelligence-top-1000 -> paid-general-purpose-"
             "flagships -> live-exact-endpoint-qualified -> combined-token-price-"
-            "ascending -> primary-excludes-governance-vendors -> "
-            "distinct-primary-companies -> unique-recovery-models"
+            "ascending -> cheapest-qualified-model-per-company -> "
+            "eight-distinct-companies -> four-primary-four-recovery"
         ),
         "price_rank_basis": "prompt_usd_per_million + completion_usd_per_million",
         "task_sha256": task_sha256(ticket),
@@ -641,13 +641,13 @@ def build_plan(ticket: Mapping[str, Any], token: str = "") -> dict[str, Any]:
         "minimum_native_completion_tokens": MINIMUM_COMPLETION_TOKENS,
         "expert_count": expert_count,
         "recovery_count": recovery_count,
+        "price_ranked_models": price_ranked_models,
         "selected_models": selected_models,
         "recovery_models": recovery_models,
         "endpoint_qualification_performed_by_governance": True,
-        "governance_companies_excluded_from_primary": sorted(
-            GOVERNANCE_COMPANIES
-        ),
-        "governance_companies_allowed_in_recovery": True,
+        "catalog_fetch_mode": "live-per-task-no-cross-task-cache",
+        "company_uniqueness_scope": "selected-and-recovery",
+        "company_model_policy": "one-cheapest-qualified-flagship-per-company",
         "provider_selection_authority": (
             "expert-runtime-cheapest-compatible-exact-endpoint-resolution-only"
         ),

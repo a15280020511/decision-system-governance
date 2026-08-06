@@ -148,7 +148,7 @@ class ExpertZdrEndpointParityTests(unittest.TestCase):
         self.assertEqual(nex["qualified_provider_count"], 2)
         self.assertEqual(calls.count(envelope.ZDR_ENDPOINTS_API), 1)
 
-    def test_single_zdr_route_does_not_satisfy_redundancy_floor(self) -> None:
+    def test_single_zdr_route_satisfies_provider_floor(self) -> None:
         selector = load_selector()
 
         def fake_fetch(url: str, token: str):
@@ -172,11 +172,12 @@ class ExpertZdrEndpointParityTests(unittest.TestCase):
             }
 
         selector._fetch_json = fake_fetch
-        self.assertIsNone(
-            selector._qualify_candidate(
-                candidate("vendor/model-pro", 1), "secret", 16_384
-            )
+        qualified = selector._qualify_candidate(
+            candidate("vendor/model-pro", 1), "secret", 16_384
         )
+        self.assertIsNotNone(qualified)
+        assert qualified is not None
+        self.assertEqual(qualified["qualified_provider_count"], 1)
 
     def test_empty_or_missing_zdr_inventory_fails_closed(self) -> None:
         selector = load_selector()
@@ -209,7 +210,7 @@ class ExpertZdrEndpointParityTests(unittest.TestCase):
                 candidate("vendor/model-pro", 1), "", 16_384
             )
 
-    def test_plan_records_zdr_redundancy_and_recomputes_digest(self) -> None:
+    def test_plan_records_zdr_provider_floor_and_recomputes_digest(self) -> None:
         selector = load_selector()
         rows = [
             qualified_candidate("deepseek/deepseek-v4-pro", 1),
@@ -266,15 +267,15 @@ class ExpertZdrEndpointParityTests(unittest.TestCase):
             envelope.ZDR_SELECTOR_SCHEMA_VERSION,
         )
         self.assertIn("authenticated-zdr-endpoint-qualified", plan["selection_policy"])
-        self.assertIn("minimum-two-provider-routes", plan["selection_policy"])
+        self.assertIn("minimum-one-zdr-provider-route", plan["selection_policy"])
         for row in plan["selected_models"] + plan["recovery_models"]:
-            self.assertGreaterEqual(row["qualified_provider_count"], 2)
+            self.assertGreaterEqual(row["qualified_provider_count"], 1)
             self.assertIn(
                 "authenticated-zdr-endpoint-qualified",
                 row["selection_evidence"],
             )
             self.assertIn(
-                "two-provider-redundancy",
+                "minimum-one-zdr-provider-route",
                 row["selection_evidence"],
             )
 

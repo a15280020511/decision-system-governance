@@ -112,7 +112,7 @@ def endpoint(
 
 
 class ExecutableFlagshipPriceSelectionTests(unittest.TestCase):
-    def test_catalog_keeps_strict_governance_vendor_candidates_for_standby(self) -> None:
+    def test_catalog_keeps_strict_candidates_across_top_1000(self) -> None:
         rows = [
             model("openai/gpt-5-pro", 0.01, 0.02),
             model("anthropic/claude-opus", 0.02, 0.03),
@@ -124,7 +124,7 @@ class ExecutableFlagshipPriceSelectionTests(unittest.TestCase):
         ]
         rows.extend(
             model(f"filler/model-{index}", 9.0, 9.0)
-            for index in range(7, 150)
+            for index in range(7, 1000)
         )
         rows.append(model("late/too-late-pro", 0.01, 0.01))
 
@@ -149,7 +149,7 @@ class ExecutableFlagshipPriceSelectionTests(unittest.TestCase):
         prices = [row["price_rank_usd_per_million"] for row in filtered]
         self.assertEqual(prices, sorted(prices))
 
-    def test_primary_selection_still_excludes_governance_vendors(self) -> None:
+    def test_company_selection_keeps_only_one_model_per_company(self) -> None:
         rows = [
             candidate("openai/gpt-5-pro", 0.01, 0.02, rank=1),
             candidate("anthropic/claude-opus", 0.02, 0.03, rank=2),
@@ -162,10 +162,10 @@ class ExecutableFlagshipPriceSelectionTests(unittest.TestCase):
         self.assertEqual(
             [row["model_id"] for row in selected],
             [
+                "openai/gpt-5-pro",
+                "anthropic/claude-opus",
                 "alpha/alpha-pro",
                 "beta/beta-pro",
-                "gamma/gamma-pro",
-                "delta/delta-pro",
             ],
         )
 
@@ -244,13 +244,16 @@ class ExecutableFlagshipPriceSelectionTests(unittest.TestCase):
         self.assertEqual(recovery, ["xiaomi/mimo-v2.5-pro"])
         self.assertTrue(plan["endpoint_qualification_performed_by_governance"])
         self.assertEqual(
-            plan["governance_companies_excluded_from_primary"],
-            ["anthropic", "openai"],
+            plan["company_uniqueness_scope"],
+            "selected-and-recovery",
         )
-        self.assertTrue(plan["governance_companies_allowed_in_recovery"])
+        self.assertEqual(
+            plan["catalog_fetch_mode"],
+            "live-per-task-no-cross-task-cache",
+        )
         self.assertIn("live-exact-endpoint-qualified", plan["selection_policy"])
         self.assertIn(
-            "primary-excludes-governance-vendors",
+            "cheapest-qualified-model-per-company",
             plan["selection_policy"],
         )
         self.assertEqual(
