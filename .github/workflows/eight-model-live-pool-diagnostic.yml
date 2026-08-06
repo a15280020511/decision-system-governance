@@ -11,7 +11,7 @@ permissions:
 jobs:
   diagnose:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
     steps:
@@ -22,7 +22,7 @@ jobs:
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
         with:
           python-version: '3.12'
-      - name: Measure eligible flagship pool without model calls
+      - name: Compare eligible pools without model calls
         run: |
           set -euo pipefail
           test -n "${OPENROUTER_API_KEY:-}"
@@ -30,11 +30,11 @@ jobs:
           import importlib.util
           import json
           import os
+          import urllib.parse
           from pathlib import Path
 
           root = Path.cwd()
           selector_path = root / 'governance-copilot' / 'select_expert_team_plan.py'
-          envelope_path = root / 'governance-copilot' / 'expert_task_envelope.py'
 
           def load(name, path):
               spec = importlib.util.spec_from_file_location(name, path)
@@ -44,62 +44,103 @@ jobs:
               return module
 
           selector = load('eight_model_pool_selector', selector_path)
-          envelope = load('eight_model_pool_envelope', envelope_path)
-          envelope.patch_selector(selector)
+          selector.OFFICIAL_INTELLIGENCE_RANK_LIMIT = 150
           token = os.environ['OPENROUTER_API_KEY']
-          ticket = {
-              'task': {
-                  'question': 'Zero-call live catalog qualification diagnostic.',
-                  'requirements': [],
-                  'language': 'zh-CN',
-              },
-              'approved_budget': {
-                  'calls': 8,
-                  'maximum_recovery_calls': 4,
-                  'cost_policy': 'prompt_led_soft_governance',
-              },
+          query = urllib.parse.urlencode({
+              'sort': 'intelligence-high-to-low',
+              'output_modalities': 'text',
+          })
+          catalog = selector._fetch_json(f'{selector.MODELS_API}?{query}', token)
+          zdr_payload = selector._fetch_json(
+              'https://openrouter.ai/api/v1/endpoints/zdr',
+              token,
+          )
+          zdr_rows = zdr_payload.get('data')
+          if not isinstance(zdr_rows, list):
+              raise SystemExit('ZDR inventory unavailable')
+          zdr_keys = {
+              (
+                  str(row.get('model_id') or '').strip(),
+                  str(selector._provider_slug(row) or '').strip(),
+              )
+              for row in zdr_rows
+              if isinstance(row, dict)
           }
 
-          results = []
-          for limit in (150, 300, 500, 1000):
-              selector.OFFICIAL_INTELLIGENCE_RANK_LIMIT = limit
-              try:
-                  rows = selector._live_executable_flagship_rows(
-                      ticket,
-                      token,
-                      4,
-                      8,
-                  )
-              except Exception as exc:
-                  results.append({
-                      'rank_limit': limit,
-                      'status': 'INSUFFICIENT',
-                      'error': str(exc),
-                  })
-                  continue
-              results.append({
-                  'rank_limit': limit,
-                  'status': 'PASS',
-                  'count': len(rows),
-                  'distinct_companies': len({row['company'] for row in rows}),
-                  'models': [
-                      {
-                          'model': row['model_id'],
-                          'company': row['company'],
-                          'price_rank_usd_per_million': row['price_rank_usd_per_million'],
-                          'official_intelligence_rank': row['official_intelligence_rank'],
-                          'qualified_provider_count': row['qualified_provider_count'],
-                      }
-                      for row in rows
-                  ],
-              })
-              break
+          original_flagship = selector._is_general_flagship
 
+          def broad_high_intelligence(identity: str) -> bool:
+              lowered = identity.lower()
+              return (
+                  not selector.EXCLUDED_TIER.search(identity)
+                  and not any(
+                      marker in lowered
+                      for marker in selector.SPECIALIZED_MARKERS
+                  )
+              )
+
+          def candidates(broad: bool):
+              selector._is_general_flagship = (
+                  broad_high_intelligence if broad else original_flagship
+              )
+              try:
+                  return selector._catalog_candidates(catalog)
+              finally:
+                  selector._is_general_flagship = original_flagship
+
+          def qualify(mode: str, broad: bool, minimum_zdr_providers: int):
+              qualified = []
+              for candidate in candidates(broad):
+                  model_id = str(candidate['model_id'])
+                  endpoint_payload = selector._fetch_json(
+                      selector._endpoint_url(model_id),
+                      token,
+                  )
+                  compatible = selector._compatible_endpoint_inventory(
+                      candidate,
+                      endpoint_payload,
+                      16_384,
+                  )
+                  zdr = [
+                      row
+                      for row in compatible
+                      if (model_id, str(row.get('provider') or '')) in zdr_keys
+                  ]
+                  if len(zdr) < minimum_zdr_providers:
+                      continue
+                  qualified.append({
+                      'model': model_id,
+                      'company': candidate['company'],
+                      'price_rank_usd_per_million': candidate[
+                          'price_rank_usd_per_million'
+                      ],
+                      'official_intelligence_rank': candidate[
+                          'official_intelligence_rank'
+                      ],
+                      'qualified_zdr_provider_count': len(zdr),
+                  })
+                  if len(qualified) == 8:
+                      break
+              return {
+                  'mode': mode,
+                  'count': len(qualified),
+                  'distinct_companies': len({
+                      row['company'] for row in qualified
+                  }),
+                  'models': qualified,
+              }
+
+          results = [
+              qualify('explicit-flagship-zdr2', False, 2),
+              qualify('broad-high-intelligence-zdr2', True, 2),
+              qualify('explicit-flagship-zdr1', False, 1),
+              qualify('broad-high-intelligence-zdr1', True, 1),
+          ]
           print('EIGHT_MODEL_POOL_DIAGNOSTIC=' + json.dumps(
               results,
               ensure_ascii=False,
               sort_keys=True,
           ))
-          if not any(row.get('status') == 'PASS' for row in results):
-              raise SystemExit('no tested intelligence-rank limit produced eight qualified models')
+          if not any(row['count'] >= 8 for row in results):
+              raise SystemExit('no tested qualification mode produced eight models')
           PY
