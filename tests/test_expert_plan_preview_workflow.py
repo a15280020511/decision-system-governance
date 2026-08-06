@@ -90,7 +90,7 @@ class ExpertPlanPreviewWorkflowTests(unittest.TestCase):
             "private_output must be false",
             "budget must leave at least three initial expert calls",
             "selected expert companies are not distinct",
-            "governance companies cannot be expert companies",
+            "governance companies cannot be selected expert companies",
             "OPENROUTER_API_KEY is required",
         )
         for value in required:

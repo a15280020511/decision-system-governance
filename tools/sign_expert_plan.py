@@ -209,9 +209,12 @@ def verify_signed_plan(
                 raise ExpertPlanSigningError(
                     "selected expert companies are not distinct"
                 )
-            if company in {"openai", "anthropic"}:
+            if (
+                field == "selected_models"
+                and company in {"openai", "anthropic"}
+            ):
                 raise ExpertPlanSigningError(
-                    "governance companies cannot be expert companies"
+                    "governance companies cannot be selected expert companies"
                 )
             if (
                 isinstance(provider_count, bool)
