@@ -44,6 +44,31 @@ def source_ticket() -> dict:
     }
 
 
+def _pool_rows() -> list[dict]:
+    return [
+        {
+            "popularity_rank": index,
+            "model": f"pool-company-{index}/reasoning-{index}",
+            "company": f"pool-company-{index}",
+            "reasoning_supported": True,
+        }
+        for index in range(1, 21)
+    ]
+
+
+def _eligible_rows() -> list[dict]:
+    return [
+        {
+            "slot": index,
+            "model": f"eligible-company-{index}/reasoning-{index}",
+            "company": f"eligible-company-{index}",
+            "qualified_provider_count": 1,
+            "expert_center_selectable": True,
+        }
+        for index in range(1, 9)
+    ]
+
+
 def plan(ticket: dict, provider_count: int = 2) -> dict:
     rows = []
     for index, company in enumerate(("deepseek", "nex-agi", "upstage", "xiaomi"), 1):
@@ -81,6 +106,15 @@ def plan(ticket: dict, provider_count: int = 2) -> dict:
         "recovery_models": rows[3:],
         "model_substitution_allowed": False,
         "expert_center_reranking_allowed": False,
+        "top20_reasoning_pool_schema_version": repair.TOP20_POOL.POOL_SCHEMA_VERSION,
+        "top20_reasoning_pool_source": repair.TOP20_POOL.POOL_SOURCE,
+        "top20_reasoning_pool_size": repair.TOP20_POOL.TOP20_POOL_SIZE,
+        "top20_reasoning_models": _pool_rows(),
+        "expert_selectable_candidates": _eligible_rows(),
+        "expert_selectable_candidate_count": 8,
+        "candidate_pool_authority": "decision-system-governance",
+        "model_assignment_authority": "expert-assessment-center",
+        "expert_center_pool_selection_allowed": True,
     }
     value["plan_sha256"] = repair._plan_digest(value)
     return value
@@ -121,7 +155,6 @@ class ExpertChildPlanRepairTests(unittest.TestCase):
         new_plan = plan(repaired, provider_count=1)
         repaired["governance_model_plan"] = new_plan
         repair.verify_repair(source, repaired, new_plan)
-
 
     def test_verify_repair_allows_openai_as_unique_company(self) -> None:
         source = source_ticket()
