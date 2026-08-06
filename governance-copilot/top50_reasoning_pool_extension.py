@@ -200,7 +200,7 @@ def _candidate_record(candidate: Mapping[str, Any], slot: int, required_context:
         "prompt_usd_per_million": float(candidate["prompt_usd_per_million"]),
         "completion_usd_per_million": float(candidate["completion_usd_per_million"]),
         "request_usd": float(candidate.get("request_usd") or 0.0),
-        "official_intelligence_rank": int(candidate.get("official_intelligence_rank") or 1_000_000),
+        "official_intelligence_rank": int(candidate["official_intelligence_rank"]),
         "popularity_rank": int(candidate["popularity_rank"]),
         "context_length": int(candidate.get("context_length") or 0),
         "max_completion_tokens": int(candidate.get("max_completion_tokens") or 0),
@@ -248,7 +248,15 @@ def _eligible_records(
         if callable(stable_model_id) and not stable_model_id(model_id):
             exclusions.append(_exclusion(pool_row, "unstable-or-route-suffixed-model-id"))
             continue
-        candidate = _direct_candidate(pool_row, int(intelligence.get(model_id, 1_000_000)))
+        intelligence_rank = intelligence.get(model_id)
+        if (
+            isinstance(intelligence_rank, bool)
+            or not isinstance(intelligence_rank, int)
+            or intelligence_rank <= 0
+        ):
+            exclusions.append(_exclusion(pool_row, "missing-or-invalid-intelligence-rank"))
+            continue
+        candidate = _direct_candidate(pool_row, intelligence_rank)
         if candidate is None:
             exclusions.append(_exclusion(pool_row, "invalid-or-missing-price-metadata"))
             continue
