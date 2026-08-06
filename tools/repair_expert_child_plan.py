@@ -150,9 +150,12 @@ def verify_repair(
                 raise ExpertChildRepairError(
                     "regenerated primary plan reuses a model company"
                 )
-            if company in {"openai", "anthropic"}:
+            if (
+                field == "selected_models"
+                and company in {"openai", "anthropic"}
+            ):
                 raise ExpertChildRepairError(
-                    "regenerated plan contains governance company"
+                    "regenerated primary plan contains governance company"
                 )
             if (
                 isinstance(provider_count, bool)

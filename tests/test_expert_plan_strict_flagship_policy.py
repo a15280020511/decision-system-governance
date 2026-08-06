@@ -112,7 +112,7 @@ def endpoint(
 
 
 class ExecutableFlagshipPriceSelectionTests(unittest.TestCase):
-    def test_catalog_uses_official_top_150_and_excludes_governance_companies(self) -> None:
+    def test_catalog_keeps_strict_governance_vendor_candidates_for_standby(self) -> None:
         rows = [
             model("openai/gpt-5-pro", 0.01, 0.02),
             model("anthropic/claude-opus", 0.02, 0.03),
@@ -131,17 +131,43 @@ class ExecutableFlagshipPriceSelectionTests(unittest.TestCase):
         filtered = planner._catalog_candidates({"data": rows})
         ids = [row["model_id"] for row in filtered]
 
-        self.assertNotIn("openai/gpt-5-pro", ids)
-        self.assertNotIn("anthropic/claude-opus", ids)
+        self.assertIn("openai/gpt-5-pro", ids)
+        self.assertIn("anthropic/claude-opus", ids)
         self.assertNotIn("vendor/mini-pro", ids)
         self.assertNotIn("vendor/coder-pro", ids)
         self.assertNotIn("late/too-late-pro", ids)
         self.assertEqual(
             ids,
-            ["vendor/cheap-pro", "other/mid-max", "vendor/expensive-pro"],
+            [
+                "openai/gpt-5-pro",
+                "anthropic/claude-opus",
+                "vendor/cheap-pro",
+                "other/mid-max",
+                "vendor/expensive-pro",
+            ],
         )
         prices = [row["price_rank_usd_per_million"] for row in filtered]
         self.assertEqual(prices, sorted(prices))
+
+    def test_primary_selection_still_excludes_governance_vendors(self) -> None:
+        rows = [
+            candidate("openai/gpt-5-pro", 0.01, 0.02, rank=1),
+            candidate("anthropic/claude-opus", 0.02, 0.03, rank=2),
+            candidate("alpha/alpha-pro", 0.2, 0.4, rank=3),
+            candidate("beta/beta-pro", 0.3, 0.5, rank=4),
+            candidate("gamma/gamma-pro", 0.4, 0.6, rank=5),
+            candidate("delta/delta-pro", 0.5, 0.7, rank=6),
+        ]
+        selected = planner._distinct_company_rows(rows, 4)
+        self.assertEqual(
+            [row["model_id"] for row in selected],
+            [
+                "alpha/alpha-pro",
+                "beta/beta-pro",
+                "gamma/gamma-pro",
+                "delta/delta-pro",
+            ],
+        )
 
     def test_endpoint_inventory_requires_real_native_capacity(self) -> None:
         row = candidate("vendor/cheap-pro", 0.2, 0.4, rank=7)
@@ -217,8 +243,16 @@ class ExecutableFlagshipPriceSelectionTests(unittest.TestCase):
         )
         self.assertEqual(recovery, ["xiaomi/mimo-v2.5-pro"])
         self.assertTrue(plan["endpoint_qualification_performed_by_governance"])
-        self.assertEqual(plan["governance_companies_excluded"], ["anthropic", "openai"])
+        self.assertEqual(
+            plan["governance_companies_excluded_from_primary"],
+            ["anthropic", "openai"],
+        )
+        self.assertTrue(plan["governance_companies_allowed_in_recovery"])
         self.assertIn("live-exact-endpoint-qualified", plan["selection_policy"])
+        self.assertIn(
+            "primary-excludes-governance-vendors",
+            plan["selection_policy"],
+        )
         self.assertEqual(
             plan["price_rank_basis"],
             "prompt_usd_per_million + completion_usd_per_million",

@@ -77,17 +77,17 @@ class EightModelOrderedRecoveryTests(unittest.TestCase):
             4,
         )
 
-    def test_primary_companies_are_distinct_and_recovery_companies_may_repeat(self) -> None:
+    def test_primary_excludes_governance_vendors_and_recovery_may_use_them(self) -> None:
         selector = load_selector()
         rows = [
-            qualified("alpha/alpha-pro", 10, 1.0),
-            qualified("beta/beta-pro", 11, 2.0),
-            qualified("gamma/gamma-pro", 12, 3.0),
-            qualified("delta/delta-pro", 13, 4.0),
-            qualified("alpha/alpha-max", 14, 5.0),
-            qualified("beta/beta-max", 15, 6.0),
-            qualified("epsilon/epsilon-pro", 16, 7.0),
-            qualified("alpha/alpha-ultra", 17, 8.0),
+            qualified("deepseek/deepseek-v4-pro", 23, 1.305),
+            qualified("xiaomi/mimo-v2.5-pro", 25, 1.305),
+            qualified("amazon/nova-pro-v1", 129, 4.0),
+            qualified("nvidia/nemotron-3-ultra", 38, 4.2),
+            qualified("google/gemini-2.5-pro", 63, 11.25),
+            qualified("anthropic/claude-opus-5", 1, 30.0),
+            qualified("anthropic/claude-opus-4.8", 5, 30.0),
+            qualified("anthropic/claude-opus-4.7", 9, 30.0),
         ]
         with mock.patch.object(
             selector,
@@ -100,32 +100,38 @@ class EightModelOrderedRecoveryTests(unittest.TestCase):
         recovery = plan["recovery_models"]
         self.assertEqual(len(selected), 4)
         self.assertEqual(len(recovery), 4)
-        self.assertEqual(
-            len({row["company"] for row in selected}),
-            4,
+        self.assertEqual(len({row["company"] for row in selected}), 4)
+        self.assertFalse(
+            {"openai", "anthropic"}
+            & {row["company"] for row in selected}
         )
         self.assertEqual(
             [row["model"] for row in recovery],
             [
-                "alpha/alpha-max",
-                "beta/beta-max",
-                "epsilon/epsilon-pro",
-                "alpha/alpha-ultra",
+                "google/gemini-2.5-pro",
+                "anthropic/claude-opus-5",
+                "anthropic/claude-opus-4.8",
+                "anthropic/claude-opus-4.7",
             ],
         )
         self.assertEqual(
             [row["price_rank_usd_per_million"] for row in recovery],
-            [5.0, 6.0, 7.0, 8.0],
+            [11.25, 30.0, 30.0, 30.0],
         )
         models = [row["model"] for row in selected + recovery]
         self.assertEqual(len(models), 8)
         self.assertEqual(len(set(models)), 8)
-        self.assertLess(
-            len({row["company"] for row in selected + recovery}),
-            8,
+        self.assertEqual(
+            plan["governance_companies_excluded_from_primary"],
+            ["anthropic", "openai"],
         )
+        self.assertTrue(plan["governance_companies_allowed_in_recovery"])
         self.assertTrue(plan["recovery_models_are_price_ranked"])
         self.assertTrue(plan["recovery_models_are_sequential"])
+        self.assertIn(
+            "primary-excludes-governance-vendors",
+            plan["selection_policy"],
+        )
         self.assertIn(
             "unique-recovery-models",
             plan["selection_policy"],

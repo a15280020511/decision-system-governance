@@ -226,8 +226,6 @@ def _catalog_candidates(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
             continue
         seen.add(model_id)
         company = model_id.split("/", 1)[0].casefold()
-        if company in GOVERNANCE_COMPANIES:
-            continue
         if not _is_general_text(row) or not _not_expired(row):
             continue
         if not _is_general_flagship(_identity(row, model_id)):
@@ -544,12 +542,7 @@ def _distinct_model_rows(
     for row in rows:
         model = str(row.get("model_id") or "").strip()
         company = str(row.get("company") or "").strip()
-        if (
-            not model
-            or not company
-            or company in GOVERNANCE_COMPANIES
-            or model in models
-        ):
+        if not model or not company or model in models:
             continue
         _finite_cost(row)
         chosen.append(row)
@@ -639,7 +632,8 @@ def build_plan(ticket: Mapping[str, Any], token: str = "") -> dict[str, Any]:
         "selection_policy": (
             "openrouter-official-intelligence-top-150 -> paid-general-purpose-"
             "flagships -> live-exact-endpoint-qualified -> combined-token-price-"
-            "ascending -> distinct-primary-companies -> unique-recovery-models"
+            "ascending -> primary-excludes-governance-vendors -> "
+            "distinct-primary-companies -> unique-recovery-models"
         ),
         "price_rank_basis": "prompt_usd_per_million + completion_usd_per_million",
         "task_sha256": task_sha256(ticket),
@@ -650,7 +644,10 @@ def build_plan(ticket: Mapping[str, Any], token: str = "") -> dict[str, Any]:
         "selected_models": selected_models,
         "recovery_models": recovery_models,
         "endpoint_qualification_performed_by_governance": True,
-        "governance_companies_excluded": sorted(GOVERNANCE_COMPANIES),
+        "governance_companies_excluded_from_primary": sorted(
+            GOVERNANCE_COMPANIES
+        ),
+        "governance_companies_allowed_in_recovery": True,
         "provider_selection_authority": (
             "expert-runtime-cheapest-compatible-exact-endpoint-resolution-only"
         ),
