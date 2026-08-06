@@ -100,7 +100,8 @@ jobs:
         run: |
           set -euo pipefail
           title="$(gh api "repos/${CHILD_REPOSITORY}/issues/${ISSUE_NUMBER}" --jq '.title')"
-          test "$title" = "[execution] ${EXPECTED_TASK_ID}"
+          expected_title="[execution] ${EXPECTED_TASK_ID} via governance"
+          test "$title" = "$expected_title"
           gh api "repos/${CHILD_REPOSITORY}/issues/${ISSUE_NUMBER}" \
             --jq '.body // ""' > source-ticket.json
 
