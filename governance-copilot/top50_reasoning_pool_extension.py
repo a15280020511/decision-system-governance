@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Attach a live OpenRouter top-50 weekly reasoning pool to expert plans.
 
-This is an additive extension to the legacy top-20 contract. The top-20 fields
-remain intact for rollback and compatibility; the complete top-50 pool is sent
-to the expert center for deterministic OR-Tools assignment. No model is called.
+The governance center freezes model identities and model-level metadata only.
+Provider selection is intentionally unrestricted: no ZDR/provider allowlist,
+provider inventory, provider-count floor, or exact-endpoint qualification is
+used to admit a top-50 candidate. OpenRouter may route a selected model through
+any currently available provider at execution time. No model is called here.
 """
 from __future__ import annotations
 
@@ -15,17 +17,17 @@ from typing import Any, Mapping
 
 TOP50_POOL_SIZE = 50
 MINIMUM_EXECUTABLE_COMPANIES = 8
-POOL_SCHEMA_VERSION = "governance-openrouter-top50-reasoning-pool-v1"
+POOL_SCHEMA_VERSION = "governance-openrouter-top50-reasoning-pool-v2-open-provider"
 POOL_SOURCE = "openrouter-most-popular-last-week-token-volume"
 POPULARITY_PERIOD = "week"
 SELECTION_EVIDENCE = (
-    "openrouter-top-weekly-reasoning+live-exact-endpoint-qualified+"
-    "authenticated-zdr-endpoint-qualified"
+    "openrouter-top-weekly-reasoning+model-metadata-qualified+"
+    "unrestricted-openrouter-provider-routing"
 )
 
 
 class Top50ReasoningPoolError(RuntimeError):
-    """Raised when a complete, executable top-50 pool cannot be formed."""
+    """Raised when a complete model-level top-50 pool cannot be formed."""
 
 
 def _canonical_json(value: Any) -> bytes:
@@ -113,9 +115,7 @@ def _raw_pool_rows(
                     top_provider.get("max_completion_tokens") or 0
                 ),
                 "prompt_usd_per_million": _price_per_million(pricing, "prompt"),
-                "completion_usd_per_million": _price_per_million(
-                    pricing, "completion"
-                ),
+                "completion_usd_per_million": _price_per_million(pricing, "completion"),
                 "request_usd": _request_price(pricing),
                 "expiration_date": row.get("expiration_date"),
                 "input_modalities": list(architecture.get("input_modalities") or []),
@@ -124,6 +124,7 @@ def _raw_pool_rows(
                 "reasoning_supported": True,
                 "pool_source": POOL_SOURCE,
                 "popularity_period": POPULARITY_PERIOD,
+                "provider_routing_mode": "unrestricted-openrouter",
             }
         )
         seen.add(model_id)
@@ -132,8 +133,7 @@ def _raw_pool_rows(
 
     if len(pool) != TOP50_POOL_SIZE:
         raise Top50ReasoningPoolError(
-            f"OpenRouter returned only {len(pool)} ranked reasoning models; "
-            f"need {TOP50_POOL_SIZE}"
+            f"OpenRouter returned only {len(pool)} ranked reasoning models; need {TOP50_POOL_SIZE}"
         )
     return pool, payload
 
@@ -166,14 +166,7 @@ def _direct_candidate(
     company = str(pool_row.get("company") or "").strip().casefold()
     prompt = _number(pool_row.get("prompt_usd_per_million"))
     completion = _number(pool_row.get("completion_usd_per_million"))
-    if (
-        not model_id
-        or not company
-        or prompt is None
-        or completion is None
-        or prompt < 0
-        or completion < 0
-    ):
+    if not model_id or not company or prompt is None or completion is None or prompt < 0 or completion < 0:
         return None
     combined = prompt + completion
     return {
@@ -192,29 +185,22 @@ def _direct_candidate(
     }
 
 
-def _candidate_record(qualified: Mapping[str, Any], slot: int) -> dict[str, Any]:
+def _candidate_record(candidate: Mapping[str, Any], slot: int, required_context: int) -> dict[str, Any]:
     return {
         "slot": slot,
         "candidate_price_rank": slot,
-        "model": str(qualified["model_id"]),
-        "company": str(qualified["company"]),
-        "estimated_task_cost_usd": float(qualified["estimated_task_cost_usd"]),
-        "price_rank_usd_per_million": float(
-            qualified["price_rank_usd_per_million"]
-        ),
-        "prompt_usd_per_million": float(qualified["prompt_usd_per_million"]),
-        "completion_usd_per_million": float(
-            qualified["completion_usd_per_million"]
-        ),
-        "request_usd": float(qualified.get("request_usd") or 0.0),
-        "official_intelligence_rank": int(
-            qualified.get("official_intelligence_rank") or 1_000_000
-        ),
-        "popularity_rank": int(qualified["popularity_rank"]),
-        "qualified_provider_count": int(qualified["qualified_provider_count"]),
-        "endpoint_inventory_sha256": str(qualified["endpoint_inventory_sha256"]),
-        "required_context_tokens": int(qualified["required_context_tokens"]),
-        "minimum_completion_tokens": int(qualified["minimum_completion_tokens"]),
+        "model": str(candidate["model_id"]),
+        "company": str(candidate["company"]),
+        "estimated_task_cost_usd": float(candidate["estimated_task_cost_usd"]),
+        "price_rank_usd_per_million": float(candidate["price_rank_usd_per_million"]),
+        "prompt_usd_per_million": float(candidate["prompt_usd_per_million"]),
+        "completion_usd_per_million": float(candidate["completion_usd_per_million"]),
+        "request_usd": float(candidate.get("request_usd") or 0.0),
+        "official_intelligence_rank": int(candidate.get("official_intelligence_rank") or 1_000_000),
+        "popularity_rank": int(candidate["popularity_rank"]),
+        "context_length": int(candidate.get("context_length") or 0),
+        "max_completion_tokens": int(candidate.get("max_completion_tokens") or 0),
+        "required_context_tokens": int(required_context),
         "reasoning_rank_verified": True,
         "reasoning_supported": True,
         "ranking_basis": POOL_SOURCE,
@@ -223,6 +209,8 @@ def _candidate_record(qualified: Mapping[str, Any], slot: int) -> dict[str, Any]
         "source_pool": POOL_SOURCE,
         "selection_evidence": SELECTION_EVIDENCE,
         "expert_center_selectable": True,
+        "provider_routing_mode": "unrestricted-openrouter",
+        "provider_restrictions_applied": False,
     }
 
 
@@ -243,7 +231,7 @@ def _eligible_records(
     raw_pool: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     intelligence = _intelligence_rank_map(selector, token)
-    required_context = selector._required_context_tokens(ticket)
+    required_context = int(selector._required_context_tokens(ticket))
     qualified: list[dict[str, Any]] = []
     exclusions: list[dict[str, Any]] = []
     seen_models: set[str] = set()
@@ -254,26 +242,16 @@ def _eligible_records(
             continue
         seen_models.add(model_id)
         if callable(stable_model_id) and not stable_model_id(model_id):
-            exclusions.append(
-                _exclusion(pool_row, "unstable-or-route-suffixed-model-id")
-            )
+            exclusions.append(_exclusion(pool_row, "unstable-or-route-suffixed-model-id"))
             continue
-        candidate = _direct_candidate(
-            pool_row,
-            int(intelligence.get(model_id, 1_000_000)),
-        )
+        candidate = _direct_candidate(pool_row, int(intelligence.get(model_id, 1_000_000)))
         if candidate is None:
             exclusions.append(_exclusion(pool_row, "invalid-or-missing-price-metadata"))
             continue
-        row = selector._qualify_candidate(candidate, token, required_context)
-        if not isinstance(row, Mapping):
-            exclusions.append(
-                _exclusion(pool_row, "no-compatible-authenticated-zdr-endpoint")
-            )
+        if int(candidate.get("context_length") or 0) < required_context:
+            exclusions.append(_exclusion(pool_row, "model-context-below-task-requirement"))
             continue
-        normalized = dict(row)
-        normalized["popularity_rank"] = int(pool_row["popularity_rank"])
-        qualified.append(_candidate_record(normalized, len(qualified) + 1))
+        qualified.append(_candidate_record(candidate, len(qualified) + 1, required_context))
 
     qualified.sort(
         key=lambda row: (
@@ -287,9 +265,7 @@ def _eligible_records(
         row["slot"] = slot
         row["candidate_price_rank"] = slot
 
-    exclusions.sort(
-        key=lambda row: (int(row["popularity_rank"]), str(row["model"]))
-    )
+    exclusions.sort(key=lambda row: (int(row["popularity_rank"]), str(row["model"])))
     distinct_companies = {
         str(row.get("company") or "").strip().casefold()
         for row in qualified
@@ -297,9 +273,8 @@ def _eligible_records(
     }
     if len(distinct_companies) < MINIMUM_EXECUTABLE_COMPANIES:
         raise Top50ReasoningPoolError(
-            "top-50 reasoning pool has insufficient distinct-company executable "
-            f"candidates: need {MINIMUM_EXECUTABLE_COMPANIES}, "
-            f"found {len(distinct_companies)}"
+            "top-50 reasoning pool has insufficient distinct-company executable candidates: "
+            f"need {MINIMUM_EXECUTABLE_COMPANIES}, found {len(distinct_companies)}"
         )
     return qualified, exclusions
 
@@ -312,9 +287,7 @@ def attach_pool(
 ) -> dict[str, Any]:
     raw_pool, _ = _raw_pool_rows(selector, token)
     eligible, exclusions = _eligible_records(selector, ticket, token, raw_pool)
-    distinct_company_count = len(
-        {str(row["company"]).strip().casefold() for row in eligible}
-    )
+    distinct_company_count = len({str(row["company"]).strip().casefold() for row in eligible})
     enriched = dict(plan)
     enriched.update(
         {
@@ -332,24 +305,22 @@ def attach_pool(
             "top50_model_assignment_authority": "expert-assessment-center-ortools",
             "expert_center_top50_pool_selection_allowed": True,
             "expert_center_top50_pool_selection_policy": (
-                "weekly-top50-reasoning-is-candidate-universe -> exact-zdr-endpoint-"
-                "qualified -> ortools-cp-sat-four-primary-four-warm-recovery -> "
-                "all-remaining-models-ordered-standby"
+                "weekly-top50-reasoning-model-metadata-qualified -> "
+                "ortools-cp-sat-four-primary-four-warm-recovery -> "
+                "openrouter-unrestricted-provider-routing"
             ),
+            "top50_provider_routing_mode": "unrestricted-openrouter",
+            "top50_provider_restrictions_applied": False,
+            "top50_provider_endpoint_qualification_required": False,
+            "top50_zdr_provider_qualification_required": False,
             "top50_old_flagship_filter_applied": False,
             "top50_route_suffixed_models_preserved_but_not_executed": True,
             "top50_model_calls": 0,
         }
     )
-    enriched["top50_reasoning_pool_sha256"] = hashlib.sha256(
-        _canonical_json(raw_pool)
-    ).hexdigest()
-    enriched["top50_expert_selectable_candidates_sha256"] = hashlib.sha256(
-        _canonical_json(eligible)
-    ).hexdigest()
-    enriched["top50_expert_ineligible_models_sha256"] = hashlib.sha256(
-        _canonical_json(exclusions)
-    ).hexdigest()
+    enriched["top50_reasoning_pool_sha256"] = hashlib.sha256(_canonical_json(raw_pool)).hexdigest()
+    enriched["top50_expert_selectable_candidates_sha256"] = hashlib.sha256(_canonical_json(eligible)).hexdigest()
+    enriched["top50_expert_ineligible_models_sha256"] = hashlib.sha256(_canonical_json(exclusions)).hexdigest()
     material = dict(enriched)
     material.pop("plan_sha256", None)
     enriched["plan_sha256"] = hashlib.sha256(_canonical_json(material)).hexdigest()
