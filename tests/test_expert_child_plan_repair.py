@@ -121,6 +121,14 @@ class ExpertChildPlanRepairTests(unittest.TestCase):
         self.assertIn("shlex.split", text)
         self.assertIn("len(parts) != 4", text)
 
+    def test_workflow_uses_exact_governance_child_title_contract(self) -> None:
+        text = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn(
+            'expected_title="[execution] ${EXPECTED_TASK_ID} via governance"',
+            text,
+        )
+        self.assertIn('test "$title" = "$expected_title"', text)
+
     def test_workflow_updates_same_issue_and_uses_cross_repo_control_token(self) -> None:
         text = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("a15280020511/expert-assessment-center", text)
