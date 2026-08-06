@@ -326,7 +326,8 @@ def patch_selector(selector: Any) -> None:
         def build_plan(
             ticket: Mapping[str, Any], token: str = ""
         ) -> dict[str, Any]:
-            plan = original_build_plan(ticket, token)
+            normalized_ticket = normalize_recovery_budget(ticket)
+            plan = original_build_plan(normalized_ticket, token)
             _assign_intelligence_ranked_roles(selector, plan)
             if int(plan.get("recovery_count") or 0) < MINIMUM_GOVERNANCE_RECOVERY_MODELS:
                 raise ExpertTaskEnvelopeError(
