@@ -4,7 +4,7 @@
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 152,
-  "total_bytes": 982017,
+  "total_bytes": 982573,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -453,8 +453,8 @@
     },
     {
       "path": "governance-copilot/expert_task_envelope.py",
-      "size_bytes": 16884,
-      "sha256": "a529e3c558d8c71fd6ab80818f8f9e8c648c6117811e529bfe0113ecd32484ed"
+      "size_bytes": 16896,
+      "sha256": "c6e958c958262c0f6867f4717aed849719bbbd90aeb6c4a70b42fa4f5079f1ae"
     },
     {
       "path": "governance-copilot/production-qualification.json",
@@ -468,8 +468,8 @@
     },
     {
       "path": "governance-copilot/select_expert_team_plan.py",
-      "size_bytes": 24942,
-      "sha256": "5ec75d8180d9507395c9414a5ab23e8661fc4ab1cb36ebb3027f1f2824450602"
+      "size_bytes": 24943,
+      "sha256": "b2895c74ecd98d1734bb753d3d197430ec1a69ba857809437c7d4bce2dd1e1ab"
     },
     {
       "path": "governance-copilot/select_paid_governance_flagship_model.py",
@@ -623,8 +623,8 @@
     },
     {
       "path": "tests/test_expert_child_plan_repair.py",
-      "size_bytes": 6358,
-      "sha256": "8378859ef144fd9d44225d85825650b8ac2907493620fb097266408a5649afa0"
+      "size_bytes": 6226,
+      "sha256": "5fcec5a1bda86b3a59d0cb1a67bde2acd029d3faa4ba6131984a785e8fa3ba00"
     },
     {
       "path": "tests/test_expert_intelligence_ranked_roles.py",
@@ -648,13 +648,13 @@
     },
     {
       "path": "tests/test_expert_task_envelope_compatibility.py",
-      "size_bytes": 4448,
-      "sha256": "7008c3144dd017d0636bac4331d4d48ca607ba77349fe8d28e11e1464d8a6825"
+      "size_bytes": 5011,
+      "sha256": "dbcece02b28cdbb263fbc703b13c31fc687d70e284283633c88f3da9a8aea421"
     },
     {
       "path": "tests/test_expert_zdr_endpoint_parity.py",
-      "size_bytes": 10048,
-      "sha256": "1328607ccc8490335bde996caee695fd132ac2143d7d9a4dec3e1ec9ee3c74a6"
+      "size_bytes": 10160,
+      "sha256": "f9dca08f6fdb8bfd749ee6351ede085972e3ddd101954074bb4d5d29c5f7810f"
     },
     {
       "path": "tests/test_governance_issue_guard.py",
