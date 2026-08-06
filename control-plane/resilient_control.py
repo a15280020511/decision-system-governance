@@ -57,6 +57,44 @@ def _write_status(root: Path, status: dict[str, Any]) -> None:
             )
 
 
+def _adapt_expert_execution_contract(ticket: dict[str, Any]) -> dict[str, Any]:
+    """Translate the governance expert ticket into the center's public schema."""
+    adapted = dict(ticket)
+    task_id = str(adapted.get("task_id") or "").strip()
+    if not task_id:
+        raise ValueError("expert child ticket task_id is required")
+
+    adapted["route"] = "expert-team"
+
+    pipeline = adapted.get("pipeline")
+    if isinstance(pipeline, str):
+        adapted["pipeline"] = {
+            "pipeline_id": task_id,
+            "stage_id": "expert",
+            "sequence_reason": "Governance-routed expert assessment",
+        }
+    elif pipeline is None:
+        adapted["pipeline"] = {
+            "pipeline_id": task_id,
+            "stage_id": "expert",
+            "sequence_reason": "Governance-routed expert assessment",
+        }
+    elif not isinstance(pipeline, dict):
+        raise ValueError("expert child ticket pipeline must be a string or object")
+
+    budget = adapted.get("approved_budget")
+    if not isinstance(budget, dict):
+        raise ValueError("expert child ticket approved_budget must be an object")
+    governed_budget = dict(budget)
+    governed_budget.setdefault("cost_policy", "prompt_led_soft_governance")
+    adapted["approved_budget"] = governed_budget
+
+    if adapted.get("private_output") not in (None, False):
+        raise ValueError("expert child ticket private_output must be false")
+    adapted["private_output"] = False
+    return adapted
+
+
 def _attach_expert_model_plan(arguments: Any) -> int:
     root = Path(arguments.output_dir)
     status_path = root / "prepare-status.json"
@@ -71,6 +109,7 @@ def _attach_expert_model_plan(arguments: Any) -> int:
             raise EXPERT_SELECTOR.ExpertPlanError(
                 "child expert ticket root must be an object"
             )
+        ticket = _adapt_expert_execution_contract(ticket)
         enriched, plan = EXPERT_SELECTOR.enrich_ticket(
             ticket,
             os.getenv("OPENROUTER_API_KEY", ""),
@@ -84,6 +123,9 @@ def _attach_expert_model_plan(arguments: Any) -> int:
                 "selected_expert_count": plan["expert_count"],
                 "selected_recovery_count": plan["recovery_count"],
                 "expert_center_model_selection_allowed": False,
+                "expert_child_contract": "execution-ticket-v5",
+                "expert_child_route": "expert-team",
+                "expert_child_cost_policy": "prompt_led_soft_governance",
             }
         )
         _write_status(root, status)
