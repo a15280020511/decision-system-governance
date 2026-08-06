@@ -37,40 +37,53 @@ def ticket(calls: int, recovery: int) -> dict:
 
 
 class GovernanceRecoveryBudgetTests(unittest.TestCase):
-    def test_zero_recovery_is_upgraded_without_reducing_initial_capacity(self) -> None:
+    def test_four_primary_zero_recovery_becomes_eight_total_four_recovery(self) -> None:
         source = ticket(4, 0)
         normalized = policy.normalize_recovery_budget(source)
         self.assertEqual(source["approved_budget"]["calls"], 4)
         self.assertEqual(source["approved_budget"]["maximum_recovery_calls"], 0)
-        self.assertEqual(normalized["approved_budget"]["calls"], 5)
-        self.assertEqual(normalized["approved_budget"]["maximum_recovery_calls"], 1)
+        self.assertEqual(normalized["approved_budget"]["calls"], 8)
+        self.assertEqual(normalized["approved_budget"]["maximum_recovery_calls"], 4)
         self.assertEqual(
             normalized["approved_budget"]["calls"]
             - normalized["approved_budget"]["maximum_recovery_calls"],
             4,
         )
 
-    def test_existing_larger_recovery_reserve_is_preserved(self) -> None:
-        source = ticket(6, 2)
+    def test_partial_recovery_reserve_is_upgraded_to_four(self) -> None:
+        normalized = policy.normalize_recovery_budget(ticket(6, 2))
+        self.assertEqual(normalized["approved_budget"]["calls"], 8)
+        self.assertEqual(normalized["approved_budget"]["maximum_recovery_calls"], 4)
+        self.assertEqual(
+            normalized["approved_budget"]["calls"]
+            - normalized["approved_budget"]["maximum_recovery_calls"],
+            4,
+        )
+
+    def test_existing_eight_plus_four_budget_is_preserved(self) -> None:
+        source = ticket(8, 4)
         normalized = policy.normalize_recovery_budget(source)
         self.assertEqual(normalized["approved_budget"], source["approved_budget"])
 
-    def test_maximum_total_budget_still_gets_one_recovery_slot(self) -> None:
+    def test_maximum_total_budget_keeps_four_recovery_slots(self) -> None:
         normalized = policy.normalize_recovery_budget(ticket(16, 0))
         self.assertEqual(normalized["approved_budget"]["calls"], 16)
-        self.assertEqual(normalized["approved_budget"]["maximum_recovery_calls"], 1)
+        self.assertEqual(normalized["approved_budget"]["maximum_recovery_calls"], 4)
         self.assertGreaterEqual(
             normalized["approved_budget"]["calls"]
             - normalized["approved_budget"]["maximum_recovery_calls"],
-            3,
+            4,
         )
 
-    def test_recovery_policy_covers_transport_and_empty_output_failures(self) -> None:
-        self.assertEqual(policy.MINIMUM_GOVERNANCE_RECOVERY_MODELS, 1)
+    def test_recovery_policy_is_price_ranked_and_sequential(self) -> None:
+        self.assertEqual(policy.MINIMUM_GOVERNANCE_RECOVERY_MODELS, 4)
         self.assertEqual(
             policy.RECOVERY_POOL_POLICY,
             "shared-governance-approved-candidates",
         )
+        self.assertIn("four-price-ranked-recovery-models", policy.RECOVERY_ORDER_POLICY)
+        self.assertIn("sequential-attempts", policy.RECOVERY_ORDER_POLICY)
+        self.assertIn("stop-after-first-success", policy.RECOVERY_ORDER_POLICY)
         self.assertIn("PROVIDER_TIMEOUT", policy.RECOVERY_TRIGGER_CATEGORIES)
         self.assertIn("PROVIDER_EMPTY_RESPONSE", policy.RECOVERY_TRIGGER_CATEGORIES)
         self.assertIn("PROVIDER_RATE_LIMITED", policy.RECOVERY_TRIGGER_CATEGORIES)
