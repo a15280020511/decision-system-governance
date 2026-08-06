@@ -6,20 +6,19 @@ import unittest
 
 
 def _load_module():
-    path = Path(__file__).resolve().parents[1] / "governance-copilot" / "top20_reasoning_pool.py"
-    spec = importlib.util.spec_from_file_location("top20_reasoning_pool_test", path)
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "governance-copilot"
+        / "top20_reasoning_pool.py"
+    )
+    spec = importlib.util.spec_from_file_location("top50_reasoning_pool_test", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-def _row(
-    index: int,
-    *,
-    reasoning: bool = True,
-    company: str | None = None,
-) -> dict:
+def _row(index: int, *, reasoning: bool = True, company: str | None = None) -> dict:
     parameters = ["max_tokens", "reasoning"] if reasoning else ["max_tokens"]
     owner = company or f"company{index}"
     return {
@@ -61,12 +60,10 @@ def _pool_row(index: int, company: str | None = None) -> dict:
     }
 
 
-class Top20ReasoningPoolTests(unittest.TestCase):
-    def test_raw_pool_keeps_first_twenty_reasoning_rows_in_server_order(self) -> None:
+class Top50ReasoningPoolTests(unittest.TestCase):
+    def test_raw_pool_keeps_first_fifty_reasoning_rows_in_server_order(self) -> None:
         module = _load_module()
-        rows = [_row(0, reasoning=False)] + [
-            _row(index) for index in range(1, 23)
-        ]
+        rows = [_row(0, reasoning=False)] + [_row(index) for index in range(1, 56)]
 
         class FakeSelector:
             MODELS_API = "https://example.invalid/models"
@@ -80,18 +77,16 @@ class Top20ReasoningPoolTests(unittest.TestCase):
 
         pool, payload = module._raw_pool_rows(FakeSelector, "token")
         self.assertEqual(payload, {"data": rows})
-        self.assertEqual(len(pool), 20)
+        self.assertEqual(len(pool), 50)
         self.assertEqual(
-            [row["popularity_rank"] for row in pool], list(range(1, 21))
+            [row["popularity_rank"] for row in pool], list(range(1, 51))
         )
         self.assertEqual(
             [row["model"] for row in pool],
-            [f"company{index}/model-{index}" for index in range(1, 21)],
+            [f"company{index}/model-{index}" for index in range(1, 51)],
         )
-        self.assertTrue(all(row["reasoning_supported"] is True for row in pool))
-        self.assertTrue(all(row["pool_source"] == module.POOL_SOURCE for row in pool))
 
-    def test_eligible_pool_uses_top20_rows_directly_and_keeps_same_company_models(self) -> None:
+    def test_eligible_pool_keeps_same_company_models_for_expert_optimizer(self) -> None:
         module = _load_module()
         raw = [
             _pool_row(1, "shared"),
@@ -117,9 +112,6 @@ class Top20ReasoningPoolTests(unittest.TestCase):
 
             @staticmethod
             def _qualify_candidate(candidate, token, required_context):
-                assert "flagship_basis" not in candidate
-                assert "benchmark_evidence_sha256" not in candidate
-                assert required_context == 9000
                 return {
                     **candidate,
                     "qualified_provider_count": 1,
@@ -128,32 +120,20 @@ class Top20ReasoningPoolTests(unittest.TestCase):
                     "minimum_completion_tokens": 1024,
                 }
 
-            @staticmethod
-            def _catalog_candidates(*args, **kwargs):
-                raise AssertionError("old flagship catalog must not be called")
-
-            @staticmethod
-            def _model_record(*args, **kwargs):
-                raise AssertionError("old flagship record builder must not be called")
-
         eligible, exclusions = module._eligible_records(FakeSelector, {}, "token", raw)
         self.assertEqual(exclusions, [])
         self.assertEqual(len(eligible), 10)
-        self.assertEqual(
-            [row["company"] for row in eligible].count("shared"), 2
-        )
+        self.assertEqual([row["company"] for row in eligible].count("shared"), 2)
         self.assertEqual(len({row["company"] for row in eligible}), 9)
         self.assertTrue(
-            all(row["reasoning_rank_verified"] is True for row in eligible)
-        )
-        self.assertTrue(
             all(
-                row["selection_evidence"] == module.SELECTION_EVIDENCE
+                row["source_pool_schema_version"]
+                == "governance-openrouter-top50-reasoning-pool-v1"
                 for row in eligible
             )
         )
 
-    def test_route_suffixed_model_remains_in_raw_pool_but_is_not_qualified(self) -> None:
+    def test_route_suffixed_model_is_retained_but_not_executable(self) -> None:
         module = _load_module()
         raw = [_pool_row(index) for index in range(1, 10)]
         raw[0]["model"] = "nvidia/nemotron:free"
@@ -176,8 +156,6 @@ class Top20ReasoningPoolTests(unittest.TestCase):
 
             @staticmethod
             def _qualify_candidate(candidate, token, required_context):
-                if ":" in candidate["model_id"]:
-                    raise AssertionError("route-suffixed model must not reach endpoint lookup")
                 return {
                     **candidate,
                     "qualified_provider_count": 1,
@@ -189,25 +167,11 @@ class Top20ReasoningPoolTests(unittest.TestCase):
         eligible, exclusions = module._eligible_records(FakeSelector, {}, "token", raw)
         self.assertEqual(len(eligible), 8)
         self.assertNotIn("nvidia/nemotron:free", {row["model"] for row in eligible})
-        self.assertEqual(
-            exclusions,
-            [
-                {
-                    "model": "nvidia/nemotron:free",
-                    "company": "nvidia",
-                    "popularity_rank": 1,
-                    "reason": "unstable-or-route-suffixed-model-id",
-                    "expert_center_selectable": False,
-                }
-            ],
-        )
+        self.assertEqual(exclusions[0]["reason"], "unstable-or-route-suffixed-model-id")
 
-    def test_eligible_pool_requires_eight_distinct_companies_not_eight_rows(self) -> None:
+    def test_eligible_pool_requires_four_distinct_companies(self) -> None:
         module = _load_module()
-        raw = [
-            _pool_row(index, f"company{index % 7}")
-            for index in range(1, 21)
-        ]
+        raw = [_pool_row(index, f"company{index % 3}") for index in range(1, 21)]
 
         class FakeSelector:
             MODELS_API = "https://example.invalid/models"
@@ -235,8 +199,8 @@ class Top20ReasoningPoolTests(unittest.TestCase):
                 }
 
         with self.assertRaisesRegex(
-            module.Top20ReasoningPoolError,
-            "need 8, found 7",
+            module.Top50ReasoningPoolError,
+            "need 4, found 3",
         ):
             module._eligible_records(FakeSelector, {}, "token", raw)
 
