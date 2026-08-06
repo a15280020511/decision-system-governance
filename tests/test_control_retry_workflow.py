@@ -16,10 +16,9 @@ class ControlRetryWorkflowTests(unittest.TestCase):
             text,
         )
         self.assertIn("actions: write", text)
-        self.assertIn(
-            "gh workflow run control-plane-ticket.yml --ref main",
-            text,
-        )
+        self.assertIn("gh workflow run control-plane-ticket.yml", text)
+        self.assertIn('--repo "$GITHUB_REPOSITORY"', text)
+        self.assertIn("--ref main", text)
         self.assertNotIn("issues: write", text)
         self.assertNotIn("CONTROL_PLANE_TOKEN", text)
 
