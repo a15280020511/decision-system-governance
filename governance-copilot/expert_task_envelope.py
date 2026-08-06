@@ -16,7 +16,7 @@ import hashlib
 import json
 from typing import Any, Mapping
 
-SCHEMA_VERSION = "governance-expert-task-envelope-v8"
+SCHEMA_VERSION = "governance-expert-task-envelope-v9"
 EXPERT_RUNTIME_SCHEMA_VERSION = "v5-minimal-task-envelope-1"
 MINIMUM_CONTEXT_LENGTH = 16_384
 FIXED_PROTOCOL_RESERVE = 8_192
@@ -25,7 +25,7 @@ MINIMUM_GOVERNANCE_RECOVERY_MODELS = 4
 MAXIMUM_TOTAL_MODEL_CALLS = 16
 ZDR_ENDPOINTS_API = "https://openrouter.ai/api/v1/endpoints/zdr"
 ZDR_SELECTOR_SCHEMA_VERSION = (
-    "governance-openrouter-live-unique-company-strict-reasoning-flagship-price-v9"
+    "governance-openrouter-live-unique-company-general-reasoning-flagship-price-v10"
 )
 ROLE_ASSIGNMENT_POLICY = (
     "live-price-minimal-unique-company-set -> official-intelligence-rank-ascending -> "
@@ -335,7 +335,7 @@ def patch_selector(selector: Any) -> None:
             record = original_model_record(row, slot=slot)
             if has_live_endpoint_primitives:
                 record["selection_evidence"] = (
-                    "strict-tier+company-highest-intelligence-reasoning-flagship+price-order+"
+                    "non-search+strict-tier+company-highest-intelligence-reasoning-flagship+price-order+"
                     "live-exact-endpoint-qualified+authenticated-zdr-endpoint-qualified+"
                     "minimum-one-zdr-provider-route"
                 )
@@ -361,7 +361,8 @@ def patch_selector(selector: Any) -> None:
                 )
             plan["selection_policy"] = (
                 "openrouter-official-intelligence-top-1000 -> reasoning-parameter-required -> "
-                "strict-flagship-tier-required -> stable-paid-general-purpose-models -> "
+                "strict-flagship-tier-required -> search-specialists-excluded -> "
+                "stable-paid-general-purpose-models -> "
                 "highest-intelligence-model-per-"
                 "company-as-flagship -> live-exact-endpoint-qualified -> authenticated-"
                 "zdr-endpoint-qualified -> minimum-one-zdr-provider-route -> combined-"
