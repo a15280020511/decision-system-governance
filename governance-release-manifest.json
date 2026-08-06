@@ -4,7 +4,7 @@
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 154,
-  "total_bytes": 1029619,
+  "total_bytes": 1029610,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -478,8 +478,8 @@
     },
     {
       "path": "governance-copilot/top20_reasoning_pool.py",
-      "size_bytes": 14661,
-      "sha256": "a825475b224578341eacdb0a656785d5aa8b18282e13bdbe837f665d24089d7a"
+      "size_bytes": 15922,
+      "sha256": "ac358435157db4aa79f637e36a52e5ae618b4573aec6051aef37e9c41a678a0a"
     },
     {
       "path": "governance-resilience-matrix.json",
@@ -743,8 +743,8 @@
     },
     {
       "path": "tests/test_top20_reasoning_pool.py",
-      "size_bytes": 8729,
-      "sha256": "b164cf607b1abf590130e7ef93864ed5573d5e9c7938b56cd0ef663f6a534bfa"
+      "size_bytes": 7459,
+      "sha256": "6c6777c00fb4d4f7dd7693426b80e70a7d4c2969f8db0a833d299ecacf549416"
     },
     {
       "path": "tools/generate_governance_release_manifest.py",
