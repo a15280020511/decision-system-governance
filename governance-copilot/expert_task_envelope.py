@@ -107,7 +107,7 @@ def normalize_recovery_budget(ticket: Mapping[str, Any]) -> dict[str, Any]:
     normalized = dict(ticket)
     normalized_budget = dict(budget)
     if recovery < MINIMUM_GOVERNANCE_RECOVERY_MODELS:
-        initial_capacity = calls - recovery
+        initial_capacity = max(4, calls - recovery)
         normalized_recovery = MINIMUM_GOVERNANCE_RECOVERY_MODELS
         normalized_calls = min(
             MAXIMUM_TOTAL_MODEL_CALLS,
