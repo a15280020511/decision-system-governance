@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Create a governance-owned, price-ordered, executable expert model plan.
 
-Selection remains deliberately simple: use OpenRouter's official intelligence
-order as the eligibility ceiling, retain explicit paid flagship tiers, verify a
-real exact provider endpoint for the current task, sort by combined token price,
-keep only the cheapest qualified flagship from each company, and use the first
-four companies as active experts plus the next four companies as ordered standbys.
+Selection remains deliberately simple: read OpenRouter's live official
+intelligence order, retain paid general-purpose models that explicitly support
+reasoning, keep only the highest-intelligence eligible reasoning model from each
+company as that company's flagship, verify a real exact provider endpoint, then
+sort those company flagships by combined token price. The first four are active
+experts and the next four are ordered standbys.
 """
 from __future__ import annotations
 
@@ -26,7 +27,7 @@ from typing import Any, Mapping, Sequence
 MODELS_API = "https://openrouter.ai/api/v1/models"
 ENDPOINTS_API = "https://openrouter.ai/api/v1/models/{author}/{slug}/endpoints"
 SCHEMA_VERSION = "governance-expert-model-plan-v1"
-SELECTOR_SCHEMA_VERSION = "governance-openrouter-executable-flagship-price-v4"
+SELECTOR_SCHEMA_VERSION = "governance-openrouter-company-top-reasoning-price-v5"
 SELECTION_AUTHORITY = "decision-system-governance"
 DEFAULT_EXPERT_COUNT = 4
 MIN_EXPERT_COUNT = 3
@@ -43,9 +44,12 @@ FORBIDDEN_MODEL_TERMS = (
     "preview",
 )
 
-FLAGSHIP_TIER = re.compile(
-    r"(?:^|[-_ /])(pro|max|opus|ultra|premier)(?:$|[-_ /0-9])",
-    re.IGNORECASE,
+REASONING_PARAMETER = "reasoning"
+COMPANY_FLAGSHIP_BASIS = (
+    "highest-official-intelligence-ranked-eligible-reasoning-model-per-company"
+)
+REASONING_CAPABILITY_SOURCE = (
+    "openrouter-models-api-supported-parameters-or-reasoning-metadata"
 )
 EXCLUDED_TIER = re.compile(
     r"(?:^|[-_ /])"
@@ -200,10 +204,21 @@ def _identity(row: Mapping[str, Any], model_id: str) -> str:
     return " ".join((model_name, canonical, name))
 
 
-def _is_general_flagship(identity: str) -> bool:
+def _reasoning_evidence(row: Mapping[str, Any]) -> str:
+    supported = row.get("supported_parameters")
+    if isinstance(supported, list):
+        normalized = {str(value).strip().casefold() for value in supported}
+        if REASONING_PARAMETER in normalized:
+            return "models-api-supported-parameter-reasoning"
+    if isinstance(row.get("reasoning"), Mapping):
+        return "models-api-reasoning-metadata"
+    return ""
+
+
+def _is_general_reasoning_model(row: Mapping[str, Any], identity: str) -> bool:
     lowered = identity.lower()
-    return (
-        bool(FLAGSHIP_TIER.search(identity))
+    return bool(
+        _reasoning_evidence(row)
         and not EXCLUDED_TIER.search(identity)
         and not any(marker in lowered for marker in SPECIALIZED_MARKERS)
     )
@@ -214,7 +229,7 @@ def _catalog_candidates(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
     if not isinstance(rows, list) or not rows:
         raise ExpertPlanError("OpenRouter model catalog is empty")
 
-    candidates: list[dict[str, Any]] = []
+    company_flagships: dict[str, dict[str, Any]] = {}
     seen: set[str] = set()
     for official_rank, row in enumerate(rows, 1):
         if official_rank > OFFICIAL_INTELLIGENCE_RANK_LIMIT:
@@ -226,9 +241,12 @@ def _catalog_candidates(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
             continue
         seen.add(model_id)
         company = model_id.split("/", 1)[0].casefold()
+        if company in company_flagships:
+            continue
         if not _is_general_text(row) or not _not_expired(row):
             continue
-        if not _is_general_flagship(_identity(row, model_id)):
+        identity = _identity(row, model_id)
+        if not _is_general_reasoning_model(row, identity):
             continue
 
         pricing = _mapping(row.get("pricing"))
@@ -238,24 +256,25 @@ def _catalog_candidates(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
             continue
 
         combined = prompt + completion
-        candidates.append(
-            {
-                "model_id": model_id,
-                "company": company,
-                "official_intelligence_rank": official_rank,
-                "context_length": _positive_int(row.get("context_length")),
-                "max_completion_tokens": _positive_int(
-                    row.get("max_completion_tokens")
-                ),
-                "prompt_usd_per_million": prompt,
-                "completion_usd_per_million": completion,
-                "request_usd": _request_price(pricing),
-                "price_rank_usd_per_million": combined,
-                "estimated_task_cost_usd": combined,
-                "flagship_basis": "explicit-product-tier",
-            }
-        )
+        company_flagships[company] = {
+            "model_id": model_id,
+            "company": company,
+            "official_intelligence_rank": official_rank,
+            "context_length": _positive_int(row.get("context_length")),
+            "max_completion_tokens": _positive_int(
+                row.get("max_completion_tokens")
+            ),
+            "prompt_usd_per_million": prompt,
+            "completion_usd_per_million": completion,
+            "request_usd": _request_price(pricing),
+            "price_rank_usd_per_million": combined,
+            "estimated_task_cost_usd": combined,
+            "reasoning_capable": True,
+            "reasoning_evidence": _reasoning_evidence(row),
+            "flagship_basis": COMPANY_FLAGSHIP_BASIS,
+        }
 
+    candidates = list(company_flagships.values())
     candidates.sort(
         key=lambda row: (
             float(row["price_rank_usd_per_million"]),
@@ -268,8 +287,8 @@ def _catalog_candidates(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
     )
     if not candidates:
         raise ExpertPlanError(
-            "no paid general-purpose flagship model is available within the "
-            "official intelligence top 1000"
+            "no paid general-purpose reasoning company flagship is available within "
+            "the official intelligence top 1000"
         )
     return candidates
 
@@ -497,6 +516,12 @@ def _roles(expert_count: int) -> list[dict[str, str]]:
 def _finite_cost(row: Mapping[str, Any]) -> float:
     if row.get("exact_endpoint_qualified") is not True:
         raise ExpertPlanError("ranked model has no executable endpoint qualification")
+    if row.get("reasoning_capable") is not True:
+        raise ExpertPlanError("ranked model is not reasoning-capable")
+    if str(row.get("reasoning_evidence") or "").strip() == "":
+        raise ExpertPlanError("ranked model lacks OpenRouter reasoning evidence")
+    if row.get("flagship_basis") != COMPANY_FLAGSHIP_BASIS:
+        raise ExpertPlanError("ranked model is not the company reasoning flagship")
     try:
         value = float(row.get("estimated_task_cost_usd"))
     except (TypeError, ValueError) as exc:
@@ -571,8 +596,12 @@ def _model_record(row: Mapping[str, Any], *, slot: int) -> dict[str, Any]:
         "official_intelligence_rank": int(row["official_intelligence_rank"]),
         "qualified_provider_count": int(row["qualified_provider_count"]),
         "endpoint_inventory_sha256": str(row["endpoint_inventory_sha256"]),
+        "reasoning_capable": True,
+        "reasoning_evidence": str(row["reasoning_evidence"]),
+        "flagship_basis": str(row["flagship_basis"]),
         "selection_evidence": (
-            "explicit-product-tier-price-order+live-exact-endpoint-qualified"
+            "company-top-intelligence-reasoning-model+price-order+"
+            "live-exact-endpoint-qualified"
         ),
     }
 
@@ -591,6 +620,9 @@ def _catalog_sha256(rows: Sequence[Mapping[str, Any]]) -> str:
             "endpoint_inventory_sha256": row["endpoint_inventory_sha256"],
             "required_context_tokens": row["required_context_tokens"],
             "minimum_completion_tokens": row["minimum_completion_tokens"],
+            "reasoning_capable": row["reasoning_capable"],
+            "reasoning_evidence": row["reasoning_evidence"],
+            "flagship_basis": row["flagship_basis"],
         }
         for row in rows
     ]
@@ -630,12 +662,16 @@ def build_plan(ticket: Mapping[str, Any], token: str = "") -> dict[str, Any]:
         "schema_version": SCHEMA_VERSION,
         "selection_authority": SELECTION_AUTHORITY,
         "selection_policy": (
-            "openrouter-official-intelligence-top-1000 -> paid-general-purpose-"
-            "flagships -> live-exact-endpoint-qualified -> combined-token-price-"
-            "ascending -> cheapest-qualified-model-per-company -> "
+            "openrouter-live-intelligence-high-to-low -> paid-general-purpose-"
+            "reasoning-capable -> highest-ranked-reasoning-model-per-company -> "
+            "live-exact-endpoint-qualified -> combined-token-price-ascending -> "
             "eight-distinct-companies -> four-primary-four-recovery"
         ),
         "price_rank_basis": "prompt_usd_per_million + completion_usd_per_million",
+        "reasoning_model_required": True,
+        "reasoning_capability_source": REASONING_CAPABILITY_SOURCE,
+        "flagship_definition": COMPANY_FLAGSHIP_BASIS,
+        "catalog_sort": "intelligence-high-to-low",
         "task_sha256": task_sha256(ticket),
         "required_context_tokens": _required_context_tokens(ticket),
         "minimum_native_completion_tokens": MINIMUM_COMPLETION_TOKENS,
@@ -647,7 +683,7 @@ def build_plan(ticket: Mapping[str, Any], token: str = "") -> dict[str, Any]:
         "endpoint_qualification_performed_by_governance": True,
         "catalog_fetch_mode": "live-per-task-no-cross-task-cache",
         "company_uniqueness_scope": "selected-and-recovery",
-        "company_model_policy": "one-cheapest-qualified-flagship-per-company",
+        "company_model_policy": COMPANY_FLAGSHIP_BASIS,
         "provider_selection_authority": (
             "expert-runtime-cheapest-compatible-exact-endpoint-resolution-only"
         ),

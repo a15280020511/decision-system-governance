@@ -44,7 +44,9 @@ def candidate(model_id: str, rank: int) -> dict[str, object]:
         "request_usd": 0.0,
         "price_rank_usd_per_million": float(rank) * 0.3,
         "estimated_task_cost_usd": float(rank) * 0.3,
-        "flagship_basis": "explicit-product-tier",
+        "flagship_basis": "highest-official-intelligence-ranked-eligible-reasoning-model-per-company",
+        "reasoning_capable": True,
+        "reasoning_evidence": "models-api-supported-parameter-reasoning",
     }
 
 

@@ -55,7 +55,9 @@ def qualified(model_id: str, rank: int, price: float, providers: int = 1) -> dic
         "request_usd": 0.0,
         "price_rank_usd_per_million": price,
         "estimated_task_cost_usd": price,
-        "flagship_basis": "explicit-product-tier",
+        "flagship_basis": "highest-official-intelligence-ranked-eligible-reasoning-model-per-company",
+        "reasoning_capable": True,
+        "reasoning_evidence": "models-api-supported-parameter-reasoning",
         "exact_endpoint_qualified": True,
         "zdr_endpoint_qualified": True,
         "qualified_provider_count": providers,
@@ -74,7 +76,7 @@ class EightCompanyOrderedRecoveryTests(unittest.TestCase):
     def test_live_price_ranking_contains_one_model_per_company(self) -> None:
         selector = load_selector()
         rows = [
-            qualified("openai/gpt-5.6-luna-pro", 251, 0.7, 2),
+            qualified("openai/gpt-5.6-sol-pro", 5, 0.7, 2),
             qualified("nex-agi/nex-n2-pro", 28, 1.25),
             qualified("deepseek/deepseek-v4-pro", 23, 1.305, 8),
             qualified("xiaomi/mimo-v2.5-pro", 25, 1.305, 2),
@@ -94,7 +96,7 @@ class EightCompanyOrderedRecoveryTests(unittest.TestCase):
         self.assertEqual(
             [row["model"] for row in ranked],
             [
-                "openai/gpt-5.6-luna-pro",
+                "openai/gpt-5.6-sol-pro",
                 "nex-agi/nex-n2-pro",
                 "deepseek/deepseek-v4-pro",
                 "xiaomi/mimo-v2.5-pro",

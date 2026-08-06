@@ -30,6 +30,7 @@ def model(
     name: str | None = None,
     context_length: int = 131_072,
     max_completion_tokens: int = 8_192,
+    reasoning: bool = True,
 ) -> dict[str, object]:
     return {
         "id": model_id,
@@ -45,6 +46,8 @@ def model(
             "input_modalities": ["text"],
             "output_modalities": ["text"],
         },
+        "supported_parameters": ["reasoning"] if reasoning else ["max_tokens"],
+        "reasoning": {"default_enabled": True} if reasoning else None,
     }
 
 
@@ -66,7 +69,9 @@ def candidate(
         "request_usd": 0.0,
         "price_rank_usd_per_million": prompt + completion,
         "estimated_task_cost_usd": prompt + completion,
-        "flagship_basis": "explicit-product-tier",
+        "flagship_basis": "highest-official-intelligence-ranked-eligible-reasoning-model-per-company",
+        "reasoning_capable": True,
+        "reasoning_evidence": "models-api-supported-parameter-reasoning",
         "exact_endpoint_qualified": True,
         "qualified_provider_count": 1,
         "endpoint_inventory_sha256": f"{'a' * 63}{rank % 10}",
@@ -112,42 +117,54 @@ def endpoint(
 
 
 class ExecutableFlagshipPriceSelectionTests(unittest.TestCase):
-    def test_catalog_keeps_strict_candidates_across_top_1000(self) -> None:
+    def test_catalog_selects_company_top_reasoning_model_before_price_sort(self) -> None:
         rows = [
-            model("openai/gpt-5-pro", 0.01, 0.02),
-            model("anthropic/claude-opus", 0.02, 0.03),
-            model("vendor/expensive-pro", 4.0, 8.0),
+            model("openai/gpt-5.6-sol-pro", 2.0, 8.0),
+            model("openai/gpt-5.6-luna-pro", 0.1, 0.6),
+            model("anthropic/claude-opus", 3.0, 15.0),
+            model("vendor/frontier-reasoner", 1.0, 2.0),
             model("vendor/cheap-pro", 0.2, 0.4),
-            model("vendor/mini-pro", 0.01, 0.01),
-            model("vendor/coder-pro", 0.01, 0.01),
-            model("other/mid-max", 0.5, 0.5),
+            model("other/nonreasoning-pro", 0.01, 0.01, reasoning=False),
+            model("small/mini-reasoner", 0.01, 0.01),
         ]
         rows.extend(
-            model(f"filler/model-{index}", 9.0, 9.0)
+            model(f"filler/model-{index}", 9.0, 9.0, reasoning=False)
             for index in range(7, 1000)
         )
-        rows.append(model("late/too-late-pro", 0.01, 0.01))
+        rows.append(model("late/too-late-reasoner", 0.01, 0.01))
 
         filtered = planner._catalog_candidates({"data": rows})
         ids = [row["model_id"] for row in filtered]
 
-        self.assertIn("openai/gpt-5-pro", ids)
+        self.assertIn("openai/gpt-5.6-sol-pro", ids)
+        self.assertNotIn("openai/gpt-5.6-luna-pro", ids)
         self.assertIn("anthropic/claude-opus", ids)
-        self.assertNotIn("vendor/mini-pro", ids)
-        self.assertNotIn("vendor/coder-pro", ids)
-        self.assertNotIn("late/too-late-pro", ids)
+        self.assertIn("vendor/frontier-reasoner", ids)
+        self.assertNotIn("vendor/cheap-pro", ids)
+        self.assertNotIn("other/nonreasoning-pro", ids)
+        self.assertNotIn("small/mini-reasoner", ids)
+        self.assertNotIn("late/too-late-reasoner", ids)
         self.assertEqual(
             ids,
             [
-                "openai/gpt-5-pro",
+                "vendor/frontier-reasoner",
+                "openai/gpt-5.6-sol-pro",
                 "anthropic/claude-opus",
-                "vendor/cheap-pro",
-                "other/mid-max",
-                "vendor/expensive-pro",
             ],
         )
-        prices = [row["price_rank_usd_per_million"] for row in filtered]
-        self.assertEqual(prices, sorted(prices))
+        self.assertTrue(all(row["reasoning_capable"] for row in filtered))
+        self.assertTrue(
+            all(row["flagship_basis"] == planner.COMPANY_FLAGSHIP_BASIS for row in filtered)
+        )
+
+    def test_name_pro_alone_does_not_make_a_model_eligible(self) -> None:
+        with self.assertRaisesRegex(
+            planner.ExpertPlanError,
+            "no paid general-purpose reasoning company flagship",
+        ):
+            planner._catalog_candidates(
+                {"data": [model("vendor/cheap-pro", 0.1, 0.2, reasoning=False)]}
+            )
 
     def test_company_selection_keeps_only_one_model_per_company(self) -> None:
         rows = [
@@ -251,9 +268,11 @@ class ExecutableFlagshipPriceSelectionTests(unittest.TestCase):
             plan["catalog_fetch_mode"],
             "live-per-task-no-cross-task-cache",
         )
+        self.assertIn("reasoning-capable", plan["selection_policy"])
+        self.assertIn("highest-ranked-reasoning-model-per-company", plan["selection_policy"])
         self.assertIn("live-exact-endpoint-qualified", plan["selection_policy"])
         self.assertIn(
-            "cheapest-qualified-model-per-company",
+            "highest-ranked-reasoning-model-per-company",
             plan["selection_policy"],
         )
         self.assertEqual(
@@ -297,6 +316,8 @@ class ExecutableFlagshipPriceSelectionTests(unittest.TestCase):
         self.assertNotIn("rank_flagships_by_task_cost", source)
         self.assertNotIn("balanced_score", source)
         self.assertNotIn("natural_high", source)
+        self.assertNotIn("FLAGSHIP_TIER", source)
+        self.assertIn("reasoning_model_required", source)
 
 
 if __name__ == "__main__":

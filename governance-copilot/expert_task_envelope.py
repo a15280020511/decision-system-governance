@@ -15,7 +15,7 @@ import hashlib
 import json
 from typing import Any, Mapping
 
-SCHEMA_VERSION = "governance-expert-task-envelope-v6"
+SCHEMA_VERSION = "governance-expert-task-envelope-v7"
 EXPERT_RUNTIME_SCHEMA_VERSION = "v5-minimal-task-envelope-1"
 MINIMUM_CONTEXT_LENGTH = 16_384
 FIXED_PROTOCOL_RESERVE = 8_192
@@ -24,7 +24,7 @@ MINIMUM_GOVERNANCE_RECOVERY_MODELS = 4
 MAXIMUM_TOTAL_MODEL_CALLS = 16
 ZDR_ENDPOINTS_API = "https://openrouter.ai/api/v1/endpoints/zdr"
 ZDR_SELECTOR_SCHEMA_VERSION = (
-    "governance-openrouter-live-unique-company-flagship-price-v7"
+    "governance-openrouter-company-top-reasoning-price-v8"
 )
 ROLE_ASSIGNMENT_POLICY = (
     "live-price-minimal-unique-company-set -> official-intelligence-rank-ascending -> "
@@ -334,8 +334,9 @@ def patch_selector(selector: Any) -> None:
             record = original_model_record(row, slot=slot)
             if has_live_endpoint_primitives:
                 record["selection_evidence"] = (
-                    "explicit-product-tier-price-order+live-exact-endpoint-qualified+"
-                    "authenticated-zdr-endpoint-qualified+minimum-one-zdr-provider-route"
+                    "company-top-intelligence-reasoning-model+price-order+"
+                    "live-exact-endpoint-qualified+authenticated-zdr-endpoint-qualified+"
+                    "minimum-one-zdr-provider-route"
                 )
             return record
 
@@ -358,10 +359,10 @@ def patch_selector(selector: Any) -> None:
                     "governance plan must include four approved recovery models"
                 )
             plan["selection_policy"] = (
-                "openrouter-official-intelligence-top-1000 -> paid-general-purpose-"
-                "flagships -> live-exact-endpoint-qualified -> authenticated-zdr-"
-                "endpoint-qualified -> minimum-one-zdr-provider-route -> combined-token-"
-                "price-ascending -> cheapest-qualified-model-per-company -> "
+                "openrouter-live-intelligence-high-to-low -> paid-general-purpose-"
+                "reasoning-capable -> highest-ranked-reasoning-model-per-company -> "
+                "live-exact-endpoint-qualified -> authenticated-zdr-endpoint-qualified -> "
+                "minimum-one-zdr-provider-route -> combined-token-price-ascending -> "
                 "eight-distinct-companies -> four-primary-four-recovery"
             )
             plan["zdr_endpoint_qualification_required"] = True

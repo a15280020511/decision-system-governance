@@ -121,6 +121,14 @@ def verify_repair(
     if expected_context < TASK_ENVELOPE.MINIMUM_CONTEXT_LENGTH:
         raise ExpertChildRepairError("expert context floor was not enforced")
 
+    if plan.get("reasoning_model_required") is not True:
+        raise ExpertChildRepairError("reasoning model requirement is missing")
+    expected_flagship = (
+        "highest-official-intelligence-ranked-eligible-reasoning-model-per-company"
+    )
+    if plan.get("flagship_definition") != expected_flagship:
+        raise ExpertChildRepairError("company reasoning flagship definition mismatch")
+
     selected_rows = list(plan.get("selected_models") or [])
     recovery_rows = list(plan.get("recovery_models") or [])
     companies: set[str] = set()
@@ -138,6 +146,7 @@ def verify_repair(
             company = str(row.get("company") or "").strip().casefold()
             endpoint_hash = str(row.get("endpoint_inventory_sha256") or "")
             provider_count = row.get("qualified_provider_count")
+            reasoning_evidence = str(row.get("reasoning_evidence") or "").strip()
             if not model or model in models:
                 raise ExpertChildRepairError(
                     "regenerated plan contains duplicate model"
@@ -150,6 +159,12 @@ def verify_repair(
                 raise ExpertChildRepairError(
                     "regenerated plan reuses a model company"
                 )
+            if row.get("reasoning_capable") is not True:
+                raise ExpertChildRepairError("regenerated model is not reasoning-capable")
+            if not reasoning_evidence:
+                raise ExpertChildRepairError("regenerated model lacks reasoning evidence")
+            if row.get("flagship_basis") != expected_flagship:
+                raise ExpertChildRepairError("regenerated model is not its company reasoning flagship")
             if (
                 isinstance(provider_count, bool)
                 or not isinstance(provider_count, int)

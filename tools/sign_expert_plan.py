@@ -166,6 +166,13 @@ def verify_signed_plan(
         raise ExpertPlanSigningError("model substitution must be disabled")
     if plan.get("expert_center_reranking_allowed") is not False:
         raise ExpertPlanSigningError("expert center reranking must be disabled")
+    if plan.get("reasoning_model_required") is not True:
+        raise ExpertPlanSigningError("reasoning model requirement is missing")
+    expected_flagship = (
+        "highest-official-intelligence-ranked-eligible-reasoning-model-per-company"
+    )
+    if plan.get("flagship_definition") != expected_flagship:
+        raise ExpertPlanSigningError("company reasoning flagship definition mismatch")
 
     expected_context = TASK_ENVELOPE.required_context_tokens(unsigned)
     if plan.get("required_context_tokens") != expected_context:
@@ -199,6 +206,7 @@ def verify_signed_plan(
             provider_count = row.get("qualified_provider_count")
             endpoint_hash = str(row.get("endpoint_inventory_sha256") or "")
             evidence = str(row.get("selection_evidence") or "")
+            reasoning_evidence = str(row.get("reasoning_evidence") or "").strip()
             if not model or model in models:
                 raise ExpertPlanSigningError(
                     "expert models are not globally distinct"
@@ -209,6 +217,12 @@ def verify_signed_plan(
                 raise ExpertPlanSigningError(
                     "expert model companies are not globally distinct"
                 )
+            if row.get("reasoning_capable") is not True:
+                raise ExpertPlanSigningError("expert model is not reasoning-capable")
+            if not reasoning_evidence:
+                raise ExpertPlanSigningError("expert model lacks reasoning evidence")
+            if row.get("flagship_basis") != expected_flagship:
+                raise ExpertPlanSigningError("expert model is not its company reasoning flagship")
             if (
                 isinstance(provider_count, bool)
                 or not isinstance(provider_count, int)

@@ -57,6 +57,9 @@ def plan(ticket: dict, provider_count: int = 2) -> dict:
                 "endpoint_inventory_sha256": hashlib.sha256(
                     company.encode("utf-8")
                 ).hexdigest(),
+                "reasoning_capable": True,
+                "reasoning_evidence": "models-api-supported-parameter-reasoning",
+                "flagship_basis": "highest-official-intelligence-ranked-eligible-reasoning-model-per-company",
             }
         )
     value = {
@@ -65,6 +68,8 @@ def plan(ticket: dict, provider_count: int = 2) -> dict:
         "task_sha256": repair.SELECTOR.task_sha256(ticket),
         "required_context_tokens": repair.TASK_ENVELOPE.required_context_tokens(ticket),
         "minimum_native_completion_tokens": 1024,
+        "reasoning_model_required": True,
+        "flagship_definition": "highest-official-intelligence-ranked-eligible-reasoning-model-per-company",
         "endpoint_qualification_performed_by_governance": True,
         "expert_count": 3,
         "recovery_count": 1,
