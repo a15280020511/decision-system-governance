@@ -97,6 +97,16 @@ def _plan_digest(plan: Mapping[str, Any]) -> str:
     return hashlib.sha256(_canonical_json(material)).hexdigest()
 
 
+def _distinct_candidate_companies(eligible: Any) -> set[str]:
+    if not isinstance(eligible, list):
+        return set()
+    return {
+        str(row.get("company") or "").strip().casefold()
+        for row in eligible
+        if isinstance(row, Mapping) and str(row.get("company") or "").strip()
+    }
+
+
 def _verify_top20_pool(plan: Mapping[str, Any]) -> None:
     if plan.get("top20_reasoning_pool_schema_version") != (
         TOP20_POOL.POOL_SCHEMA_VERSION
@@ -112,16 +122,20 @@ def _verify_top20_pool(plan: Mapping[str, Any]) -> None:
         raise ExpertChildRepairError("regenerated model assignment authority is invalid")
     if plan.get("expert_center_pool_selection_allowed") is not True:
         raise ExpertChildRepairError("expert center top-20 selection is not enabled")
+    if plan.get("old_flagship_filter_applied_to_top20_pool") is not False:
+        raise ExpertChildRepairError("old flagship filter altered the regenerated pool")
     raw_pool = plan.get("top20_reasoning_models")
     eligible = plan.get("expert_selectable_candidates")
     if not isinstance(raw_pool, list) or len(raw_pool) != TOP20_POOL.TOP20_POOL_SIZE:
         raise ExpertChildRepairError("regenerated top-20 pool rows are invalid")
-    if (
-        not isinstance(eligible, list)
-        or len(eligible) < TOP20_POOL.MINIMUM_EXECUTABLE_CANDIDATES
-    ):
+    companies = _distinct_candidate_companies(eligible)
+    if len(companies) < TOP20_POOL.MINIMUM_EXECUTABLE_CANDIDATES:
         raise ExpertChildRepairError(
             "regenerated top-20 pool has fewer than eight executable companies"
+        )
+    if plan.get("expert_selectable_distinct_company_count") != len(companies):
+        raise ExpertChildRepairError(
+            "regenerated distinct-company count is inconsistent"
         )
 
 
@@ -268,6 +282,9 @@ def main() -> int:
                 ],
                 "expert_selectable_candidate_count": plan[
                     "expert_selectable_candidate_count"
+                ],
+                "expert_selectable_distinct_company_count": plan[
+                    "expert_selectable_distinct_company_count"
                 ],
                 "expert_count": plan["expert_count"],
                 "recovery_count": plan["recovery_count"],
