@@ -32,12 +32,23 @@ jobs:
           import os
           from pathlib import Path
 
-          path = Path("governance-copilot/select_expert_team_plan.py")
-          spec = importlib.util.spec_from_file_location("selector_diag", path)
-          if spec is None or spec.loader is None:
-              raise SystemExit("cannot load selector")
-          selector = importlib.util.module_from_spec(spec)
-          spec.loader.exec_module(selector)
+          def load(name: str, path: Path):
+              spec = importlib.util.spec_from_file_location(name, path)
+              if spec is None or spec.loader is None:
+                  raise SystemExit(f"cannot load {name}")
+              module = importlib.util.module_from_spec(spec)
+              spec.loader.exec_module(module)
+              return module
+
+          selector = load(
+              "selector_diag",
+              Path("governance-copilot/select_expert_team_plan.py"),
+          )
+          envelope = load(
+              "envelope_diag",
+              Path("governance-copilot/expert_task_envelope.py"),
+          )
+          envelope.patch_selector(selector)
 
           token = os.environ["OPENROUTER_API_KEY"]
           ticket = {
@@ -71,7 +82,7 @@ jobs:
                           "official_intelligence_rank"
                       ],
                       "price": candidate["price_rank_usd_per_million"],
-                      "endpoint_qualified": qualified is not None,
+                      "zdr_endpoint_qualified": qualified is not None,
                       "qualified_provider_count": (
                           qualified.get("qualified_provider_count")
                           if qualified is not None
@@ -85,8 +96,8 @@ jobs:
           print(json.dumps({
               "model_calls": 0,
               "candidate_count": len(rows),
-              "endpoint_qualified_count": sum(
-                  1 for row in rows if row["endpoint_qualified"]
+              "zdr_endpoint_qualified_count": sum(
+                  1 for row in rows if row["zdr_endpoint_qualified"]
               ),
           }, sort_keys=True))
           PY
