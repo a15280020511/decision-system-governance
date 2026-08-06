@@ -114,7 +114,11 @@ class ExpertPlanPreviewWorkflowTests(unittest.TestCase):
             text,
         )
         self.assertIn(
-            "steps.publish.outcome == 'success'",
+            "steps.publish.outcome != 'success'",
+            text,
+        )
+        self.assertIn(
+            'test "${{ steps.publish.outcome }}" = "success"',
             text,
         )
 
