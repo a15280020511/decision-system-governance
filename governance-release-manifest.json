@@ -4,7 +4,7 @@
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 151,
-  "total_bytes": 971654,
+  "total_bytes": 972801,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -648,8 +648,8 @@
     },
     {
       "path": "tests/test_expert_zdr_endpoint_parity.py",
-      "size_bytes": 8901,
-      "sha256": "8a30f90d728c8c00c5b30e6cf47372c7543ec8c3f936849b7da43c751171b6c2"
+      "size_bytes": 10048,
+      "sha256": "1328607ccc8490335bde996caee695fd132ac2143d7d9a4dec3e1ec9ee3c74a6"
     },
     {
       "path": "tests/test_governance_issue_guard.py",
