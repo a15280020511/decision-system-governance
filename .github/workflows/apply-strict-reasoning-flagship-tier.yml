@@ -1,0 +1,220 @@
+name: Apply Strict Reasoning Flagship Tier
+
+on:
+  push:
+    branches:
+      - fix/strict-reasoning-flagship-tier
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: fix/strict-reasoning-flagship-tier
+          persist-credentials: true
+          fetch-depth: 0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - name: Tighten flagship and reasoning contract
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one match, found {count}")
+              return text.replace(old, new)
+
+          selector_path = Path('governance-copilot/select_expert_team_plan.py')
+          text = selector_path.read_text(encoding='utf-8')
+          text = replace_once(
+              text,
+              '    r"(flash|mini|nano|micro|small|lite|fast|instant|turbo|haiku|spark|"\n',
+              '    r"(luna|flash|mini|nano|micro|small|lite|fast|instant|turbo|haiku|spark|"\n',
+              'exclude Luna economy tier',
+          )
+          text = replace_once(
+              text,
+              'def _is_general_reasoning_candidate(identity: str) -> bool:\n    lowered = identity.lower()\n    return (\n        not EXCLUDED_TIER.search(identity)\n        and not any(marker in lowered for marker in SPECIALIZED_MARKERS)\n    )\n',
+              'def _is_general_reasoning_candidate(identity: str) -> bool:\n    lowered = identity.lower()\n    return (\n        bool(FLAGSHIP_TIER.search(identity))\n        and not EXCLUDED_TIER.search(identity)\n        and not any(marker in lowered for marker in SPECIALIZED_MARKERS)\n    )\n',
+              'require explicit premium tier',
+          )
+          text = replace_once(
+              text,
+              '                "company-highest-intelligence-stable-paid-general-reasoning-model"\n',
+              '                "company-highest-intelligence-explicit-tier-reasoning-flagship"\n',
+              'candidate flagship basis',
+          )
+          text = replace_once(
+              text,
+              '            "company-highest-intelligence-reasoning-flagship+price-order+live-exact-endpoint-qualified"\n',
+              '            "company-highest-intelligence-explicit-tier-reasoning-flagship+"\n            "price-order+live-exact-endpoint-qualified"\n',
+              'record evidence',
+          )
+          text = replace_once(
+              text,
+              '            "stable-paid-general-purpose-models -> highest-intelligence-model-per-"\n            "company-as-flagship -> live-exact-endpoint-qualified -> combined-token-"\n',
+              '            "stable-paid-general-purpose-models -> explicit-premium-tier-required -> "\n            "highest-intelligence-explicit-tier-model-per-company-as-flagship -> "\n            "live-exact-endpoint-qualified -> combined-token-"\n',
+              'selection policy',
+          )
+          text = replace_once(
+              text,
+              '            "one-highest-intelligence-reasoning-flagship-per-company-then-price-rank"\n',
+              '            "one-highest-intelligence-explicit-tier-reasoning-flagship-per-company-then-price-rank"\n',
+              'company model policy',
+          )
+          selector_path.write_text(text, encoding='utf-8')
+
+          envelope_path = Path('governance-copilot/expert_task_envelope.py')
+          text = envelope_path.read_text(encoding='utf-8')
+          text = text.replace(
+              'company-highest-intelligence-reasoning-flagship+price-order+',
+              'company-highest-intelligence-explicit-tier-reasoning-flagship+price-order+',
+          )
+          text = text.replace(
+              'stable-paid-general-purpose-models -> highest-intelligence-model-per-',
+              'stable-paid-general-purpose-models -> explicit-premium-tier-required -> highest-intelligence-explicit-tier-model-per-',
+          )
+          envelope_path.write_text(text, encoding='utf-8')
+
+          signer_path = Path('tools/sign_expert_plan.py')
+          text = signer_path.read_text(encoding='utf-8')
+          text = replace_once(
+              text,
+              '            if "authenticated-zdr-endpoint-qualified" not in evidence:\n',
+              '            if "company-highest-intelligence-explicit-tier-reasoning-flagship" not in evidence:\n                raise ExpertPlanSigningError(\n                    "model lacks explicit-tier reasoning flagship evidence"\n                )\n            if "authenticated-zdr-endpoint-qualified" not in evidence:\n',
+              'signer flagship evidence',
+          )
+          signer_path.write_text(text, encoding='utf-8')
+
+          repair_path = Path('tools/repair_expert_child_plan.py')
+          text = repair_path.read_text(encoding='utf-8')
+          text = replace_once(
+              text,
+              '            provider_count = row.get("qualified_provider_count")\n',
+              '            provider_count = row.get("qualified_provider_count")\n            evidence = str(row.get("selection_evidence") or "")\n',
+              'repair evidence field',
+          )
+          text = replace_once(
+              text,
+              '            if (\n                isinstance(provider_count, bool)\n',
+              '            if "company-highest-intelligence-explicit-tier-reasoning-flagship" not in evidence:\n                raise ExpertChildRepairError(\n                    "regenerated model lacks explicit-tier reasoning flagship evidence"\n                )\n            if (\n                isinstance(provider_count, bool)\n',
+              'repair flagship evidence',
+          )
+          repair_path.write_text(text, encoding='utf-8')
+          PY
+      - name: Update deterministic tests
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('tests/test_expert_plan_strict_flagship_policy.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              '            "company-highest-intelligence-stable-paid-general-reasoning-model"\n',
+              '            "company-highest-intelligence-explicit-tier-reasoning-flagship"\n',
+          )
+          old = '''        rows = [
+            model("openai/gpt-5", 1.0, 4.0),
+            model("anthropic/claude-opus", 2.0, 5.0),
+            model("openai/gpt-5.6-luna-pro", 0.1, 0.6),
+            model("deepseek/deepseek-v4-pro", 0.4, 0.9),
+        ]'''
+          new = '''        rows = [
+            model("openai/gpt-5.6-sol-pro", 1.0, 4.0),
+            model("anthropic/claude-opus", 2.0, 5.0),
+            model("openai/gpt-5.6-luna-pro", 0.1, 0.6),
+            model("deepseek/deepseek-v4-pro", 0.4, 0.9),
+        ]'''
+          if old not in text:
+              raise SystemExit('OpenAI strongest fixture missing')
+          text = text.replace(old, new, 1)
+          text = text.replace(
+              '        self.assertIn("openai/gpt-5", ids)\n',
+              '        self.assertIn("openai/gpt-5.6-sol-pro", ids)\n',
+              1,
+          )
+          text = text.replace(
+              '                "openai/gpt-5",\n',
+              '                "openai/gpt-5.6-sol-pro",\n',
+              1,
+          )
+          text = text.replace(
+              '            model("third/general-reasoner", 0.3, 0.5),\n',
+              '            model("third/general-max", 0.3, 0.5),\n',
+              1,
+          )
+          text = text.replace(
+              '            ["third/general-reasoner"],\n',
+              '            ["third/general-max"],\n',
+              1,
+          )
+          marker = '    def test_live_catalog_request_requires_reasoning_parameter(self) -> None:\n'
+          inserted = '''    def test_reasoning_models_without_explicit_flagship_tier_are_rejected(self) -> None:
+        rows = [
+            model("google/gemma-4-31b-it", 0.1, 0.35),
+            model("tencent/hunyuan-a13b-instruct", 0.14, 0.57),
+            model("inception/mercury-2", 0.25, 0.75),
+            model("google/gemini-2.5-pro", 1.25, 10.0),
+        ]
+        filtered = planner._catalog_candidates({"data": rows})
+        self.assertEqual(
+            [row["model_id"] for row in filtered],
+            ["google/gemini-2.5-pro"],
+        )
+
+'''
+          if marker not in text:
+              raise SystemExit('test insertion marker missing')
+          text = text.replace(marker, inserted + marker, 1)
+          text = text.replace(
+              '            "highest-intelligence-model-per-company-as-flagship",\n',
+              '            "highest-intelligence-explicit-tier-model-per-company-as-flagship",\n',
+              1,
+          )
+          text = text.replace(
+              '            "one-highest-intelligence-reasoning-flagship-per-company-then-price-rank",\n',
+              '            "one-highest-intelligence-explicit-tier-reasoning-flagship-per-company-then-price-rank",\n',
+              1,
+          )
+          path.write_text(text, encoding='utf-8')
+
+          for filename in ('tests/test_eight_model_ordered_recovery.py', 'tests/test_expert_zdr_endpoint_parity.py'):
+              path = Path(filename)
+              text = path.read_text(encoding='utf-8')
+              text = text.replace(
+                  'company-highest-intelligence-reasoning-flagship+price-order+',
+                  'company-highest-intelligence-explicit-tier-reasoning-flagship+price-order+',
+              )
+              text = text.replace(
+                  'company-highest-intelligence-stable-paid-general-reasoning-model',
+                  'company-highest-intelligence-explicit-tier-reasoning-flagship',
+              )
+              path.write_text(text, encoding='utf-8')
+          PY
+      - name: Run zero-call targeted tests
+        run: |
+          set -euo pipefail
+          python -m unittest \
+            tests.test_expert_plan_strict_flagship_policy \
+            tests.test_eight_model_ordered_recovery \
+            tests.test_expert_zdr_endpoint_parity \
+            tests.test_expert_child_plan_repair \
+            tests.test_expert_plan_preview_workflow -v
+      - name: Commit patch
+        run: |
+          set -euo pipefail
+          rm .github/workflows/apply-strict-reasoning-flagship-tier.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add governance-copilot tools tests .github/workflows
+          git commit -m "fix: require explicit-tier reasoning flagships"
+          git push origin HEAD:fix/strict-reasoning-flagship-tier
