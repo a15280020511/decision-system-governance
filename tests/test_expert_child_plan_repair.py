@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
-import json
 from pathlib import Path
 import unittest
 
@@ -105,9 +104,25 @@ class ExpertChildPlanRepairTests(unittest.TestCase):
         repaired["governance_model_plan"] = new_plan
         repair.verify_repair(source, repaired, new_plan)
 
-    def test_workflow_updates_same_issue_and_uses_cross_repo_control_token(self) -> None:
+    def test_workflow_supports_owner_only_parent_issue_comment(self) -> None:
         text = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("workflow_dispatch:", text)
+        self.assertIn("issue_comment:", text)
+        self.assertIn("types: [created]", text)
+        self.assertIn("github.event.issue.title == '[control]'", text)
+        self.assertIn(
+            "github.event.comment.user.login == github.repository_owner",
+            text,
+        )
+        self.assertIn(
+            "startsWith(github.event.comment.body, '/repair-expert-child-plan ')",
+            text,
+        )
+        self.assertIn("shlex.split", text)
+        self.assertIn("len(parts) != 4", text)
+
+    def test_workflow_updates_same_issue_and_uses_cross_repo_control_token(self) -> None:
+        text = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("a15280020511/expert-assessment-center", text)
         self.assertIn("secrets.CONTROL_PLANE_TOKEN", text)
         self.assertIn("secrets.OPENROUTER_API_KEY", text)
