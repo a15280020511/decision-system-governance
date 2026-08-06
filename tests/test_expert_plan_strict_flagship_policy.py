@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import sys
 import unittest
@@ -54,13 +55,30 @@ def model(
     }
 
 
+def benchmark_payload(scores: dict[str, float]) -> dict[str, object]:
+    return {
+        "data": [
+            {
+                "model_permaslug": model_id,
+                "intelligence_index": score,
+                "coding_index": score,
+                "agentic_index": score,
+            }
+            for model_id, score in scores.items()
+        ],
+        "meta": {"source": "artificial-analysis", "version": "fixture"},
+    }
+
+
 def candidate(
     model_id: str,
     prompt: float,
     completion: float,
     *,
     rank: int,
+    basis: str = "strict-product-tier",
 ) -> dict[str, object]:
+    benchmark_hash = hashlib.sha256(model_id.encode("utf-8")).hexdigest()
     return {
         "model_id": model_id,
         "company": model_id.split("/", 1)[0],
@@ -72,9 +90,15 @@ def candidate(
         "request_usd": 0.0,
         "price_rank_usd_per_million": prompt + completion,
         "estimated_task_cost_usd": prompt + completion,
-        "flagship_basis": (
-            "company-highest-intelligence-strict-tier-stable-paid-general-non-search-reasoning-model"
-        ),
+        "flagship_verified": True,
+        "flagship_basis": basis,
+        "company_flagship_method": "fixture-natural-top",
+        "benchmark_source": "artificial-analysis-via-openrouter",
+        "intelligence_index": 50.0,
+        "coding_index": 50.0,
+        "agentic_index": 50.0,
+        "balanced_score": 50.0,
+        "benchmark_evidence_sha256": benchmark_hash,
         "reasoning_parameter_required": True,
         "exact_endpoint_qualified": True,
         "qualified_provider_count": 1,
@@ -119,93 +143,123 @@ def endpoint(
 
 
 class ReasoningFlagshipPriceSelectionTests(unittest.TestCase):
-    def test_company_strongest_reasoning_model_wins_before_price_sort(self) -> None:
+    def test_company_natural_top_selects_sol_and_rejects_luna(self) -> None:
         rows = [
-            model("openai/gpt-5-pro", 1.0, 4.0),
-            model("anthropic/claude-opus", 2.0, 5.0),
+            model("openai/gpt-5.6-sol", 5.0, 30.0),
+            model("openai/gpt-5.6-terra", 1.0, 6.0),
+            model("anthropic/claude-opus-5", 5.0, 25.0),
+            model("deepseek/deepseek-v4-pro", 0.435, 0.87),
             model("openai/gpt-5.6-luna-pro", 0.1, 0.6),
-            model("deepseek/deepseek-v4-pro", 0.4, 0.9),
         ]
-        filtered = planner._catalog_candidates({"data": rows})
+        scores = {
+            "openai/gpt-5.6-sol": 95,
+            "openai/gpt-5.6-terra": 70,
+            "anthropic/claude-opus-5": 92,
+            "deepseek/deepseek-v4-pro": 90,
+            "openai/gpt-5.6-luna-pro": 60,
+        }
+        filtered = planner._catalog_candidates(
+            {"data": rows}, benchmark_payload(scores)
+        )
         ids = [row["model_id"] for row in filtered]
         self.assertNotIn("openai/gpt-5.6-luna-pro", ids)
-        self.assertIn("openai/gpt-5-pro", ids)
+        self.assertNotIn("openai/gpt-5.6-terra", ids)
+        self.assertIn("openai/gpt-5.6-sol", ids)
         self.assertEqual(
             ids,
             [
                 "deepseek/deepseek-v4-pro",
-                "openai/gpt-5-pro",
-                "anthropic/claude-opus",
+                "anthropic/claude-opus-5",
+                "openai/gpt-5.6-sol",
             ],
         )
+        sol = next(row for row in filtered if row["company"] == "openai")
+        self.assertEqual(sol["flagship_basis"], "company-local-natural-top-layer")
+
+    def test_singleton_company_requires_strict_product_tier(self) -> None:
+        rows = [
+            model("singleton/frontier-reasoner", 0.1, 0.2),
+            model("strict/reasoning-max", 0.2, 0.4),
+        ]
+        scores = {
+            "singleton/frontier-reasoner": 90,
+            "strict/reasoning-max": 90,
+        }
+        filtered = planner._catalog_candidates(
+            {"data": rows}, benchmark_payload(scores)
+        )
         self.assertEqual(
-            [row["price_rank_usd_per_million"] for row in filtered],
-            sorted(row["price_rank_usd_per_million"] for row in filtered),
+            [row["model_id"] for row in filtered],
+            ["strict/reasoning-max"],
         )
 
     def test_luna_pro_is_rejected_even_without_another_openai_model(self) -> None:
         rows = [
             model("openai/gpt-5.6-luna-pro", 0.1, 0.6),
             model("other/reasoning-max", 0.2, 0.4),
+            model("third/reasoning-pro", 0.3, 0.5),
         ]
-        filtered = planner._catalog_candidates({"data": rows})
-        self.assertEqual(
-            [row["model_id"] for row in filtered],
-            ["other/reasoning-max"],
+        scores = {row["id"]: 90 for row in rows}
+        filtered = planner._catalog_candidates(
+            {"data": rows}, benchmark_payload(scores)
         )
-
+        self.assertNotIn(
+            "openai/gpt-5.6-luna-pro",
+            [row["model_id"] for row in filtered],
+        )
     def test_non_reasoning_pro_model_is_rejected(self) -> None:
         rows = [
             model("vendor/cheap-pro", 0.01, 0.02, reasoning=False),
             model("other/reasoning-max", 0.2, 0.4),
+            model("third/reasoning-pro", 0.3, 0.5),
         ]
-        filtered = planner._catalog_candidates({"data": rows})
-        self.assertEqual(
-            [row["model_id"] for row in filtered],
-            ["other/reasoning-max"],
+        scores = {row["id"]: 90 for row in rows}
+        filtered = planner._catalog_candidates(
+            {"data": rows}, benchmark_payload(scores)
         )
-
-    def test_economy_and_specialized_reasoning_models_are_rejected(self) -> None:
+        self.assertNotIn(
+            "vendor/cheap-pro",
+            [row["model_id"] for row in filtered],
+        )
+    def test_economy_and_specialized_models_are_rejected(self) -> None:
         rows = [
             model("vendor/mini-pro", 0.01, 0.01),
             model("other/coder-max", 0.01, 0.01),
-            model("google/gemma-4-31b-it", 0.1, 0.34),
-            model("tencent/hunyuan-a13b-instruct", 0.14, 0.57),
-            model("google/gemini-2.5-pro", 1.25, 10.0),
             model("perplexity/sonar-pro-search", 3.0, 15.0),
+            model("google/gemini-2.5-pro", 1.25, 10.0),
             model("third/general-max", 0.3, 0.5),
         ]
-        filtered = planner._catalog_candidates({"data": rows})
+        scores = {row["id"]: 90 for row in rows}
+        filtered = planner._catalog_candidates(
+            {"data": rows}, benchmark_payload(scores)
+        )
         self.assertEqual(
             [row["model_id"] for row in filtered],
             ["third/general-max", "google/gemini-2.5-pro"],
         )
-        self.assertNotIn("google/gemma-4-31b-it", [row["model_id"] for row in filtered])
-        self.assertNotIn(
-            "tencent/hunyuan-a13b-instruct",
-            [row["model_id"] for row in filtered],
-        )
-        self.assertNotIn(
-            "perplexity/sonar-pro-search",
-            [row["model_id"] for row in filtered],
-        )
 
-    def test_live_catalog_request_requires_reasoning_parameter(self) -> None:
+    def test_live_catalog_fetches_reasoning_models_and_benchmarks(self) -> None:
         observed: list[str] = []
+        rows = [
+            model("vendor/reasoning-pro", 0.2, 0.4),
+            model("other/reasoning-max", 0.3, 0.5),
+        ]
+        scores = {row["id"]: 90 for row in rows}
 
         def fake_fetch(url: str, token: str):
             del token
             observed.append(url)
-            return {
-                "data": [model("vendor/reasoning-pro", 0.2, 0.4)]
-            }
+            if "/benchmarks?" in url:
+                return benchmark_payload(scores)
+            return {"data": rows}
 
         with mock.patch.object(planner, "_fetch_json", side_effect=fake_fetch):
             planner._live_flagship_rows("fixture")
-        query = parse_qs(urlparse(observed[0]).query)
-        self.assertEqual(query["sort"], ["intelligence-high-to-low"])
-        self.assertEqual(query["output_modalities"], ["text"])
-        self.assertEqual(query["supported_parameters"], ["reasoning"])
+        model_query = parse_qs(urlparse(observed[0]).query)
+        benchmark_query = parse_qs(urlparse(observed[1]).query)
+        self.assertEqual(model_query["sort"], ["intelligence-high-to-low"])
+        self.assertEqual(model_query["supported_parameters"], ["reasoning"])
+        self.assertEqual(benchmark_query["source"], ["artificial-analysis"])
 
     def test_endpoint_inventory_requires_real_native_capacity(self) -> None:
         row = candidate("vendor/reasoning-pro", 0.2, 0.4, rank=7)
@@ -214,29 +268,18 @@ class ReasoningFlagshipPriceSelectionTests(unittest.TestCase):
                 "endpoints": [
                     endpoint("too-small", max_completion_tokens=512),
                     endpoint("short-context", context_length=4_096),
-                    endpoint(
-                        "usable",
-                        context_length=32_768,
-                        max_completion_tokens=4_096,
-                    ),
+                    endpoint("usable", context_length=32_768, max_completion_tokens=4_096),
                 ]
             }
         }
-        compatible = planner._compatible_endpoint_inventory(
-            row,
-            payload,
-            10_000,
-        )
-        self.assertEqual(
-            [item["provider"] for item in compatible],
-            ["usable"],
-        )
+        compatible = planner._compatible_endpoint_inventory(row, payload, 10_000)
+        self.assertEqual([item["provider"] for item in compatible], ["usable"])
 
     def test_plan_keeps_price_order_and_company_uniqueness(self) -> None:
         rows = [
             candidate("deepseek/deepseek-v4-pro", 0.2, 0.3, rank=5),
             candidate("nex-agi/nex-n2-pro", 0.3, 0.4, rank=9),
-            candidate("upstage/solar-pro-3", 0.4, 0.5, rank=15),
+            candidate("minimax/minimax-m3", 0.4, 0.5, rank=15, basis="company-local-natural-top-layer"),
             candidate("xiaomi/mimo-v2.5-pro", 0.5, 0.6, rank=20),
         ]
         with mock.patch.object(
@@ -245,38 +288,20 @@ class ReasoningFlagshipPriceSelectionTests(unittest.TestCase):
             return_value=rows,
         ):
             plan = planner.build_plan(ticket(), token="fixture")
-        all_rows = [
-            *plan["selected_models"],
-            *plan["recovery_models"],
-        ]
-        self.assertEqual(
-            len({row["company"] for row in all_rows}),
-            len(all_rows),
-        )
-        self.assertIn(
-            "reasoning-parameter-required",
-            plan["selection_policy"],
-        )
-        self.assertIn(
-            "strict-flagship-tier-required",
-            plan["selection_policy"],
-        )
-        self.assertIn(
-            "search-specialists-excluded",
-            plan["selection_policy"],
-        )
-        self.assertIn(
-            "highest-intelligence-model-per-company-as-flagship",
-            plan["selection_policy"],
-        )
+        all_rows = [*plan["selected_models"], *plan["recovery_models"]]
+        self.assertEqual(len({row["company"] for row in all_rows}), len(all_rows))
+        self.assertIn("reasoning-parameter-required", plan["selection_policy"])
+        self.assertIn("artificial-analysis-complete-benchmarks-required", plan["selection_policy"])
+        self.assertIn("strict-product-tier-or-company-natural-top-layer", plan["selection_policy"])
         self.assertEqual(
             plan["company_model_policy"],
-            "one-highest-intelligence-strict-tier-reasoning-flagship-per-company-then-price-rank",
+            "one-highest-intelligence-verified-reasoning-flagship-per-company-then-price-rank",
         )
         self.assertEqual(
-            plan["price_rank_basis"],
-            "prompt_usd_per_million + completion_usd_per_million",
+            plan["flagship_definition"],
+            "strict-product-tier-or-benchmarked-company-natural-top-layer",
         )
+        self.assertTrue(plan["reasoning_model_required"])
         self.assertEqual(plan["model_calls"], 0)
 
     def test_missing_distinct_companies_fails_closed(self) -> None:
@@ -296,14 +321,12 @@ class ReasoningFlagshipPriceSelectionTests(unittest.TestCase):
             ):
                 planner.build_plan(ticket(), token="fixture")
 
-    def test_selector_has_no_benchmark_or_local_task_ranking_dependency(self) -> None:
-        source = (
-            COPILOT / "select_expert_team_plan.py"
-        ).read_text(encoding="utf-8")
-        self.assertNotIn("BENCHMARKS_API", source)
+    def test_selector_uses_live_benchmarks_without_task_specific_reranking(self) -> None:
+        source = (COPILOT / "select_expert_team_plan.py").read_text(encoding="utf-8")
+        self.assertIn("BENCHMARKS_API", source)
+        self.assertIn("select_from_catalog", source)
+        self.assertIn("balanced_score", source)
         self.assertNotIn("rank_flagships_by_task_cost", source)
-        self.assertNotIn("balanced_score", source)
-        self.assertNotIn("natural_high", source)
 
 
 if __name__ == "__main__":

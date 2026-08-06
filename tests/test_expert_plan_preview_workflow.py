@@ -40,7 +40,7 @@ class ExpertPlanPreviewWorkflowTests(unittest.TestCase):
             "expert center reranking must be disabled",
             "model substitution must be disabled",
             "model does not satisfy the qualified ZDR provider floor",
-            "model lacks strict-tier reasoning flagship evidence",
+            "model lacks verified company reasoning flagship evidence",
         )
         for value in required:
             with self.subTest(value=value):

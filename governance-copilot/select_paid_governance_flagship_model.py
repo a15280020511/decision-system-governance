@@ -25,9 +25,10 @@ from typing import Any, Mapping, Sequence
 
 MODELS_API = "https://openrouter.ai/api/v1/models"
 BENCHMARKS_API = "https://openrouter.ai/api/v1/benchmarks"
+REASONING_PARAMETER = "reasoning"
 
 ECONOMY_TIER = re.compile(
-    r"(?:^|[-_ /])(flash|mini|nano|micro|small|lite|fast|instant|turbo|haiku|spark)(?:$|[-_ /0-9])",
+    r"(?:^|[-_ /])(luna|flash|mini|nano|micro|small|lite|fast|instant|turbo|haiku|spark)(?:$|[-_ /0-9])",
     re.IGNORECASE,
 )
 UNSTABLE_TIER = re.compile(
@@ -49,6 +50,7 @@ SPECIALIZED_MARKERS = (
     "embed",
     "rerank",
     "moderation",
+    "search",
 )
 
 
@@ -104,6 +106,15 @@ def _is_general_text(row: Mapping[str, Any]) -> bool:
         and isinstance(outputs, list)
         and outputs == ["text"]
     )
+
+
+def _supports_reasoning(row: Mapping[str, Any]) -> bool:
+    parameters = row.get("supported_parameters")
+    if not isinstance(parameters, list):
+        return False
+    return REASONING_PARAMETER in {
+        str(value or "").strip().casefold() for value in parameters
+    }
 
 
 def _not_expired(row: Mapping[str, Any]) -> bool:
@@ -258,7 +269,11 @@ def select_from_catalog(
         pricing = _mapping(row.get("pricing"))
         if not _has_complete_paid_token_pricing(pricing):
             continue
-        if not _is_general_text(row) or not _not_expired(row):
+        if (
+            not _is_general_text(row)
+            or not _not_expired(row)
+            or not _supports_reasoning(row)
+        ):
             continue
 
         identity = _identity_text(row, model_id, canonical)
@@ -298,33 +313,43 @@ def select_from_catalog(
     if not globally_high:
         raise SelectorError("no globally high paid models identified")
 
-    by_company: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    eligible_by_company: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in eligible:
+        eligible_by_company[str(row["company"])].append(row)
+
+    high_by_company: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    globally_high_ids = {str(row["model_id"]) for row in globally_high}
     for row in globally_high:
-        by_company[str(row["company"])].append(row)
+        high_by_company[str(row["company"])].append(row)
 
     flagship_ids: set[str] = set()
     company_evidence: dict[str, Any] = {}
-    for company, rows in by_company.items():
-        strict = [row for row in rows if row["strict_product_tier"]]
-        if len(rows) == 1:
+    for company, high_rows in high_by_company.items():
+        company_rows = eligible_by_company[company]
+        strict = [row for row in high_rows if row["strict_product_tier"]]
+        if len(company_rows) == 1:
             chosen = strict
             company_evidence[company] = {
-                "eligible_high_count": 1,
+                "eligible_count": 1,
+                "eligible_high_count": len(high_rows),
                 "method": "singleton-requires-strict-product-tier",
             }
         else:
             assignments, lower_center, flagship_center = _natural_high(
-                [float(row["balanced_score"]) for row in rows]
+                [float(row["balanced_score"]) for row in company_rows]
             )
             natural_top = [
-                row for row, is_high in zip(rows, assignments) if is_high
+                row
+                for row, is_high in zip(company_rows, assignments)
+                if is_high and str(row["model_id"]) in globally_high_ids
             ]
             chosen_by_id = {
                 str(row["model_id"]): row for row in natural_top + strict
             }
             chosen = list(chosen_by_id.values())
             company_evidence[company] = {
-                "eligible_high_count": len(rows),
+                "eligible_count": len(company_rows),
+                "eligible_high_count": len(high_rows),
                 "lower_center": lower_center,
                 "flagship_center": flagship_center,
                 "method": "company-natural-top-plus-strict-product-tier",
@@ -370,11 +395,12 @@ def select_from_catalog(
         "schema_version": "governance-openrouter-paid-governance-flagship-v1",
         "status": "OPENROUTER_PAID_GOVERNANCE_FLAGSHIP_SELECTED",
         "selection_rule": (
-            "use the OpenRouter pricing-low-to-high catalog order; exclude free or "
-            "incomplete pricing, non-text, expired, preview/beta/experimental, economy "
-            "and domain-specialized models; require complete intelligence/coding/agentic "
-            "benchmarks; retain strict flagship product tiers or each multi-model "
-            "company's natural highest layer; select the first remaining candidate"
+            "use the OpenRouter pricing-low-to-high catalog order; require native "
+            "reasoning support; exclude free or incomplete pricing, non-text, expired, "
+            "preview/beta/experimental, economy and domain-specialized models; require "
+            "complete intelligence/coding/agentic benchmarks; retain strict flagship "
+            "product tiers or each multi-model company's natural highest layer; select "
+            "the first remaining candidate"
         ),
         "selected_model": selected,
         "paid_stable_full_tier_benchmarked_count": len(eligible),
@@ -390,6 +416,8 @@ def select_from_catalog(
             "generic_marketing_descriptions_do_not_define_flagship": True,
             "specialized_markers": list(SPECIALIZED_MARKERS),
             "domain_specialized_models_rejected": specialized_rejected,
+            "native_reasoning_required": True,
+            "economy_tiers_include_luna": True,
         },
         "models_catalog_count": len(models),
         "benchmark_catalog_count": len(benchmark_by_slug),
@@ -403,7 +431,11 @@ def select_from_catalog(
 
 def select(token: str) -> dict[str, Any]:
     model_query = urllib.parse.urlencode(
-        {"sort": "pricing-low-to-high", "output_modalities": "text"}
+        {
+            "sort": "pricing-low-to-high",
+            "output_modalities": "text",
+            "supported_parameters": REASONING_PARAMETER,
+        }
     )
     benchmark_query = urllib.parse.urlencode({"source": "artificial-analysis"})
     models = _fetch_rows(f"{MODELS_API}?{model_query}", token)

@@ -43,7 +43,13 @@ def ticket() -> dict:
     }
 
 
-def qualified(model_id: str, rank: int, price: float, providers: int = 1) -> dict:
+def qualified(
+    model_id: str,
+    rank: int,
+    price: float,
+    providers: int = 1,
+    basis: str = "strict-product-tier",
+) -> dict:
     return {
         "model_id": model_id,
         "company": model_id.split("/", 1)[0],
@@ -55,7 +61,17 @@ def qualified(model_id: str, rank: int, price: float, providers: int = 1) -> dic
         "request_usd": 0.0,
         "price_rank_usd_per_million": price,
         "estimated_task_cost_usd": price,
-        "flagship_basis": "explicit-product-tier",
+        "flagship_verified": True,
+        "flagship_basis": basis,
+        "company_flagship_method": "fixture-company-top",
+        "benchmark_source": "artificial-analysis-via-openrouter",
+        "intelligence_index": 50.0,
+        "coding_index": 50.0,
+        "agentic_index": 50.0,
+        "balanced_score": 50.0,
+        "benchmark_evidence_sha256": hashlib.sha256(
+            (model_id + "-benchmark").encode()
+        ).hexdigest(),
         "exact_endpoint_qualified": True,
         "zdr_endpoint_qualified": True,
         "qualified_provider_count": providers,
@@ -63,8 +79,6 @@ def qualified(model_id: str, rank: int, price: float, providers: int = 1) -> dic
         "required_context_tokens": 16_384,
         "minimum_completion_tokens": 1_024,
     }
-
-
 class EightCompanyOrderedRecoveryTests(unittest.TestCase):
     def test_four_zero_budget_normalizes_to_eight_four(self) -> None:
         normalized = envelope.normalize_recovery_budget(ticket())
@@ -74,15 +88,15 @@ class EightCompanyOrderedRecoveryTests(unittest.TestCase):
     def test_live_price_ranking_contains_one_model_per_company(self) -> None:
         selector = load_selector()
         rows = [
-            qualified("openai/gpt-5.6-luna-pro", 251, 0.7, 2),
             qualified("nex-agi/nex-n2-pro", 28, 1.25),
             qualified("deepseek/deepseek-v4-pro", 23, 1.305, 8),
             qualified("xiaomi/mimo-v2.5-pro", 25, 1.305, 2),
+            qualified("minimax/minimax-m3", 30, 1.5, 2, "company-local-natural-top-layer"),
             qualified("amazon/nova-pro-v1", 129, 4.0, 2),
             qualified("nvidia/nemotron-3-ultra", 38, 4.2, 3),
             qualified("google/gemini-2.5-pro", 63, 11.25, 5),
-            qualified("perplexity/sonar-pro", 274, 18.0),
             qualified("anthropic/claude-opus-5", 1, 30.0, 5),
+            qualified("openai/gpt-5.6-sol", 2, 35.0, 2, "company-local-natural-top-layer"),
         ]
         with mock.patch.object(
             selector, "_live_executable_flagship_rows", return_value=rows
@@ -94,14 +108,14 @@ class EightCompanyOrderedRecoveryTests(unittest.TestCase):
         self.assertEqual(
             [row["model"] for row in ranked],
             [
-                "openai/gpt-5.6-luna-pro",
                 "nex-agi/nex-n2-pro",
                 "deepseek/deepseek-v4-pro",
                 "xiaomi/mimo-v2.5-pro",
+                "minimax/minimax-m3",
                 "amazon/nova-pro-v1",
                 "nvidia/nemotron-3-ultra",
                 "google/gemini-2.5-pro",
-                "perplexity/sonar-pro",
+                "anthropic/claude-opus-5",
             ],
         )
         companies = [row["company"] for row in ranked]

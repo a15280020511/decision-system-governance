@@ -217,10 +217,19 @@ def verify_signed_plan(
                 raise ExpertPlanSigningError(
                     "model does not satisfy the qualified ZDR provider floor"
                 )
-            if "strict-tier+company-highest-intelligence-reasoning-flagship" not in evidence:
+            basis = str(row.get("flagship_basis") or "")
+            if basis not in {"strict-product-tier", "company-local-natural-top-layer"}:
+                raise ExpertPlanSigningError("signer model flagship basis is invalid")
+            if "verified-company-flagship-reasoning" not in evidence or basis not in evidence:
                 raise ExpertPlanSigningError(
-                    "model lacks strict-tier reasoning flagship evidence"
+                    "model lacks verified company reasoning flagship evidence"
                 )
+            benchmark_hash = str(row.get("benchmark_evidence_sha256") or "")
+            if len(benchmark_hash) != 64 or any(
+                character not in "0123456789abcdef"
+                for character in benchmark_hash
+            ):
+                raise ExpertPlanSigningError("signer model benchmark evidence hash is invalid")
             if "authenticated-zdr-endpoint-qualified" not in evidence:
                 raise ExpertPlanSigningError(
                     "model lacks authenticated ZDR selection evidence"

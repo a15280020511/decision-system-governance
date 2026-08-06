@@ -57,8 +57,12 @@ def plan(ticket: dict, provider_count: int = 2) -> dict:
                 "endpoint_inventory_sha256": hashlib.sha256(
                     company.encode("utf-8")
                 ).hexdigest(),
+                "flagship_basis": "strict-product-tier",
+                "benchmark_evidence_sha256": hashlib.sha256(
+                    (company + "-benchmark").encode("utf-8")
+                ).hexdigest(),
                 "selection_evidence": (
-                    "strict-tier+company-highest-intelligence-reasoning-flagship+"
+                    "verified-company-flagship-reasoning+strict-product-tier+"
                     "price-order+live-exact-endpoint-qualified+"
                     "authenticated-zdr-endpoint-qualified+minimum-one-zdr-provider-route"
                 ),
