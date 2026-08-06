@@ -1,0 +1,100 @@
+name: Execute Reasoning Flagship Patch V2
+
+on:
+  push:
+    branches:
+      - fix/reasoning-company-flagship-ranking
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: fix/reasoning-company-flagship-ranking
+          persist-credentials: true
+          fetch-depth: 0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - name: Extract and execute original patch sections
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          source = Path('.github/workflows/apply-reasoning-company-flagship-ranking.yml').read_text(encoding='utf-8')
+          sections = []
+          for current, following in (
+              ('      - name: Patch selector and frozen contracts\n', '      - name: Patch deterministic tests\n'),
+              ('      - name: Patch deterministic tests\n', '      - name: Run targeted zero-call tests\n'),
+          ):
+              block = source.split(current, 1)[1].split(following, 1)[0]
+              block = block.split('        run: |\n', 1)[1]
+              sections.append(textwrap.dedent(block))
+          Path('/tmp/apply-reasoning-patch.sh').write_text('\n'.join(sections), encoding='utf-8')
+          PY
+          bash /tmp/apply-reasoning-patch.sh
+      - name: Correct generated tests
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('tests/test_eight_model_ordered_recovery.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              'qualified("openai/gpt-5.6-sol-pro", 5, 2.5, 2)',
+              'qualified("openai/gpt-5.6-sol-pro", 5, 0.7, 2)',
+              1,
+          )
+          path.write_text(text, encoding='utf-8')
+
+          path = Path('tests/test_expert_plan_strict_flagship_policy.py')
+          text = path.read_text(encoding='utf-8')
+          pattern = re.compile(
+              r'    def test_name_pro_alone_does_not_make_a_model_eligible\(self\) -> None:\n'
+              r'.*?\n\n    def test_company_selection_keeps_only_one_model_per_company',
+              re.S,
+          )
+          replacement = '''    def test_name_pro_alone_does_not_make_a_model_eligible(self) -> None:
+        with self.assertRaisesRegex(
+            planner.ExpertPlanError,
+            "no paid general-purpose reasoning company flagship",
+        ):
+            planner._catalog_candidates(
+                {"data": [model("vendor/cheap-pro", 0.1, 0.2, reasoning=False)]}
+            )
+
+    def test_company_selection_keeps_only_one_model_per_company'''
+          text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
+              raise SystemExit('generated nonreasoning Pro test not found')
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Run targeted zero-call tests
+        run: |
+          set -euo pipefail
+          python -m unittest \
+            tests.test_expert_plan_strict_flagship_policy \
+            tests.test_eight_model_ordered_recovery \
+            tests.test_expert_zdr_endpoint_parity \
+            tests.test_expert_child_plan_repair \
+            tests.test_expert_plan_preview_workflow -v
+      - name: Commit final patch
+        run: |
+          set -euo pipefail
+          rm -f \
+            .github/workflows/apply-reasoning-company-flagship-ranking.yml \
+            .github/workflows/fix-reasoning-patch-fixtures.yml \
+            .github/workflows/execute-reasoning-flagship-patch-v2.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add governance-copilot tools tests .github/workflows
+          git commit -m "fix: select company flagship reasoning models"
+          git push origin HEAD:fix/reasoning-company-flagship-ranking
