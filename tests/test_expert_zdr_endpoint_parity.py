@@ -216,6 +216,10 @@ class ExpertZdrEndpointParityTests(unittest.TestCase):
             qualified_candidate("nex-agi/nex-n2-pro", 2),
             qualified_candidate("xiaomi/mimo-v2.5-pro", 3),
             qualified_candidate("amazon/nova-pro-v1", 4),
+            qualified_candidate("google/gemini-pro", 5),
+            qualified_candidate("mistralai/mistral-pro", 6),
+            qualified_candidate("qwen/qwen-pro", 7),
+            qualified_candidate("baidu/ernie-pro", 8),
         ]
         with mock.patch.object(
             selector,
@@ -224,6 +228,30 @@ class ExpertZdrEndpointParityTests(unittest.TestCase):
         ):
             plan = selector.build_plan(ticket(), token="secret")
 
+        self.assertEqual(plan["expert_count"], 4)
+        self.assertEqual(plan["recovery_count"], 4)
+        self.assertEqual(len(plan["selected_models"]), 4)
+        self.assertEqual(len(plan["recovery_models"]), 4)
+        self.assertEqual(
+            [row["model"] for row in plan["recovery_models"]],
+            [
+                "google/gemini-pro",
+                "mistralai/mistral-pro",
+                "qwen/qwen-pro",
+                "baidu/ernie-pro",
+            ],
+        )
+        companies = {
+            row["company"]
+            for row in plan["selected_models"] + plan["recovery_models"]
+        }
+        self.assertEqual(len(companies), 8)
+        self.assertEqual(
+            plan["recovery_order_policy"],
+            envelope.RECOVERY_ORDER_POLICY,
+        )
+        self.assertTrue(plan["recovery_models_are_price_ranked"])
+        self.assertTrue(plan["recovery_models_are_sequential"])
         self.assertTrue(plan["zdr_endpoint_qualification_required"])
         self.assertEqual(
             plan["zdr_endpoint_inventory_source"],
