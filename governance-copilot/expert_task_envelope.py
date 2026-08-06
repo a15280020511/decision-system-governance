@@ -335,7 +335,7 @@ def patch_selector(selector: Any) -> None:
             record = original_model_record(row, slot=slot)
             if has_live_endpoint_primitives:
                 record["selection_evidence"] = (
-                    "company-highest-intelligence-reasoning-flagship+price-order+"
+                    "company-highest-intelligence-explicit-tier-reasoning-flagship+price-order+"
                     "live-exact-endpoint-qualified+authenticated-zdr-endpoint-qualified+"
                     "minimum-one-zdr-provider-route"
                 )
@@ -361,7 +361,7 @@ def patch_selector(selector: Any) -> None:
                 )
             plan["selection_policy"] = (
                 "openrouter-official-intelligence-top-1000 -> reasoning-parameter-required -> "
-                "stable-paid-general-purpose-models -> highest-intelligence-model-per-"
+                "stable-paid-general-purpose-models -> explicit-premium-tier-required -> highest-intelligence-explicit-tier-model-per-"
                 "company-as-flagship -> live-exact-endpoint-qualified -> authenticated-"
                 "zdr-endpoint-qualified -> minimum-one-zdr-provider-route -> combined-"
                 "token-price-ascending -> one-flagship-per-company -> "

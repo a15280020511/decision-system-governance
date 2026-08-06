@@ -50,7 +50,7 @@ FLAGSHIP_TIER = re.compile(
 )
 EXCLUDED_TIER = re.compile(
     r"(?:^|[-_ /])"
-    r"(flash|mini|nano|micro|small|lite|fast|instant|turbo|haiku|spark|"
+    r"(luna|flash|mini|nano|micro|small|lite|fast|instant|turbo|haiku|spark|"
     r"preview|experimental|beta)"
     r"(?:$|[-_ /0-9])",
     re.IGNORECASE,
@@ -213,7 +213,8 @@ def _supports_reasoning(row: Mapping[str, Any]) -> bool:
 def _is_general_reasoning_candidate(identity: str) -> bool:
     lowered = identity.lower()
     return (
-        not EXCLUDED_TIER.search(identity)
+        bool(FLAGSHIP_TIER.search(identity))
+        and not EXCLUDED_TIER.search(identity)
         and not any(marker in lowered for marker in SPECIALIZED_MARKERS)
     )
 
@@ -268,7 +269,7 @@ def _catalog_candidates(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
             "price_rank_usd_per_million": combined,
             "estimated_task_cost_usd": combined,
             "flagship_basis": (
-                "company-highest-intelligence-stable-paid-general-reasoning-model"
+                "company-highest-intelligence-explicit-tier-reasoning-flagship"
             ),
             "reasoning_parameter_required": True,
         }
@@ -592,7 +593,8 @@ def _model_record(row: Mapping[str, Any], *, slot: int) -> dict[str, Any]:
         "qualified_provider_count": int(row["qualified_provider_count"]),
         "endpoint_inventory_sha256": str(row["endpoint_inventory_sha256"]),
         "selection_evidence": (
-            "company-highest-intelligence-reasoning-flagship+price-order+live-exact-endpoint-qualified"
+            "company-highest-intelligence-explicit-tier-reasoning-flagship+"
+            "price-order+live-exact-endpoint-qualified"
         ),
     }
 
@@ -651,8 +653,9 @@ def build_plan(ticket: Mapping[str, Any], token: str = "") -> dict[str, Any]:
         "selection_authority": SELECTION_AUTHORITY,
         "selection_policy": (
             "openrouter-official-intelligence-top-1000 -> reasoning-parameter-required -> "
-            "stable-paid-general-purpose-models -> highest-intelligence-model-per-"
-            "company-as-flagship -> live-exact-endpoint-qualified -> combined-token-"
+            "stable-paid-general-purpose-models -> explicit-premium-tier-required -> "
+            "highest-intelligence-explicit-tier-model-per-company-as-flagship -> "
+            "live-exact-endpoint-qualified -> combined-token-"
             "price-ascending -> one-flagship-per-company -> "
             "eight-distinct-companies -> four-primary-four-recovery"
         ),
@@ -669,7 +672,7 @@ def build_plan(ticket: Mapping[str, Any], token: str = "") -> dict[str, Any]:
         "catalog_fetch_mode": "live-per-task-no-cross-task-cache",
         "company_uniqueness_scope": "selected-and-recovery",
         "company_model_policy": (
-            "one-highest-intelligence-reasoning-flagship-per-company-then-price-rank"
+            "one-highest-intelligence-explicit-tier-reasoning-flagship-per-company-then-price-rank"
         ),
         "provider_selection_authority": (
             "expert-runtime-cheapest-compatible-exact-endpoint-resolution-only"

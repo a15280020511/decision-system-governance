@@ -138,6 +138,7 @@ def verify_repair(
             company = str(row.get("company") or "").strip().casefold()
             endpoint_hash = str(row.get("endpoint_inventory_sha256") or "")
             provider_count = row.get("qualified_provider_count")
+            evidence = str(row.get("selection_evidence") or "")
             if not model or model in models:
                 raise ExpertChildRepairError(
                     "regenerated plan contains duplicate model"
@@ -149,6 +150,10 @@ def verify_repair(
             if company in companies:
                 raise ExpertChildRepairError(
                     "regenerated plan reuses a model company"
+                )
+            if "company-highest-intelligence-explicit-tier-reasoning-flagship" not in evidence:
+                raise ExpertChildRepairError(
+                    "regenerated model lacks explicit-tier reasoning flagship evidence"
                 )
             if (
                 isinstance(provider_count, bool)
