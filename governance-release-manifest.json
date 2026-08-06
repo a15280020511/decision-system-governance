@@ -4,7 +4,7 @@
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 152,
-  "total_bytes": 984104,
+  "total_bytes": 985412,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -468,8 +468,8 @@
     },
     {
       "path": "governance-copilot/select_expert_team_plan.py",
-      "size_bytes": 26294,
-      "sha256": "3b2a74104345f51e3bae433fbaf83f7607814407e91c297d42f019958fb244d8"
+      "size_bytes": 26299,
+      "sha256": "310e795bfd3b8cb4ec303d96d8b51dda2a37b1f34803aa38151e49f9ca11bea6"
     },
     {
       "path": "governance-copilot/select_paid_governance_flagship_model.py",
@@ -623,8 +623,8 @@
     },
     {
       "path": "tests/test_expert_child_plan_repair.py",
-      "size_bytes": 7346,
-      "sha256": "e89240c0cd4ba2941100669bf6f72684e56b3cec9fd418767e79e01e4e2841a4"
+      "size_bytes": 7636,
+      "sha256": "9dce8ab4bb5c64c3d184351c2fd796fee891205a2226a7655dc9b307a4b89d16"
     },
     {
       "path": "tests/test_expert_intelligence_ranked_roles.py",
@@ -633,13 +633,13 @@
     },
     {
       "path": "tests/test_expert_plan_preview_workflow.py",
-      "size_bytes": 4980,
-      "sha256": "6febb090b0b1554b6bc8f680742bbbb6b7eda004c3f20aac39056f705e7ff2a5"
+      "size_bytes": 5047,
+      "sha256": "3670b6cad32731b600f72755c008b9f9fffe87298d1af1811954f8de15c868df"
     },
     {
       "path": "tests/test_expert_plan_strict_flagship_policy.py",
-      "size_bytes": 10062,
-      "sha256": "b33874441253714fc5135d8299a824a51cbaf3a992fb7a0e75e04515e2bf78c0"
+      "size_bytes": 10468,
+      "sha256": "79e9a328ec2637e1beaee05c8c26c471d4d5a87b752cfb637ae39db1f45ae188"
     },
     {
       "path": "tests/test_expert_plan_workflow_secret.py",
@@ -743,8 +743,8 @@
     },
     {
       "path": "tools/repair_expert_child_plan.py",
-      "size_bytes": 9062,
-      "sha256": "3e27f1b60ca95774ae309da3d8f525616df67f3f6977f348abf3ba8a09504a1f"
+      "size_bytes": 9370,
+      "sha256": "81971f4c2a1864c525685f164629b9ddadb76000146670b2d4e9eb554d48c8fc"
     },
     {
       "path": "tools/serverchan_notify.py",
@@ -753,8 +753,8 @@
     },
     {
       "path": "tools/sign_expert_plan.py",
-      "size_bytes": 11811,
-      "sha256": "b319304180f4d367aa0a3eb4f4a0e3b368194454552cdb495a989dca71e1c1d5"
+      "size_bytes": 12043,
+      "sha256": "4def4da4e2aa7e681a9d89fe0cb04ae37a107369c994ab15f3335bb758b764d6"
     },
     {
       "path": "tools/supply_chain_audit.py",
