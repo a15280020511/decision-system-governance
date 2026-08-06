@@ -4,7 +4,7 @@
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 152,
-  "total_bytes": 996812,
+  "total_bytes": 997779,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -468,8 +468,8 @@
     },
     {
       "path": "governance-copilot/select_expert_team_plan.py",
-      "size_bytes": 31171,
-      "sha256": "af49de0f136fb7c75c695b7eea35d47bab8f9aea119edb59d6ef76cd8001d50e"
+      "size_bytes": 31621,
+      "sha256": "8c0bc166374fda78a130e889588a461856edbaabdbc7c0f77b08820ca9514816"
     },
     {
       "path": "governance-copilot/select_paid_governance_flagship_model.py",
@@ -633,8 +633,8 @@
     },
     {
       "path": "tests/test_expert_plan_preview_workflow.py",
-      "size_bytes": 5052,
-      "sha256": "9fcd3989ef64ad7e40aff5b1d35c453117c94e8c73b84184434c9beeb4f8718c"
+      "size_bytes": 5569,
+      "sha256": "0991ac407bedc9bcf5b0d16f2f4dcf6a82361dc437b8d00e0629c6d2c108e33f"
     },
     {
       "path": "tests/test_expert_plan_strict_flagship_policy.py",
