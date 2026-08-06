@@ -38,6 +38,11 @@ EXPERT_SELECTOR = _load(
     "governance_expert_model_plan_runtime",
     COPILOT_ROOT / "select_expert_team_plan.py",
 )
+TASK_ENVELOPE = _load(
+    "governance_expert_task_envelope_runtime",
+    COPILOT_ROOT / "expert_task_envelope.py",
+)
+TASK_ENVELOPE.patch_selector(EXPERT_SELECTOR)
 
 
 def _write_status(root: Path, status: dict[str, Any]) -> None:
@@ -126,6 +131,12 @@ def _attach_expert_model_plan(arguments: Any) -> int:
                 "expert_child_contract": "execution-ticket-v5",
                 "expert_child_route": "expert-team",
                 "expert_child_cost_policy": "prompt_led_soft_governance",
+                "expert_task_envelope_schema_version": (
+                    TASK_ENVELOPE.EXPERT_RUNTIME_SCHEMA_VERSION
+                ),
+                "expert_minimum_context_length": (
+                    TASK_ENVELOPE.MINIMUM_CONTEXT_LENGTH
+                ),
             }
         )
         _write_status(root, status)

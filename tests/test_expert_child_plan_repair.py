@@ -63,6 +63,8 @@ def plan(ticket: dict) -> dict:
         "schema_version": "governance-expert-model-plan-v1",
         "selection_authority": "decision-system-governance",
         "task_sha256": repair.SELECTOR.task_sha256(ticket),
+        "required_context_tokens": repair.TASK_ENVELOPE.required_context_tokens(ticket),
+        "minimum_native_completion_tokens": 1024,
         "endpoint_qualification_performed_by_governance": True,
         "expert_count": 3,
         "recovery_count": 1,
@@ -103,6 +105,19 @@ class ExpertChildPlanRepairTests(unittest.TestCase):
         new_plan = plan(repaired)
         repaired["governance_model_plan"] = new_plan
         repair.verify_repair(source, repaired, new_plan)
+
+    def test_verify_repair_rejects_preproduction_context_floor(self) -> None:
+        source = source_ticket()
+        repaired = dict(source)
+        new_plan = plan(repaired)
+        new_plan["required_context_tokens"] = 8969
+        new_plan["plan_sha256"] = repair._plan_digest(new_plan)
+        repaired["governance_model_plan"] = new_plan
+        with self.assertRaisesRegex(
+            repair.ExpertChildRepairError,
+            "frozen expert task envelope",
+        ):
+            repair.verify_repair(source, repaired, new_plan)
 
     def test_workflow_supports_owner_only_parent_issue_comment(self) -> None:
         text = WORKFLOW.read_text(encoding="utf-8")

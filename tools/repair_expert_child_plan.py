@@ -13,6 +13,7 @@ from typing import Any, Mapping
 
 ROOT = Path(__file__).resolve().parents[1]
 SELECTOR_PATH = ROOT / "governance-copilot" / "select_expert_team_plan.py"
+TASK_ENVELOPE_PATH = ROOT / "governance-copilot" / "expert_task_envelope.py"
 RETRY_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 EXPECTED_ROUTE = "expert-team"
 
@@ -21,18 +22,24 @@ class ExpertChildRepairError(RuntimeError):
     """Raised when an existing child ticket cannot be repaired safely."""
 
 
-def _load_selector():
-    spec = importlib.util.spec_from_file_location(
-        "governance_expert_child_repair_selector", SELECTOR_PATH
-    )
+def _load_module(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or spec.loader is None:
-        raise ExpertChildRepairError("cannot load governance expert selector")
+        raise ExpertChildRepairError(f"cannot load {path.name}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-SELECTOR = _load_selector()
+SELECTOR = _load_module(
+    "governance_expert_child_repair_selector",
+    SELECTOR_PATH,
+)
+TASK_ENVELOPE = _load_module(
+    "governance_expert_child_repair_task_envelope",
+    TASK_ENVELOPE_PATH,
+)
+TASK_ENVELOPE.patch_selector(SELECTOR)
 
 
 def _canonical_json(value: Any) -> bytes:
@@ -105,6 +112,14 @@ def verify_repair(
         raise ExpertChildRepairError("regenerated plan task hash mismatch")
     if plan.get("endpoint_qualification_performed_by_governance") is not True:
         raise ExpertChildRepairError("regenerated plan lacks endpoint qualification")
+
+    expected_context = TASK_ENVELOPE.required_context_tokens(repaired)
+    if plan.get("required_context_tokens") != expected_context:
+        raise ExpertChildRepairError(
+            "regenerated plan does not match the frozen expert task envelope"
+        )
+    if expected_context < TASK_ENVELOPE.MINIMUM_CONTEXT_LENGTH:
+        raise ExpertChildRepairError("expert context floor was not enforced")
 
     rows = [
         *list(plan.get("selected_models") or []),
@@ -181,6 +196,10 @@ def main() -> int:
                 "plan_sha256": plan["plan_sha256"],
                 "expert_count": plan["expert_count"],
                 "recovery_count": plan["recovery_count"],
+                "required_context_tokens": plan["required_context_tokens"],
+                "task_envelope_schema_version": (
+                    TASK_ENVELOPE.EXPERT_RUNTIME_SCHEMA_VERSION
+                ),
                 "selected_models": [
                     row["model"] for row in plan["selected_models"]
                 ],
