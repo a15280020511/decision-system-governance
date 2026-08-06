@@ -1,10 +1,10 @@
 {
   "schema_version": "governance-release-manifest-v1",
-  "governance_version": "4.2.2",
+  "governance_version": "4.2.3",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
-  "file_count": 132,
-  "total_bytes": 820120,
+  "file_count": 157,
+  "total_bytes": 1065474,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -427,6 +427,21 @@
       "sha256": "b9d7453c388c1f4d9767aa8ad8081a60cc3ec436e8ce9120026cd5e06fdf47ee"
     },
     {
+      "path": "governance-copilot/__pycache__/rank_flagships_by_task_cost.cpython-312.pyc",
+      "size_bytes": 11507,
+      "sha256": "7e30cb8eb4ca4d5fb8147ec3226900d0c502f8400a4e2174bb1907224ebdcfa7"
+    },
+    {
+      "path": "governance-copilot/__pycache__/select_expert_team_plan.cpython-312.pyc",
+      "size_bytes": 16926,
+      "sha256": "e78884e392e0a07ee9d979dcdb3d1a542a8b1661e5ca2e6550ed2da916511c48"
+    },
+    {
+      "path": "governance-copilot/__pycache__/select_paid_governance_flagship_model.cpython-312.pyc",
+      "size_bytes": 23381,
+      "sha256": "d2c46e8d10687be0ee4bbab814464f1e5c480c14c45b80275420807c6c21af0d"
+    },
+    {
       "path": "governance-copilot/production-qualification.json",
       "size_bytes": 1916,
       "sha256": "eb768f9ccabaaa5b37eba23d4efce53a6855aa5838f56b77784efccc8242d447"
@@ -438,8 +453,8 @@
     },
     {
       "path": "governance-copilot/select_expert_team_plan.py",
-      "size_bytes": 12156,
-      "sha256": "a26cbe853b2d607081df83d23aecea0f4d786e0468ab24777903829578af59eb"
+      "size_bytes": 12516,
+      "sha256": "f3096c59629b1cbd54adbc0a4cf69f7fc196714f2aadfb796a7f654d8fe720b4"
     },
     {
       "path": "governance-copilot/select_paid_governance_flagship_model.py",
@@ -547,6 +562,111 @@
       "sha256": "5a581d01a0295fae64cdd039b70665b15352aee6611a8a6073f4f2c22cd81b15"
     },
     {
+      "path": "tests/__pycache__/stress_openrouter_governance_selector.cpython-312.pyc",
+      "size_bytes": 6745,
+      "sha256": "96fca1a2ff7f43953ba4825cbdda5429525b9d23acb32fb709ff912c8ba95736"
+    },
+    {
+      "path": "tests/__pycache__/test_access_contract.cpython-312.pyc",
+      "size_bytes": 8893,
+      "sha256": "25686c8873433856112fffab7ce296eb4bbc93aeea4fd86edb3a30996d352a9a"
+    },
+    {
+      "path": "tests/__pycache__/test_async_reconcile.cpython-312.pyc",
+      "size_bytes": 7310,
+      "sha256": "0452add59120bc2a67e0bed769cdc8129700c436a7c4700bb337d546b4861f3e"
+    },
+    {
+      "path": "tests/__pycache__/test_control_plane.cpython-312.pyc",
+      "size_bytes": 26814,
+      "sha256": "5030db7e42ca1d10712d14b2b7807c233a7d6bd66514baae7efb7591b04765c5"
+    },
+    {
+      "path": "tests/__pycache__/test_deferred_poll.cpython-312.pyc",
+      "size_bytes": 8670,
+      "sha256": "82d8e411e21b5527fccce02181f31318eda807180ebb380490f65ddcc4dd4bf6"
+    },
+    {
+      "path": "tests/__pycache__/test_deferred_reconcile.cpython-312.pyc",
+      "size_bytes": 5155,
+      "sha256": "de940f0e01d4a0ad7be0d70c9be255a49e94dfe52d20b4d674978e9bd2712a06"
+    },
+    {
+      "path": "tests/__pycache__/test_expert_plan_strict_flagship_policy.cpython-312.pyc",
+      "size_bytes": 6190,
+      "sha256": "d5c344bb04f720d7c43c50de132ca89225a81e4ee543b3cff04fc1075b5cf2f9"
+    },
+    {
+      "path": "tests/__pycache__/test_expert_plan_workflow_secret.cpython-312.pyc",
+      "size_bytes": 1736,
+      "sha256": "4bd1c983cacc1e318eae5d5feb050a8bf66b9c5ac4d4ffbaf06ec99752817ab7"
+    },
+    {
+      "path": "tests/__pycache__/test_governance_issue_guard.cpython-312.pyc",
+      "size_bytes": 4667,
+      "sha256": "67acd79143b849887ad4e539f6c2c499ab76336e315506deceda3d27f29f8a83"
+    },
+    {
+      "path": "tests/__pycache__/test_governance_paid_canary_contract.cpython-312.pyc",
+      "size_bytes": 6602,
+      "sha256": "3df650dad2a881b3f1286401b0317b8913d8db354204861986c38e0775d10730"
+    },
+    {
+      "path": "tests/__pycache__/test_governance_transport_package.cpython-312.pyc",
+      "size_bytes": 7410,
+      "sha256": "7c3613930caebf2bf5f5c38b27353d4054f4baef8b000e3447c43e44be847b1b"
+    },
+    {
+      "path": "tests/__pycache__/test_gpts_control_ticket_templates.cpython-312.pyc",
+      "size_bytes": 5516,
+      "sha256": "0eaaa713f82fd1b6f3128e0bd15509b5fac59f5cdb84e5f1d61f3292924ba42e"
+    },
+    {
+      "path": "tests/__pycache__/test_gpts_ingress_ack.cpython-312.pyc",
+      "size_bytes": 4573,
+      "sha256": "6c0754e107203e7651a47a7346cef6dbe05d2dbf1e0111bdf832b591cad304ae"
+    },
+    {
+      "path": "tests/__pycache__/test_gpts_reliability.cpython-312.pyc",
+      "size_bytes": 12496,
+      "sha256": "e6a4c55d48be05a51a81d19fa2725eed95ddfeeb96cfed9fdcf2ba7d9997255d"
+    },
+    {
+      "path": "tests/__pycache__/test_gpts_schema_compat.cpython-312.pyc",
+      "size_bytes": 6903,
+      "sha256": "1c69f853a1338a1d29c9fa44e52cc2dcc2967d465cfe68b4601e5bb1fefdd5bd"
+    },
+    {
+      "path": "tests/__pycache__/test_gpts_web_session_protocol.cpython-312.pyc",
+      "size_bytes": 7015,
+      "sha256": "bb7fa220fa25a85da6e0ab1d55d767bf708d44390e60eeafc5aee77fa4f75f87"
+    },
+    {
+      "path": "tests/__pycache__/test_openrouter_governance_selector.cpython-312.pyc",
+      "size_bytes": 22196,
+      "sha256": "750b6f3e186ad8a63b2c2bca96335a022e6fd814a1eae89d5b75a23f2f84138f"
+    },
+    {
+      "path": "tests/__pycache__/test_openrouter_selector_static_safety.cpython-312.pyc",
+      "size_bytes": 13308,
+      "sha256": "4a90296208d8c7f6d7782047a6b8d968340806e2217e05b9ef1d404486679202"
+    },
+    {
+      "path": "tests/__pycache__/test_openrouter_task_cost_ranking.cpython-312.pyc",
+      "size_bytes": 7710,
+      "sha256": "1ea866a81edeb3f9c9a06350e869fc1c00da5ed6e51e5d9fdc690e239ac0f34e"
+    },
+    {
+      "path": "tests/__pycache__/test_p1_operational_contract.cpython-312.pyc",
+      "size_bytes": 6673,
+      "sha256": "13a4efbe20a94b1156c1af8a67cdbdba2b3412335c1bfb55481fb0791883f2a4"
+    },
+    {
+      "path": "tests/__pycache__/test_resilient_http.cpython-312.pyc",
+      "size_bytes": 12375,
+      "sha256": "0dc851557897d1f63d84aa0434f00c682f5ce8b6733b5e57f9735abc04bdf481"
+    },
+    {
       "path": "tests/stress_openrouter_governance_selector.py",
       "size_bytes": 4640,
       "sha256": "9e23eae6964d0b7dbebf92e880637aba87e100e5613603eb79af7bd542058b7c"
@@ -575,6 +695,11 @@
       "path": "tests/test_deferred_reconcile.py",
       "size_bytes": 2921,
       "sha256": "f604348ff11496be5140080d2d0582436e886a7b19cba0e004b24d7c4a86090c"
+    },
+    {
+      "path": "tests/test_expert_plan_strict_flagship_policy.py",
+      "size_bytes": 4223,
+      "sha256": "caa2424992ab25ec4154b19383578ac77639410020034295e4ac7a97bb5a9bc0"
     },
     {
       "path": "tests/test_expert_plan_workflow_secret.py",
