@@ -50,7 +50,7 @@ FLAGSHIP_TIER = re.compile(
 )
 EXCLUDED_TIER = re.compile(
     r"(?:^|[-_ /])"
-    r"(flash|mini|nano|micro|small|lite|fast|instant|turbo|haiku|spark|"
+    r"(luna|flash|mini|nano|micro|small|lite|fast|instant|turbo|haiku|spark|"
     r"preview|experimental|beta)"
     r"(?:$|[-_ /0-9])",
     re.IGNORECASE,

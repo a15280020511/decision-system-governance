@@ -143,6 +143,17 @@ class ReasoningFlagshipPriceSelectionTests(unittest.TestCase):
             sorted(row["price_rank_usd_per_million"] for row in filtered),
         )
 
+    def test_luna_pro_is_rejected_even_without_another_openai_model(self) -> None:
+        rows = [
+            model("openai/gpt-5.6-luna-pro", 0.1, 0.6),
+            model("other/reasoning-max", 0.2, 0.4),
+        ]
+        filtered = planner._catalog_candidates({"data": rows})
+        self.assertEqual(
+            [row["model_id"] for row in filtered],
+            ["other/reasoning-max"],
+        )
+
     def test_non_reasoning_pro_model_is_rejected(self) -> None:
         rows = [
             model("vendor/cheap-pro", 0.01, 0.02, reasoning=False),
