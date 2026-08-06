@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Attach a live OpenRouter top-50 weekly reasoning pool to expert plans.
+"""Attach a live OpenRouter Top-50 weekly reasoning pool to expert plans.
 
-The governance center freezes model identities and model-level metadata only.
-Provider selection is intentionally unrestricted: no ZDR/provider allowlist,
-provider inventory, provider-count floor, or exact-endpoint qualification is
-used to admit a top-50 candidate. OpenRouter may route a selected model through
-any currently available provider at execution time. No model is called here.
+Governance freezes model identities and model-level metadata only. Expert-center
+assignment must implement the signed task-adaptive value principles. Provider
+selection remains unrestricted and is delegated entirely to OpenRouter. No
+model is called here.
 """
 from __future__ import annotations
 
@@ -20,6 +19,11 @@ MINIMUM_EXECUTABLE_COMPANIES = 8
 POOL_SCHEMA_VERSION = "governance-openrouter-top50-reasoning-pool-v2-open-provider"
 POOL_SOURCE = "openrouter-most-popular-last-week-token-volume"
 POPULARITY_PERIOD = "week"
+SELECTION_PRINCIPLES = [
+    "concrete-problem-concrete-analysis",
+    "dynamic-adaptation",
+    "small-effort-large-return",
+]
 SELECTION_EVIDENCE = (
     "openrouter-top-weekly-reasoning+model-metadata-qualified+"
     "unrestricted-openrouter-provider-routing"
@@ -27,7 +31,7 @@ SELECTION_EVIDENCE = (
 
 
 class Top50ReasoningPoolError(RuntimeError):
-    """Raised when a complete model-level top-50 pool cannot be formed."""
+    """Raised when a complete model-level Top-50 pool cannot be formed."""
 
 
 def _canonical_json(value: Any) -> bytes:
@@ -304,10 +308,18 @@ def attach_pool(
             "top50_candidate_pool_authority": "decision-system-governance",
             "top50_model_assignment_authority": "expert-assessment-center-ortools",
             "expert_center_top50_pool_selection_allowed": True,
+            "top50_task_adaptive_assignment_required": True,
+            "top50_model_assignment_principles": list(SELECTION_PRINCIPLES),
+            "top50_assignment_recomputed_from_current_task": True,
+            "top50_cross_task_history_allowed": False,
+            "top50_semantic_keyword_routing_allowed": False,
+            "top50_domain_hardcoding_allowed": False,
+            "top50_provider_metric_allowed_in_assignment": False,
             "expert_center_top50_pool_selection_policy": (
-                "weekly-top50-reasoning-model-metadata-qualified -> "
-                "ortools-cp-sat-four-primary-four-warm-recovery -> "
-                "openrouter-unrestricted-provider-routing"
+                "weekly-top50-reasoning-model-metadata-qualified -> current-task-"
+                "structural-demand-profile -> dynamic-cost-quality-capacity-marginal-return-"
+                "ortools-cp-sat-four-primary-four-warm-recovery -> openrouter-unrestricted-"
+                "provider-routing"
             ),
             "top50_provider_routing_mode": "unrestricted-openrouter",
             "top50_provider_restrictions_applied": False,
@@ -328,7 +340,7 @@ def attach_pool(
 
 
 def patch_selector(selector: Any) -> None:
-    """Wrap a selector after the legacy top-20 wrapper and attach top-50 fields."""
+    """Wrap a selector after the legacy Top-20 wrapper and attach Top-50 fields."""
     if getattr(selector, "_top50_reasoning_pool_patched", False):
         return
     original_build_plan = selector.build_plan
@@ -342,4 +354,5 @@ def patch_selector(selector: Any) -> None:
     selector.build_plan = build_plan
     selector.TOP50_REASONING_POOL_SCHEMA_VERSION = POOL_SCHEMA_VERSION
     selector.TOP50_REASONING_POOL_SIZE = TOP50_POOL_SIZE
+    selector.TOP50_MODEL_ASSIGNMENT_PRINCIPLES = tuple(SELECTION_PRINCIPLES)
     selector._top50_reasoning_pool_patched = True
