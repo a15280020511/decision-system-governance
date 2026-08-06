@@ -4,7 +4,7 @@
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 143,
-  "total_bytes": 904055,
+  "total_bytes": 906875,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -48,8 +48,8 @@
     },
     {
       "path": ".github/workflows/expert-child-plan-repair.yml",
-      "size_bytes": 3213,
-      "sha256": "8f2e0c2b39c941f4499c5e456758e699778fd521e4c3c16667ff59d092a14099"
+      "size_bytes": 5400,
+      "sha256": "3667cbfb3b9034ebd61256fb3f4fd9284a573455b953c0486a70f5fcc8fff4c6"
     },
     {
       "path": ".github/workflows/governance-failure-notify.yml",
@@ -608,8 +608,8 @@
     },
     {
       "path": "tests/test_expert_child_plan_repair.py",
-      "size_bytes": 4219,
-      "sha256": "d8a4a2baeca43049b1857adf4f75ecc471faeffaa3465f287da556dc3bd55175"
+      "size_bytes": 4852,
+      "sha256": "96ffbfe5169b0a07100eb6cac30ea1ad49030dcf78ddfbff4c8f7c184a5a7e8b"
     },
     {
       "path": "tests/test_expert_plan_strict_flagship_policy.py",
