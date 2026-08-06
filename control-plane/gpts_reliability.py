@@ -4,6 +4,8 @@
 The stable control-plane core remains unchanged. This module patches its public
 entry functions at runtime so legacy v3 tickets continue to work while v4 adds
 client-generated idempotency keys, deterministic recovery and structured status.
+A narrowly bounded adapter also repairs the exact legacy alias shape observed in
+Governance Issue #153; unknown aliases and unknown ticket fields still fail closed.
 """
 from __future__ import annotations
 
@@ -19,6 +21,24 @@ from typing import Any, Mapping
 V3 = "governance-control-ticket-v3"
 V4 = "governance-control-ticket-v4"
 SUPPORTED = {V3, V4}
+SCHEMA_ALIASES = {
+    "4": V4,
+    "v4": V4,
+    "governance-v4": V4,
+}
+LEGACY_EXPERT_ROUTE_ALIAS = "research"
+LEGACY_EXPERT_FIELDS = {
+    "title",
+    "user_request",
+    "requirements",
+    "output_language",
+}
+REJECTED_ROUTE_ALIASES = {
+    "analysis",
+    "strategy",
+    "api",
+    "simulation",
+}
 CLIENT_REQUEST_ID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
     re.IGNORECASE,
@@ -35,6 +55,95 @@ def _packet(control: Any, body: str) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def _string_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        item = value.strip()
+        return [item] if item else []
+    if not isinstance(value, list):
+        return []
+    output: list[str] = []
+    for raw in value:
+        if not isinstance(raw, str):
+            continue
+        item = raw.strip()
+        if item:
+            output.append(item)
+    return output
+
+
+def _normalize_legacy_packet(
+    packet: Mapping[str, Any],
+) -> tuple[dict[str, Any], list[str], str]:
+    """Repair only explicit, deterministic legacy aliases; reject all ambiguity."""
+    normalized = dict(packet)
+    changes: list[str] = []
+    error = ""
+
+    raw_schema = str(packet.get("schema_version") or "").strip()
+    if raw_schema in SCHEMA_ALIASES:
+        normalized["schema_version"] = SCHEMA_ALIASES[raw_schema]
+        changes.append(f"schema_version:{raw_schema}->{SCHEMA_ALIASES[raw_schema]}")
+
+    raw_route = str(packet.get("route") or "").strip()
+    if raw_route == LEGACY_EXPERT_ROUTE_ALIAS:
+        ticket = packet.get("ticket")
+        if not isinstance(ticket, Mapping):
+            error = "route alias research requires an object ticket"
+            return normalized, changes, error
+        keys = {str(key) for key in ticket.keys()}
+        if "user_request" not in keys or not keys.issubset(LEGACY_EXPERT_FIELDS):
+            error = (
+                "route alias research is accepted only for the exact legacy "
+                "expert ticket fields: title, user_request, requirements, "
+                "output_language"
+            )
+            return normalized, changes, error
+
+        question = str(ticket.get("user_request") or "").strip()
+        if not question:
+            error = "legacy expert ticket user_request must be a non-empty string"
+            return normalized, changes, error
+        objective = str(ticket.get("title") or question).strip()
+        language = str(ticket.get("output_language") or "zh-CN").strip() or "zh-CN"
+        requirements = _string_list(ticket.get("requirements"))
+        if not requirements:
+            requirements = ["区分事实、推断和未知，并明确证据局限"]
+
+        normalized["route"] = "expert"
+        normalized["ticket"] = {
+            "objective": objective,
+            "pipeline": "expert-team",
+            "task": {
+                "question": question,
+                "requirements": requirements,
+                "language": language,
+            },
+            "execution_acceptance": [
+                "发布完整最终综合报告",
+                "区分事实、公开立场、推断和未知",
+            ],
+            "evidence": [],
+            "approved_budget": {
+                "calls": 8,
+                "maximum_recovery_calls": 1,
+            },
+            "private_output": False,
+        }
+        changes.extend(
+            [
+                "route:research->expert",
+                "ticket:legacy-expert->governed-expert",
+            ]
+        )
+    elif raw_route in REJECTED_ROUTE_ALIASES:
+        error = (
+            f"route alias {raw_route} is ambiguous and is not accepted by "
+            "the bounded compatibility repair"
+        )
+
+    return normalized, changes, error
+
+
 def _client_request_id(control: Any, body: str) -> str:
     value = _packet(control, body).get("client_request_id")
     return str(value).lower() if isinstance(value, str) else ""
@@ -44,9 +153,11 @@ def _fingerprint(control: Any, body: str) -> str:
     packet = _packet(control, body)
     if not packet:
         return ""
+    normalized, _, normalization_error = _normalize_legacy_packet(packet)
+    material_packet = packet if normalization_error else normalized
     material = {
-        "route": packet.get("route"),
-        "ticket": packet.get("ticket"),
+        "route": material_packet.get("route"),
+        "ticket": material_packet.get("ticket"),
     }
     canonical = json.dumps(
         material,
@@ -213,9 +324,11 @@ def patch(control: Any) -> None:
         root = Path(args.output_dir)
         root.mkdir(parents=True, exist_ok=True)
         event_path = Path(args.event_path)
+        original_schema_version = ""
         schema_version = ""
         client_request_id = ""
         validation_error = ""
+        normalizations: list[str] = []
         effective_args = args
 
         try:
@@ -225,19 +338,42 @@ def patch(control: Any) -> None:
             packet = control._load_json_text(body)
             if not isinstance(packet, dict):
                 packet = {}
-            schema_version = str(packet.get("schema_version") or "")
-            raw_request_id = packet.get("client_request_id")
+            original_schema_version = str(packet.get("schema_version") or "")
+            normalized, normalizations, normalization_error = _normalize_legacy_packet(
+                packet
+            )
+            schema_version = str(normalized.get("schema_version") or "")
+            raw_request_id = normalized.get("client_request_id")
             client_request_id = (
                 str(raw_request_id).lower() if isinstance(raw_request_id, str) else ""
             )
+            if normalization_error:
+                validation_error = normalization_error
             if schema_version == V4:
                 if not CLIENT_REQUEST_ID_RE.fullmatch(client_request_id):
-                    validation_error = (
+                    request_error = (
                         "client_request_id must be a canonical UUID for v4 tickets"
                     )
-                transformed = dict(packet)
+                    validation_error = (
+                        f"{validation_error}; {request_error}"
+                        if validation_error
+                        else request_error
+                    )
+                transformed = dict(normalized)
                 transformed["schema_version"] = V3
                 transformed.pop("client_request_id", None)
+            elif schema_version == V3:
+                transformed = dict(normalized)
+            else:
+                transformed = dict(normalized)
+                schema_error = f"schema_version must be one of {sorted(SUPPORTED)}"
+                validation_error = (
+                    f"{validation_error}; {schema_error}"
+                    if validation_error
+                    else schema_error
+                )
+
+            if schema_version in SUPPORTED and (schema_version == V4 or normalizations):
                 patched_event = dict(event)
                 patched_issue = dict(issue)
                 patched_issue["body"] = json.dumps(
@@ -254,10 +390,6 @@ def patch(control: Any) -> None:
                 )
                 effective_args = argparse.Namespace(**vars(args))
                 effective_args.event_path = str(compatibility_event)
-            elif schema_version not in SUPPORTED:
-                validation_error = (
-                    f"schema_version must be one of {sorted(SUPPORTED)}"
-                )
         except (OSError, json.JSONDecodeError, ValueError) as exc:
             validation_error = f"v4 compatibility parse failed: {exc}"
 
@@ -266,6 +398,9 @@ def patch(control: Any) -> None:
         status = _load_optional(status_path)
         status["client_request_id"] = client_request_id
         status["request_schema_version"] = schema_version
+        status["request_schema_version_original"] = original_schema_version
+        status["compatibility_normalized"] = bool(normalizations)
+        status["compatibility_normalizations"] = normalizations
         selected_request = root / "selected-request.md"
         source_body = (
             selected_request.read_text(encoding="utf-8")
@@ -405,6 +540,12 @@ def patch(control: Any) -> None:
                 selection.get("duplicate_of_issue_number") or 0
             )
             or None,
+            "compatibility_normalized": bool(
+                merged.get("compatibility_normalized")
+            ),
+            "compatibility_normalizations": list(
+                merged.get("compatibility_normalizations") or []
+            ),
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
         _write_machine_status(Path(args.output), payload)
