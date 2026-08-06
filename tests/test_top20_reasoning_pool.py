@@ -112,6 +112,10 @@ class Top20ReasoningPoolTests(unittest.TestCase):
                 return 9000
 
             @staticmethod
+            def _stable_model_id(model_id):
+                return True
+
+            @staticmethod
             def _qualify_candidate(candidate, token, required_context):
                 assert "flagship_basis" not in candidate
                 assert "benchmark_evidence_sha256" not in candidate
@@ -132,7 +136,8 @@ class Top20ReasoningPoolTests(unittest.TestCase):
             def _model_record(*args, **kwargs):
                 raise AssertionError("old flagship record builder must not be called")
 
-        eligible = module._eligible_records(FakeSelector, {}, "token", raw)
+        eligible, exclusions = module._eligible_records(FakeSelector, {}, "token", raw)
+        self.assertEqual(exclusions, [])
         self.assertEqual(len(eligible), 10)
         self.assertEqual(
             [row["company"] for row in eligible].count("shared"), 2
@@ -146,6 +151,55 @@ class Top20ReasoningPoolTests(unittest.TestCase):
                 row["selection_evidence"] == module.SELECTION_EVIDENCE
                 for row in eligible
             )
+        )
+
+    def test_route_suffixed_model_remains_in_raw_pool_but_is_not_qualified(self) -> None:
+        module = _load_module()
+        raw = [_pool_row(index) for index in range(1, 10)]
+        raw[0]["model"] = "nvidia/nemotron:free"
+        raw[0]["company"] = "nvidia"
+
+        class FakeSelector:
+            MODELS_API = "https://example.invalid/models"
+
+            @staticmethod
+            def _fetch_json(url: str, token: str):
+                return {"data": [{"id": row["model"]} for row in raw]}
+
+            @staticmethod
+            def _required_context_tokens(ticket):
+                return 9000
+
+            @staticmethod
+            def _stable_model_id(model_id):
+                return ":" not in model_id
+
+            @staticmethod
+            def _qualify_candidate(candidate, token, required_context):
+                if ":" in candidate["model_id"]:
+                    raise AssertionError("route-suffixed model must not reach endpoint lookup")
+                return {
+                    **candidate,
+                    "qualified_provider_count": 1,
+                    "endpoint_inventory_sha256": "c" * 64,
+                    "required_context_tokens": required_context,
+                    "minimum_completion_tokens": 1024,
+                }
+
+        eligible, exclusions = module._eligible_records(FakeSelector, {}, "token", raw)
+        self.assertEqual(len(eligible), 8)
+        self.assertNotIn("nvidia/nemotron:free", {row["model"] for row in eligible})
+        self.assertEqual(
+            exclusions,
+            [
+                {
+                    "model": "nvidia/nemotron:free",
+                    "company": "nvidia",
+                    "popularity_rank": 1,
+                    "reason": "unstable-or-route-suffixed-model-id",
+                    "expert_center_selectable": False,
+                }
+            ],
         )
 
     def test_eligible_pool_requires_eight_distinct_companies_not_eight_rows(self) -> None:
@@ -165,6 +219,10 @@ class Top20ReasoningPoolTests(unittest.TestCase):
             @staticmethod
             def _required_context_tokens(ticket):
                 return 9000
+
+            @staticmethod
+            def _stable_model_id(model_id):
+                return True
 
             @staticmethod
             def _qualify_candidate(candidate, token, required_context):
