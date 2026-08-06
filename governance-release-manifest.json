@@ -4,7 +4,7 @@
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 145,
-  "total_bytes": 913424,
+  "total_bytes": 916947,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -448,8 +448,8 @@
     },
     {
       "path": "governance-copilot/expert_task_envelope.py",
-      "size_bytes": 1500,
-      "sha256": "611f7e96ebd3bf108bd13fe26beeeff0483d88bec38c57b5864a6f13a3094bc4"
+      "size_bytes": 2545,
+      "sha256": "7137c658cb57c0d7d01d742349289c3f907a4813e80200370435278945d2b010"
     },
     {
       "path": "governance-copilot/production-qualification.json",
@@ -613,8 +613,8 @@
     },
     {
       "path": "tests/test_expert_child_plan_repair.py",
-      "size_bytes": 5860,
-      "sha256": "1dc6d986c52446279cd4b3534768725446ec6c1bcf8eb7cd84f5bd724bb422cd"
+      "size_bytes": 6358,
+      "sha256": "8378859ef144fd9d44225d85825650b8ac2907493620fb097266408a5649afa0"
     },
     {
       "path": "tests/test_expert_plan_strict_flagship_policy.py",
@@ -628,8 +628,8 @@
     },
     {
       "path": "tests/test_expert_task_envelope_compatibility.py",
-      "size_bytes": 2705,
-      "sha256": "bc89ea583239be342cb363a573914879da64cea6da5166a92d93b43b7f94a455"
+      "size_bytes": 4448,
+      "sha256": "7008c3144dd017d0636bac4331d4d48ca607ba77349fe8d28e11e1464d8a6825"
     },
     {
       "path": "tests/test_governance_issue_guard.py",
@@ -713,8 +713,8 @@
     },
     {
       "path": "tools/repair_expert_child_plan.py",
-      "size_bytes": 8444,
-      "sha256": "d693726e67bba471b8f9ddf93ada5040ef46e7725fd039fc469f91e2fe12cba2"
+      "size_bytes": 8681,
+      "sha256": "6942f0aced37d3091fd38c16a0a8f4511262f22609e52f1b5f4448f22a40edc3"
     },
     {
       "path": "tools/serverchan_notify.py",
