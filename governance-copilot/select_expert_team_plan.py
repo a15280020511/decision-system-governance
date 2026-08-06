@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import math
 import os
@@ -24,7 +25,21 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-import select_paid_governance_flagship_model as FLAGSHIP_POLICY
+def _load_flagship_policy():
+    path = Path(__file__).with_name(
+        "select_paid_governance_flagship_model.py"
+    )
+    spec = importlib.util.spec_from_file_location(
+        "governance_expert_flagship_policy", path
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError("cannot load governance flagship policy")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+FLAGSHIP_POLICY = _load_flagship_policy()
 
 MODELS_API = "https://openrouter.ai/api/v1/models"
 BENCHMARKS_API = "https://openrouter.ai/api/v1/benchmarks"

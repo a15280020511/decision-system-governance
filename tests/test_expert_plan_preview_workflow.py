@@ -1,3 +1,4 @@
+import importlib.util
 from pathlib import Path
 import unittest
 
@@ -11,6 +12,19 @@ class ExpertPlanPreviewWorkflowTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.workflow = WORKFLOW.read_text(encoding="utf-8")
         cls.signer = SIGNER.read_text(encoding="utf-8")
+
+    def test_signer_loads_selector_without_copilot_on_sys_path(self) -> None:
+        spec = importlib.util.spec_from_file_location(
+            "standalone_signer_import_test", SIGNER
+        )
+        self.assertIsNotNone(spec)
+        self.assertIsNotNone(spec.loader)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertEqual(
+            module.SELECTOR.SELECTION_AUTHORITY,
+            "decision-system-governance",
+        )
 
     def test_owner_only_issue_entrypoint(self) -> None:
         text = self.workflow
