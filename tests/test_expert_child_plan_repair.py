@@ -44,7 +44,7 @@ def source_ticket() -> dict:
     }
 
 
-def plan(ticket: dict) -> dict:
+def plan(ticket: dict, provider_count: int = 2) -> dict:
     rows = []
     for index, company in enumerate(("deepseek", "nex-agi", "upstage", "xiaomi"), 1):
         rows.append(
@@ -53,7 +53,7 @@ def plan(ticket: dict) -> dict:
                 "model": f"{company}/model-{index}-pro",
                 "company": company,
                 "estimated_task_cost_usd": float(index),
-                "qualified_provider_count": 1,
+                "qualified_provider_count": provider_count,
                 "endpoint_inventory_sha256": hashlib.sha256(
                     company.encode("utf-8")
                 ).hexdigest(),
@@ -99,12 +99,23 @@ class ExpertChildPlanRepairTests(unittest.TestCase):
         ):
             repair.verify_repair(source, repaired, new_plan)
 
-    def test_verify_repair_accepts_endpoint_qualified_distinct_companies(self) -> None:
+    def test_verify_repair_accepts_redundant_endpoints_and_distinct_companies(self) -> None:
         source = source_ticket()
         repaired = dict(source)
-        new_plan = plan(repaired)
+        new_plan = plan(repaired, provider_count=2)
         repaired["governance_model_plan"] = new_plan
         repair.verify_repair(source, repaired, new_plan)
+
+    def test_verify_repair_rejects_single_provider_models(self) -> None:
+        source = source_ticket()
+        repaired = dict(source)
+        new_plan = plan(repaired, provider_count=1)
+        repaired["governance_model_plan"] = new_plan
+        with self.assertRaisesRegex(
+            repair.ExpertChildRepairError,
+            "provider redundancy floor",
+        ):
+            repair.verify_repair(source, repaired, new_plan)
 
     def test_verify_repair_rejects_preproduction_context_floor(self) -> None:
         source = source_ticket()

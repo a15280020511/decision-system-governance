@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+from types import SimpleNamespace
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -68,6 +69,51 @@ class ExpertTaskEnvelopeCompatibilityTests(unittest.TestCase):
             REPAIR.TASK_ENVELOPE.MINIMUM_CONTEXT_LENGTH,
             16_384,
         )
+        self.assertEqual(
+            RUNTIME.EXPERT_SELECTOR.MINIMUM_QUALIFIED_PROVIDER_COUNT,
+            2,
+        )
+        self.assertEqual(
+            REPAIR.SELECTOR.MINIMUM_QUALIFIED_PROVIDER_COUNT,
+            2,
+        )
+
+    def test_single_provider_candidate_is_rejected(self) -> None:
+        selector = SimpleNamespace(
+            _qualify_candidate=lambda candidate, token, context: {
+                **candidate,
+                "qualified_provider_count": 1,
+            }
+        )
+        ENVELOPE.patch_selector(selector)
+        self.assertIsNone(selector._qualify_candidate({"model_id": "a/pro"}, "", 16_384))
+
+    def test_two_provider_candidate_is_accepted(self) -> None:
+        selector = SimpleNamespace(
+            _qualify_candidate=lambda candidate, token, context: {
+                **candidate,
+                "qualified_provider_count": 2,
+            }
+        )
+        ENVELOPE.patch_selector(selector)
+        qualified = selector._qualify_candidate({"model_id": "a/pro"}, "", 16_384)
+        self.assertIsNotNone(qualified)
+        assert qualified is not None
+        self.assertEqual(qualified["qualified_provider_count"], 2)
+
+    def test_provider_redundancy_patch_is_idempotent(self) -> None:
+        calls = {"count": 0}
+
+        def qualify(candidate, token, context):
+            del token, context
+            calls["count"] += 1
+            return {**candidate, "qualified_provider_count": 2}
+
+        selector = SimpleNamespace(_qualify_candidate=qualify)
+        ENVELOPE.patch_selector(selector)
+        ENVELOPE.patch_selector(selector)
+        selector._qualify_candidate({"model_id": "a/pro"}, "", 16_384)
+        self.assertEqual(calls["count"], 1)
 
     def test_large_task_keeps_conservative_character_bound(self) -> None:
         ticket = {

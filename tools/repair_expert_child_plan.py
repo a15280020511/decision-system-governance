@@ -143,9 +143,11 @@ def verify_repair(
         if (
             isinstance(provider_count, bool)
             or not isinstance(provider_count, int)
-            or provider_count < 1
+            or provider_count < TASK_ENVELOPE.MINIMUM_QUALIFIED_PROVIDER_COUNT
         ):
-            raise ExpertChildRepairError("model has no qualified provider endpoint")
+            raise ExpertChildRepairError(
+                "model does not satisfy the qualified provider redundancy floor"
+            )
         if len(endpoint_hash) != 64 or any(
             character not in "0123456789abcdef" for character in endpoint_hash
         ):
@@ -199,6 +201,9 @@ def main() -> int:
                 "required_context_tokens": plan["required_context_tokens"],
                 "task_envelope_schema_version": (
                     TASK_ENVELOPE.EXPERT_RUNTIME_SCHEMA_VERSION
+                ),
+                "minimum_qualified_provider_count": (
+                    TASK_ENVELOPE.MINIMUM_QUALIFIED_PROVIDER_COUNT
                 ),
                 "selected_models": [
                     row["model"] for row in plan["selected_models"]
