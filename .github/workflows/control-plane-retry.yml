@@ -19,4 +19,7 @@ jobs:
       - name: Wake existing serial governance worker
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run control-plane-ticket.yml --ref main
+        run: >-
+          gh workflow run control-plane-ticket.yml
+          --repo "$GITHUB_REPOSITORY"
+          --ref main
