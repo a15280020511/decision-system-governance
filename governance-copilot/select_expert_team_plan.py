@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
-"""Create the governance-owned expert model plan.
+"""Create a governance-owned, price-ordered, executable expert model plan.
 
-Selection is intentionally simple:
-1. Read the OpenRouter model catalog.
-2. Keep paid, stable, general-purpose text models with an explicit flagship tier.
-3. Sort by combined prompt and completion token price, low to high.
-4. Take the first models from different companies.
-
-The expert center only validates and executes the immutable result.
+Selection remains deliberately simple: use OpenRouter's official intelligence
+order as the eligibility ceiling, retain explicit paid flagship tiers, verify a
+real exact provider endpoint for the current task, sort by combined token price,
+and take the cheapest models from different executable companies.
 """
 from __future__ import annotations
 
@@ -26,12 +23,24 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 MODELS_API = "https://openrouter.ai/api/v1/models"
+ENDPOINTS_API = "https://openrouter.ai/api/v1/models/{author}/{slug}/endpoints"
 SCHEMA_VERSION = "governance-expert-model-plan-v1"
-SELECTOR_SCHEMA_VERSION = "governance-openrouter-simple-flagship-price-v1"
+SELECTOR_SCHEMA_VERSION = "governance-openrouter-executable-flagship-price-v2"
 SELECTION_AUTHORITY = "decision-system-governance"
 DEFAULT_EXPERT_COUNT = 4
 MIN_EXPERT_COUNT = 3
 MAX_EXPERT_COUNT = 6
+OFFICIAL_INTELLIGENCE_RANK_LIMIT = 150
+MINIMUM_COMPLETION_TOKENS = 1_024
+FIXED_PROTOCOL_RESERVE = 8_192
+GOVERNANCE_COMPANIES = frozenset({"openai", "anthropic"})
+FORBIDDEN_MODEL_TERMS = (
+    "openrouter/",
+    ":online",
+    ":batch",
+    ":free",
+    "preview",
+)
 
 FLAGSHIP_TIER = re.compile(
     r"(?:^|[-_ /])(pro|max|opus|ultra|premier)(?:$|[-_ /0-9])",
@@ -79,10 +88,18 @@ def task_sha256(ticket: Mapping[str, Any]) -> str:
     return hashlib.sha256(_canonical_json(task)).hexdigest()
 
 
+def _required_context_tokens(ticket: Mapping[str, Any]) -> int:
+    task = ticket.get("task")
+    if not isinstance(task, Mapping):
+        raise ExpertPlanError("expert ticket has no task object")
+    task_characters = len(_canonical_json(task).decode("utf-8"))
+    return max(FIXED_PROTOCOL_RESERVE, task_characters + FIXED_PROTOCOL_RESERVE)
+
+
 def _fetch_json(url: str, token: str) -> Mapping[str, Any]:
     headers = {
         "Accept": "application/json",
-        "User-Agent": "decision-system-governance-expert-selector/2.0",
+        "User-Agent": "decision-system-governance-expert-selector/3.0",
         "X-Title": "Decision System Governance Expert Selector",
     }
     if token:
@@ -118,11 +135,21 @@ def _number(value: Any) -> float | None:
     return number if math.isfinite(number) else None
 
 
+def _positive_int(value: Any, default: int = 0) -> int:
+    if isinstance(value, bool):
+        return default
+    try:
+        parsed = int(str(value).strip())
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
+
+
 def _price_per_million(pricing: Mapping[str, Any], key: str) -> float | None:
     value = _number(pricing.get(key))
     if value is None or value < 0:
         return None
-    return value * 1_000_000
+    return value * 1_000_000 if value < 0.1 else value
 
 
 def _request_price(pricing: Mapping[str, Any]) -> float:
@@ -142,7 +169,7 @@ def _is_general_text(row: Mapping[str, Any]) -> bool:
         isinstance(inputs, list)
         and "text" in inputs
         and isinstance(outputs, list)
-        and outputs == ["text"]
+        and "text" in outputs
     )
 
 
@@ -154,6 +181,15 @@ def _not_expired(row: Mapping[str, Any]) -> bool:
         return date.fromisoformat(str(raw)[:10]) >= date.today()
     except ValueError:
         return False
+
+
+def _stable_model_id(model_id: str) -> bool:
+    folded = str(model_id or "").strip().casefold()
+    return bool(
+        folded
+        and "/" in folded
+        and not any(term in folded for term in FORBIDDEN_MODEL_TERMS)
+    )
 
 
 def _identity(row: Mapping[str, Any], model_id: str) -> str:
@@ -179,13 +215,18 @@ def _catalog_candidates(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
 
     candidates: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for row in rows:
+    for official_rank, row in enumerate(rows, 1):
+        if official_rank > OFFICIAL_INTELLIGENCE_RANK_LIMIT:
+            break
         if not isinstance(row, Mapping):
             continue
         model_id = str(row.get("id") or "").strip()
-        if not model_id or model_id in seen or "/" not in model_id:
+        if not _stable_model_id(model_id) or model_id in seen:
             continue
         seen.add(model_id)
+        company = model_id.split("/", 1)[0].casefold()
+        if company in GOVERNANCE_COMPANIES:
+            continue
         if not _is_general_text(row) or not _not_expired(row):
             continue
         if not _is_general_flagship(_identity(row, model_id)):
@@ -197,12 +238,16 @@ def _catalog_candidates(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
         if prompt is None or completion is None or prompt + completion <= 0:
             continue
 
-        company = model_id.split("/", 1)[0]
         combined = prompt + completion
         candidates.append(
             {
                 "model_id": model_id,
                 "company": company,
+                "official_intelligence_rank": official_rank,
+                "context_length": _positive_int(row.get("context_length")),
+                "max_completion_tokens": _positive_int(
+                    row.get("max_completion_tokens")
+                ),
                 "prompt_usd_per_million": prompt,
                 "completion_usd_per_million": completion,
                 "request_usd": _request_price(pricing),
@@ -218,20 +263,157 @@ def _catalog_candidates(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
             float(row["request_usd"]),
             float(row["prompt_usd_per_million"]),
             float(row["completion_usd_per_million"]),
+            int(row["official_intelligence_rank"]),
             str(row["model_id"]),
         )
     )
     if not candidates:
-        raise ExpertPlanError("no paid general-purpose flagship model is available")
+        raise ExpertPlanError(
+            "no paid general-purpose flagship model is available within the "
+            "official intelligence top 150"
+        )
     return candidates
+
+
+def _endpoint_url(model_id: str) -> str:
+    if not _stable_model_id(model_id):
+        raise ExpertPlanError(f"unstable model id: {model_id}")
+    author, slug = model_id.split("/", 1)
+    return ENDPOINTS_API.format(
+        author=urllib.parse.quote(author, safe=""),
+        slug=urllib.parse.quote(slug, safe=""),
+    )
+
+
+def _endpoint_rows(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    data = payload.get("data")
+    if isinstance(data, Mapping) and isinstance(data.get("endpoints"), list):
+        return [row for row in data["endpoints"] if isinstance(row, Mapping)]
+    if isinstance(data, list):
+        return [row for row in data if isinstance(row, Mapping)]
+    if isinstance(payload.get("endpoints"), list):
+        return [row for row in payload["endpoints"] if isinstance(row, Mapping)]
+    return []
+
+
+def _provider_slug(endpoint: Mapping[str, Any]) -> str:
+    for key in ("tag", "provider_slug", "provider", "name", "provider_name"):
+        value = str(endpoint.get(key) or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def _compatible_endpoint_inventory(
+    candidate: Mapping[str, Any],
+    payload: Mapping[str, Any],
+    required_context_tokens: int,
+) -> list[dict[str, Any]]:
+    compatible: list[dict[str, Any]] = []
+    aggregate_context = _positive_int(candidate.get("context_length"))
+    aggregate_completion = _positive_int(candidate.get("max_completion_tokens"))
+    for endpoint in _endpoint_rows(payload):
+        provider = _provider_slug(endpoint)
+        context = _positive_int(endpoint.get("context_length"), aggregate_context)
+        maximum = _positive_int(
+            endpoint.get("max_completion_tokens"), aggregate_completion
+        )
+        pricing = _mapping(endpoint.get("pricing"))
+        prompt = _price_per_million(pricing, "prompt")
+        completion = _price_per_million(pricing, "completion")
+        if prompt is None:
+            prompt = float(candidate["prompt_usd_per_million"])
+        if completion is None:
+            completion = float(candidate["completion_usd_per_million"])
+        if (
+            not provider
+            or context < required_context_tokens
+            or maximum < MINIMUM_COMPLETION_TOKENS
+            or prompt < 0
+            or completion < 0
+            or endpoint.get("synthetic_fixture_only") is True
+        ):
+            continue
+        compatible.append(
+            {
+                "provider": provider,
+                "provider_endpoint": f"{candidate['model_id']}@{provider}",
+                "context_length": context,
+                "max_completion_tokens": maximum,
+                "prompt_usd_per_million": prompt,
+                "completion_usd_per_million": completion,
+            }
+        )
+    compatible.sort(
+        key=lambda row: (
+            float(row["prompt_usd_per_million"])
+            + float(row["completion_usd_per_million"]),
+            str(row["provider"]),
+        )
+    )
+    return compatible
+
+
+def _qualify_candidate(
+    candidate: Mapping[str, Any],
+    token: str,
+    required_context_tokens: int,
+) -> dict[str, Any] | None:
+    payload = _fetch_json(_endpoint_url(str(candidate["model_id"])), token)
+    compatible = _compatible_endpoint_inventory(
+        candidate,
+        payload,
+        required_context_tokens,
+    )
+    if not compatible:
+        return None
+    qualified = dict(candidate)
+    qualified.update(
+        {
+            "exact_endpoint_qualified": True,
+            "qualified_provider_count": len(compatible),
+            "endpoint_inventory_sha256": hashlib.sha256(
+                _canonical_json(compatible)
+            ).hexdigest(),
+            "required_context_tokens": required_context_tokens,
+            "minimum_completion_tokens": MINIMUM_COMPLETION_TOKENS,
+        }
+    )
+    return qualified
 
 
 def _live_flagship_rows(token: str) -> list[dict[str, Any]]:
     query = urllib.parse.urlencode(
-        {"sort": "pricing-low-to-high", "output_modalities": "text"}
+        {"sort": "intelligence-high-to-low", "output_modalities": "text"}
     )
     payload = _fetch_json(f"{MODELS_API}?{query}", token)
     return _catalog_candidates(payload)
+
+
+def _live_executable_flagship_rows(
+    ticket: Mapping[str, Any], token: str, required_company_count: int
+) -> list[dict[str, Any]]:
+    required_context = _required_context_tokens(ticket)
+    candidates = _live_flagship_rows(token)
+    qualified: list[dict[str, Any]] = []
+    companies: set[str] = set()
+    for candidate in candidates:
+        company = str(candidate.get("company") or "")
+        if not company or company in companies:
+            continue
+        row = _qualify_candidate(candidate, token, required_context)
+        if row is None:
+            continue
+        qualified.append(row)
+        companies.add(company)
+        if len(companies) == required_company_count:
+            break
+    if len(companies) < required_company_count:
+        raise ExpertPlanError(
+            "not enough distinct-company executable flagship models: "
+            f"need {required_company_count}, found {len(companies)}"
+        )
+    return qualified
 
 
 def _budget(ticket: Mapping[str, Any]) -> tuple[int, int, int]:
@@ -287,6 +469,8 @@ def _roles(expert_count: int) -> list[dict[str, str]]:
 
 
 def _finite_cost(row: Mapping[str, Any]) -> float:
+    if row.get("exact_endpoint_qualified") is not True:
+        raise ExpertPlanError("ranked model has no executable endpoint qualification")
     try:
         value = float(row.get("estimated_task_cost_usd"))
     except (TypeError, ValueError) as exc:
@@ -306,7 +490,13 @@ def _distinct_company_rows(
     for row in rows:
         model = str(row.get("model_id") or "").strip()
         company = str(row.get("company") or "").strip()
-        if not model or not company or model in models or company in companies:
+        if (
+            not model
+            or not company
+            or company in GOVERNANCE_COMPANIES
+            or model in models
+            or company in companies
+        ):
             continue
         _finite_cost(row)
         chosen.append(row)
@@ -315,7 +505,8 @@ def _distinct_company_rows(
         if len(chosen) == count:
             return chosen
     raise ExpertPlanError(
-        f"not enough distinct-company flagship models: need {count}, found {len(chosen)}"
+        f"not enough distinct-company executable flagship models: need {count}, "
+        f"found {len(chosen)}"
     )
 
 
@@ -328,7 +519,12 @@ def _model_record(row: Mapping[str, Any], *, slot: int) -> dict[str, Any]:
         "price_rank_usd_per_million": float(row["price_rank_usd_per_million"]),
         "prompt_usd_per_million": float(row["prompt_usd_per_million"]),
         "completion_usd_per_million": float(row["completion_usd_per_million"]),
-        "selection_evidence": "explicit-product-tier-price-order",
+        "official_intelligence_rank": int(row["official_intelligence_rank"]),
+        "qualified_provider_count": int(row["qualified_provider_count"]),
+        "endpoint_inventory_sha256": str(row["endpoint_inventory_sha256"]),
+        "selection_evidence": (
+            "explicit-product-tier-price-order+live-exact-endpoint-qualified"
+        ),
     }
 
 
@@ -337,10 +533,15 @@ def _catalog_sha256(rows: Sequence[Mapping[str, Any]]) -> str:
         {
             "model_id": row["model_id"],
             "company": row["company"],
+            "official_intelligence_rank": row["official_intelligence_rank"],
             "prompt_usd_per_million": row["prompt_usd_per_million"],
             "completion_usd_per_million": row["completion_usd_per_million"],
             "request_usd": row["request_usd"],
             "price_rank_usd_per_million": row["price_rank_usd_per_million"],
+            "qualified_provider_count": row["qualified_provider_count"],
+            "endpoint_inventory_sha256": row["endpoint_inventory_sha256"],
+            "required_context_tokens": row["required_context_tokens"],
+            "minimum_completion_tokens": row["minimum_completion_tokens"],
         }
         for row in rows
     ]
@@ -349,7 +550,12 @@ def _catalog_sha256(rows: Sequence[Mapping[str, Any]]) -> str:
 
 def build_plan(ticket: Mapping[str, Any], token: str = "") -> dict[str, Any]:
     _, recovery_count, expert_count = _budget(ticket)
-    rows = _live_flagship_rows(token)
+    required_company_count = expert_count + recovery_count
+    rows = _live_executable_flagship_rows(
+        ticket,
+        token,
+        required_company_count,
+    )
 
     selected_rows = _distinct_company_rows(rows, expert_count)
     selected_companies = {str(row["company"]) for row in selected_rows}
@@ -378,17 +584,22 @@ def build_plan(ticket: Mapping[str, Any], token: str = "") -> dict[str, Any]:
         "schema_version": SCHEMA_VERSION,
         "selection_authority": SELECTION_AUTHORITY,
         "selection_policy": (
-            "openrouter-paid-general-purpose-flagships "
-            "-> combined-token-price-ascending -> distinct-model-companies"
+            "openrouter-official-intelligence-top-150 -> paid-general-purpose-"
+            "flagships -> live-exact-endpoint-qualified -> combined-token-price-"
+            "ascending -> distinct-model-companies"
         ),
         "price_rank_basis": "prompt_usd_per_million + completion_usd_per_million",
         "task_sha256": task_sha256(ticket),
+        "required_context_tokens": _required_context_tokens(ticket),
+        "minimum_native_completion_tokens": MINIMUM_COMPLETION_TOKENS,
         "expert_count": expert_count,
         "recovery_count": recovery_count,
         "selected_models": selected_models,
         "recovery_models": recovery_models,
+        "endpoint_qualification_performed_by_governance": True,
+        "governance_companies_excluded": sorted(GOVERNANCE_COMPANIES),
         "provider_selection_authority": (
-            "expert-runtime-exact-endpoint-resolution-only"
+            "expert-runtime-cheapest-compatible-exact-endpoint-resolution-only"
         ),
         "model_substitution_allowed": False,
         "expert_center_reranking_allowed": False,
@@ -419,33 +630,19 @@ def main() -> int:
     parser.add_argument("--output-ticket", required=True)
     parser.add_argument("--output-plan", required=True)
     args = parser.parse_args()
-    ticket = json.loads(Path(args.ticket).read_text(encoding="utf-8"))
-    if not isinstance(ticket, Mapping):
-        raise SystemExit("ticket root must be an object")
-    enriched, plan = enrich_ticket(
-        ticket,
-        os.getenv("OPENROUTER_API_KEY", ""),
-    )
+
+    ticket_path = Path(args.ticket)
+    value = json.loads(ticket_path.read_text(encoding="utf-8"))
+    if not isinstance(value, Mapping):
+        raise ExpertPlanError("ticket root must be an object")
+    enriched, plan = enrich_ticket(value, os.getenv("OPENROUTER_API_KEY", ""))
     Path(args.output_ticket).write_text(
-        json.dumps(enriched, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        json.dumps(enriched, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     Path(args.output_plan).write_text(
-        json.dumps(plan, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        json.dumps(plan, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
-    )
-    print(
-        json.dumps(
-            {
-                "status": "PASS",
-                "selection_authority": SELECTION_AUTHORITY,
-                "expert_count": plan["expert_count"],
-                "recovery_count": plan["recovery_count"],
-                "plan_sha256": plan["plan_sha256"],
-            },
-            ensure_ascii=False,
-            sort_keys=True,
-        )
     )
     return 0
 
