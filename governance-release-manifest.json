@@ -3,8 +3,8 @@
   "governance_version": "4.2.3",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
-  "file_count": 152,
-  "total_bytes": 983620,
+  "file_count": 160,
+  "total_bytes": 1101770,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -452,6 +452,16 @@
       "sha256": "b9d7453c388c1f4d9767aa8ad8081a60cc3ec436e8ce9120026cd5e06fdf47ee"
     },
     {
+      "path": "governance-copilot/__pycache__/expert_task_envelope.cpython-312.pyc",
+      "size_bytes": 19827,
+      "sha256": "e3980a9319bcdc021784b6efb1b83c46f0817604274823f9635566ca3d177fa5"
+    },
+    {
+      "path": "governance-copilot/__pycache__/select_expert_team_plan.cpython-312.pyc",
+      "size_bytes": 32267,
+      "sha256": "c182f16473e692ba022f82a772338e872e6e6c814bb5bdd5e50c736019e7eff6"
+    },
+    {
       "path": "governance-copilot/expert_task_envelope.py",
       "size_bytes": 17192,
       "sha256": "c0e31dcbaed043b8d1b0d4a6b946d45daffc6c2f6a110e1750bd637f8c900f4d"
@@ -468,8 +478,8 @@
     },
     {
       "path": "governance-copilot/select_expert_team_plan.py",
-      "size_bytes": 26189,
-      "sha256": "a8bd91eb8dc86862767187aeab4127deba61ade1b5abac240b2f2a5da576455d"
+      "size_bytes": 26194,
+      "sha256": "b8ec5614dc125ddb48afdf12b79706c9460283f19f7015f1210058a745e46c04"
     },
     {
       "path": "governance-copilot/select_paid_governance_flagship_model.py",
@@ -577,6 +587,31 @@
       "sha256": "5a581d01a0295fae64cdd039b70665b15352aee6611a8a6073f4f2c22cd81b15"
     },
     {
+      "path": "tests/__pycache__/test_eight_model_ordered_recovery.cpython-312.pyc",
+      "size_bytes": 6869,
+      "sha256": "c0d696df63191855e7424487835fa647d4ca43ea92feab82ece1dc100aef2043"
+    },
+    {
+      "path": "tests/__pycache__/test_expert_child_plan_repair.cpython-312.pyc",
+      "size_bytes": 10710,
+      "sha256": "bfb1918c81a93d68d884ecf220fca6720c927e5f17e2abe7c8525db38cf933b8"
+    },
+    {
+      "path": "tests/__pycache__/test_expert_plan_preview_workflow.cpython-312.pyc",
+      "size_bytes": 7470,
+      "sha256": "ec464e580be4253ae2ad9b742a4a1d3627316adf47685a5a63f4c23b8257c237"
+    },
+    {
+      "path": "tests/__pycache__/test_expert_plan_strict_flagship_policy.cpython-312.pyc",
+      "size_bytes": 14354,
+      "sha256": "2abbb4217230ce6795b2c6fcb2700e2a146460daa232e127e7468b7b44afc986"
+    },
+    {
+      "path": "tests/__pycache__/test_expert_zdr_endpoint_parity.cpython-312.pyc",
+      "size_bytes": 13068,
+      "sha256": "56b9477d8db5e83b7e24e5873c19a61e155f2d67171a5a60941c7d9b13892e20"
+    },
+    {
       "path": "tests/stress_openrouter_governance_selector.py",
       "size_bytes": 4640,
       "sha256": "9e23eae6964d0b7dbebf92e880637aba87e100e5613603eb79af7bd542058b7c"
@@ -623,8 +658,8 @@
     },
     {
       "path": "tests/test_expert_child_plan_repair.py",
-      "size_bytes": 7346,
-      "sha256": "e89240c0cd4ba2941100669bf6f72684e56b3cec9fd418767e79e01e4e2841a4"
+      "size_bytes": 7636,
+      "sha256": "9dce8ab4bb5c64c3d184351c2fd796fee891205a2226a7655dc9b307a4b89d16"
     },
     {
       "path": "tests/test_expert_intelligence_ranked_roles.py",
@@ -633,13 +668,13 @@
     },
     {
       "path": "tests/test_expert_plan_preview_workflow.py",
-      "size_bytes": 4980,
-      "sha256": "6febb090b0b1554b6bc8f680742bbbb6b7eda004c3f20aac39056f705e7ff2a5"
+      "size_bytes": 5047,
+      "sha256": "3670b6cad32731b600f72755c008b9f9fffe87298d1af1811954f8de15c868df"
     },
     {
       "path": "tests/test_expert_plan_strict_flagship_policy.py",
-      "size_bytes": 9746,
-      "sha256": "0b6253e42e0585d45952100eace66a050a2dc09e70535f013dac054bfa645215"
+      "size_bytes": 10152,
+      "sha256": "84caa88fd6e84865031428fe306dc991cfd543ccf17870c3f1d567a186562398"
     },
     {
       "path": "tests/test_expert_plan_workflow_secret.py",
@@ -737,14 +772,19 @@
       "sha256": "f99f67e8807fe13c9aa09f576d133b3a6e6a295a71e99b736a56f4c0a962e0b6"
     },
     {
+      "path": "tools/__pycache__/repair_expert_child_plan.cpython-312.pyc",
+      "size_bytes": 12277,
+      "sha256": "6c3c3f0b4c4167954839c7923965b7939edf164c7babd2cfb06483062aeee4b4"
+    },
+    {
       "path": "tools/generate_governance_release_manifest.py",
       "size_bytes": 1875,
       "sha256": "ab9823c424f9a59e9d31d8c737cd371e54730604bdf13d64a7a027ec7a9dc771"
     },
     {
       "path": "tools/repair_expert_child_plan.py",
-      "size_bytes": 9062,
-      "sha256": "3e27f1b60ca95774ae309da3d8f525616df67f3f6977f348abf3ba8a09504a1f"
+      "size_bytes": 9370,
+      "sha256": "81971f4c2a1864c525685f164629b9ddadb76000146670b2d4e9eb554d48c8fc"
     },
     {
       "path": "tools/serverchan_notify.py",
@@ -753,8 +793,8 @@
     },
     {
       "path": "tools/sign_expert_plan.py",
-      "size_bytes": 11811,
-      "sha256": "b319304180f4d367aa0a3eb4f4a0e3b368194454552cdb495a989dca71e1c1d5"
+      "size_bytes": 12043,
+      "sha256": "4def4da4e2aa7e681a9d89fe0cb04ae37a107369c994ab15f3335bb758b764d6"
     },
     {
       "path": "tools/supply_chain_audit.py",
