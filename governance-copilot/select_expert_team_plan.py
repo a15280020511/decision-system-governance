@@ -2,10 +2,10 @@
 """Create a governance-owned, price-ordered, executable expert model plan.
 
 Selection remains deliberately simple: use OpenRouter's official intelligence
-order as the eligibility ceiling, retain explicit paid flagship tiers, verify a
-real exact provider endpoint for the current task, sort by combined token price,
-keep only the cheapest qualified flagship from each company, and use the first
-four companies as active experts plus the next four companies as ordered standbys.
+order, require native reasoning support, retain only each company's highest-ranked
+stable paid general-purpose reasoning model as that company's flagship, verify a
+real exact provider endpoint, then sort company flagships by combined token price.
+The first four companies are active experts and the next four are ordered standbys.
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ from typing import Any, Mapping, Sequence
 MODELS_API = "https://openrouter.ai/api/v1/models"
 ENDPOINTS_API = "https://openrouter.ai/api/v1/models/{author}/{slug}/endpoints"
 SCHEMA_VERSION = "governance-expert-model-plan-v1"
-SELECTOR_SCHEMA_VERSION = "governance-openrouter-executable-flagship-price-v4"
+SELECTOR_SCHEMA_VERSION = "governance-openrouter-reasoning-flagship-price-v5"
 SELECTION_AUTHORITY = "decision-system-governance"
 DEFAULT_EXPERT_COUNT = 4
 MIN_EXPERT_COUNT = 3
@@ -34,6 +34,7 @@ MAX_EXPERT_COUNT = 6
 OFFICIAL_INTELLIGENCE_RANK_LIMIT = 1000
 MINIMUM_COMPLETION_TOKENS = 1_024
 FIXED_PROTOCOL_RESERVE = 8_192
+REASONING_PARAMETER = "reasoning"
 GOVERNANCE_COMPANIES = frozenset({"openai", "anthropic"})
 FORBIDDEN_MODEL_TERMS = (
     "openrouter/",
@@ -200,35 +201,50 @@ def _identity(row: Mapping[str, Any], model_id: str) -> str:
     return " ".join((model_name, canonical, name))
 
 
-def _is_general_flagship(identity: str) -> bool:
+def _supports_reasoning(row: Mapping[str, Any]) -> bool:
+    parameters = row.get("supported_parameters")
+    if not isinstance(parameters, list):
+        return False
+    return REASONING_PARAMETER in {
+        str(value or "").strip().casefold() for value in parameters
+    }
+
+
+def _is_general_reasoning_candidate(identity: str) -> bool:
     lowered = identity.lower()
     return (
-        bool(FLAGSHIP_TIER.search(identity))
-        and not EXCLUDED_TIER.search(identity)
+        not EXCLUDED_TIER.search(identity)
         and not any(marker in lowered for marker in SPECIALIZED_MARKERS)
     )
-
 
 def _catalog_candidates(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
     rows = payload.get("data")
     if not isinstance(rows, list) or not rows:
         raise ExpertPlanError("OpenRouter model catalog is empty")
 
-    candidates: list[dict[str, Any]] = []
-    seen: set[str] = set()
+    # The API rows are requested in official intelligence-high-to-low order.
+    # The first eligible reasoning model encountered for a company is therefore
+    # that company's strongest current stable paid general-purpose reasoning model.
+    company_flagships: dict[str, dict[str, Any]] = {}
+    seen_models: set[str] = set()
     for official_rank, row in enumerate(rows, 1):
         if official_rank > OFFICIAL_INTELLIGENCE_RANK_LIMIT:
             break
         if not isinstance(row, Mapping):
             continue
         model_id = str(row.get("id") or "").strip()
-        if not _stable_model_id(model_id) or model_id in seen:
+        if not _stable_model_id(model_id) or model_id in seen_models:
             continue
-        seen.add(model_id)
+        seen_models.add(model_id)
         company = model_id.split("/", 1)[0].casefold()
-        if not _is_general_text(row) or not _not_expired(row):
+        if company in company_flagships:
             continue
-        if not _is_general_flagship(_identity(row, model_id)):
+        if (
+            not _is_general_text(row)
+            or not _not_expired(row)
+            or not _supports_reasoning(row)
+            or not _is_general_reasoning_candidate(_identity(row, model_id))
+        ):
             continue
 
         pricing = _mapping(row.get("pricing"))
@@ -238,24 +254,26 @@ def _catalog_candidates(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
             continue
 
         combined = prompt + completion
-        candidates.append(
-            {
-                "model_id": model_id,
-                "company": company,
-                "official_intelligence_rank": official_rank,
-                "context_length": _positive_int(row.get("context_length")),
-                "max_completion_tokens": _positive_int(
-                    row.get("max_completion_tokens")
-                ),
-                "prompt_usd_per_million": prompt,
-                "completion_usd_per_million": completion,
-                "request_usd": _request_price(pricing),
-                "price_rank_usd_per_million": combined,
-                "estimated_task_cost_usd": combined,
-                "flagship_basis": "explicit-product-tier",
-            }
-        )
+        company_flagships[company] = {
+            "model_id": model_id,
+            "company": company,
+            "official_intelligence_rank": official_rank,
+            "context_length": _positive_int(row.get("context_length")),
+            "max_completion_tokens": _positive_int(
+                row.get("max_completion_tokens")
+            ),
+            "prompt_usd_per_million": prompt,
+            "completion_usd_per_million": completion,
+            "request_usd": _request_price(pricing),
+            "price_rank_usd_per_million": combined,
+            "estimated_task_cost_usd": combined,
+            "flagship_basis": (
+                "company-highest-intelligence-stable-paid-general-reasoning-model"
+            ),
+            "reasoning_parameter_required": True,
+        }
 
+    candidates = list(company_flagships.values())
     candidates.sort(
         key=lambda row: (
             float(row["price_rank_usd_per_million"]),
@@ -268,11 +286,10 @@ def _catalog_candidates(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
     )
     if not candidates:
         raise ExpertPlanError(
-            "no paid general-purpose flagship model is available within the "
-            "official intelligence top 1000"
+            "no paid stable general-purpose reasoning flagship is available "
+            "within the official intelligence top 1000"
         )
     return candidates
-
 
 def _endpoint_url(model_id: str) -> str:
     if not _stable_model_id(model_id):
@@ -383,11 +400,14 @@ def _qualify_candidate(
 
 def _live_flagship_rows(token: str) -> list[dict[str, Any]]:
     query = urllib.parse.urlencode(
-        {"sort": "intelligence-high-to-low", "output_modalities": "text"}
+        {
+            "sort": "intelligence-high-to-low",
+            "output_modalities": "text",
+            "supported_parameters": REASONING_PARAMETER,
+        }
     )
     payload = _fetch_json(f"{MODELS_API}?{query}", token)
     return _catalog_candidates(payload)
-
 
 def _live_executable_flagship_rows(
     ticket: Mapping[str, Any],
@@ -572,7 +592,7 @@ def _model_record(row: Mapping[str, Any], *, slot: int) -> dict[str, Any]:
         "qualified_provider_count": int(row["qualified_provider_count"]),
         "endpoint_inventory_sha256": str(row["endpoint_inventory_sha256"]),
         "selection_evidence": (
-            "explicit-product-tier-price-order+live-exact-endpoint-qualified"
+            "company-highest-intelligence-reasoning-flagship+price-order+live-exact-endpoint-qualified"
         ),
     }
 
@@ -630,9 +650,10 @@ def build_plan(ticket: Mapping[str, Any], token: str = "") -> dict[str, Any]:
         "schema_version": SCHEMA_VERSION,
         "selection_authority": SELECTION_AUTHORITY,
         "selection_policy": (
-            "openrouter-official-intelligence-top-1000 -> paid-general-purpose-"
-            "flagships -> live-exact-endpoint-qualified -> combined-token-price-"
-            "ascending -> cheapest-qualified-model-per-company -> "
+            "openrouter-official-intelligence-top-1000 -> reasoning-parameter-required -> "
+            "stable-paid-general-purpose-models -> highest-intelligence-model-per-"
+            "company-as-flagship -> live-exact-endpoint-qualified -> combined-token-"
+            "price-ascending -> one-flagship-per-company -> "
             "eight-distinct-companies -> four-primary-four-recovery"
         ),
         "price_rank_basis": "prompt_usd_per_million + completion_usd_per_million",
@@ -647,7 +668,9 @@ def build_plan(ticket: Mapping[str, Any], token: str = "") -> dict[str, Any]:
         "endpoint_qualification_performed_by_governance": True,
         "catalog_fetch_mode": "live-per-task-no-cross-task-cache",
         "company_uniqueness_scope": "selected-and-recovery",
-        "company_model_policy": "one-cheapest-qualified-flagship-per-company",
+        "company_model_policy": (
+            "one-highest-intelligence-reasoning-flagship-per-company-then-price-rank"
+        ),
         "provider_selection_authority": (
             "expert-runtime-cheapest-compatible-exact-endpoint-resolution-only"
         ),

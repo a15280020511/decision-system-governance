@@ -4,7 +4,8 @@
 Governance and expert production must use the same task envelope, authenticated
 ZDR endpoint inventory, ZDR provider floor, role assignment, and an
 ordered governance-approved recovery reserve. The live price ranking keeps one
-cheapest qualified flagship per company; within that frozen set, the strongest official
+highest-intelligence reasoning flagship per company, then sorts those company flagships
+by price; within that frozen set, the strongest official
 intelligence rank performs final synthesis and the second strongest performs
 cross-review. Four additional price-ranked flagship models remain dormant and
 are attempted sequentially only after an eligible technical failure.
@@ -15,7 +16,7 @@ import hashlib
 import json
 from typing import Any, Mapping
 
-SCHEMA_VERSION = "governance-expert-task-envelope-v6"
+SCHEMA_VERSION = "governance-expert-task-envelope-v7"
 EXPERT_RUNTIME_SCHEMA_VERSION = "v5-minimal-task-envelope-1"
 MINIMUM_CONTEXT_LENGTH = 16_384
 FIXED_PROTOCOL_RESERVE = 8_192
@@ -24,7 +25,7 @@ MINIMUM_GOVERNANCE_RECOVERY_MODELS = 4
 MAXIMUM_TOTAL_MODEL_CALLS = 16
 ZDR_ENDPOINTS_API = "https://openrouter.ai/api/v1/endpoints/zdr"
 ZDR_SELECTOR_SCHEMA_VERSION = (
-    "governance-openrouter-live-unique-company-flagship-price-v7"
+    "governance-openrouter-live-unique-company-reasoning-flagship-price-v8"
 )
 ROLE_ASSIGNMENT_POLICY = (
     "live-price-minimal-unique-company-set -> official-intelligence-rank-ascending -> "
@@ -334,8 +335,9 @@ def patch_selector(selector: Any) -> None:
             record = original_model_record(row, slot=slot)
             if has_live_endpoint_primitives:
                 record["selection_evidence"] = (
-                    "explicit-product-tier-price-order+live-exact-endpoint-qualified+"
-                    "authenticated-zdr-endpoint-qualified+minimum-one-zdr-provider-route"
+                    "company-highest-intelligence-reasoning-flagship+price-order+"
+                    "live-exact-endpoint-qualified+authenticated-zdr-endpoint-qualified+"
+                    "minimum-one-zdr-provider-route"
                 )
             return record
 
@@ -358,10 +360,11 @@ def patch_selector(selector: Any) -> None:
                     "governance plan must include four approved recovery models"
                 )
             plan["selection_policy"] = (
-                "openrouter-official-intelligence-top-1000 -> paid-general-purpose-"
-                "flagships -> live-exact-endpoint-qualified -> authenticated-zdr-"
-                "endpoint-qualified -> minimum-one-zdr-provider-route -> combined-token-"
-                "price-ascending -> cheapest-qualified-model-per-company -> "
+                "openrouter-official-intelligence-top-1000 -> reasoning-parameter-required -> "
+                "stable-paid-general-purpose-models -> highest-intelligence-model-per-"
+                "company-as-flagship -> live-exact-endpoint-qualified -> authenticated-"
+                "zdr-endpoint-qualified -> minimum-one-zdr-provider-route -> combined-"
+                "token-price-ascending -> one-flagship-per-company -> "
                 "eight-distinct-companies -> four-primary-four-recovery"
             )
             plan["zdr_endpoint_qualification_required"] = True
