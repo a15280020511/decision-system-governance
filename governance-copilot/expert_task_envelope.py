@@ -19,15 +19,15 @@ SCHEMA_VERSION = "governance-expert-task-envelope-v6"
 EXPERT_RUNTIME_SCHEMA_VERSION = "v5-minimal-task-envelope-1"
 MINIMUM_CONTEXT_LENGTH = 16_384
 FIXED_PROTOCOL_RESERVE = 8_192
-MINIMUM_QUALIFIED_PROVIDER_COUNT = 2
+MINIMUM_QUALIFIED_PROVIDER_COUNT = 1
 MINIMUM_GOVERNANCE_RECOVERY_MODELS = 4
 MAXIMUM_TOTAL_MODEL_CALLS = 16
 ZDR_ENDPOINTS_API = "https://openrouter.ai/api/v1/endpoints/zdr"
 ZDR_SELECTOR_SCHEMA_VERSION = (
-    "governance-openrouter-zdr-redundant-executable-flagship-price-v6"
+    "governance-openrouter-live-unique-company-flagship-price-v7"
 )
 ROLE_ASSIGNMENT_POLICY = (
-    "price-minimal-distinct-company-set -> official-intelligence-rank-ascending -> "
+    "live-price-minimal-unique-company-set -> official-intelligence-rank-ascending -> "
     "strongest-final-synthesis -> second-strongest-cross-review -> remaining-independent"
 )
 RECOVERY_POOL_POLICY = "shared-governance-approved-candidates"
@@ -360,9 +360,9 @@ def patch_selector(selector: Any) -> None:
             plan["selection_policy"] = (
                 "openrouter-official-intelligence-top-150 -> paid-general-purpose-"
                 "flagships -> live-exact-endpoint-qualified -> authenticated-zdr-"
-                "endpoint-qualified -> minimum-two-provider-routes -> combined-token-"
-                "price-ascending -> primary-excludes-governance-vendors -> "
-                "distinct-primary-companies -> unique-recovery-models"
+                "endpoint-qualified -> minimum-one-zdr-provider-route -> combined-token-"
+                "price-ascending -> cheapest-qualified-model-per-company -> "
+                "eight-distinct-companies -> four-primary-four-recovery"
             )
             plan["zdr_endpoint_qualification_required"] = True
             plan["zdr_endpoint_inventory_source"] = ZDR_ENDPOINTS_API
