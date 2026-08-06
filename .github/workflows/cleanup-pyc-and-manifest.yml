@@ -1,0 +1,42 @@
+name: Clean Compiled Caches And Manifest
+
+on:
+  push:
+    branches:
+      - fix/exclude-luna-and-verify-strict-tier
+
+permissions:
+  contents: write
+
+jobs:
+  clean:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: fix/exclude-luna-and-verify-strict-tier
+          persist-credentials: true
+          fetch-depth: 0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: "3.12"
+      - name: Remove compiled caches and regenerate exact manifest
+        run: |
+          set -euo pipefail
+          find . -type d -name __pycache__ -prune -exec rm -rf {} +
+          rm .github/workflows/cleanup-pyc-and-manifest.yml
+          version="$(jq -r '.governance_version' governance-release-manifest.json)"
+          python tools/generate_governance_release_manifest.py \
+            --root . \
+            --output /tmp/governance-release-manifest.json \
+            --version "$version"
+          mv /tmp/governance-release-manifest.json governance-release-manifest.json
+          test "$(find . -type d -name __pycache__ | wc -l)" -eq 0
+      - name: Commit cleanup
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: remove compiled caches and refresh manifest"
+          git push origin HEAD:fix/exclude-luna-and-verify-strict-tier
