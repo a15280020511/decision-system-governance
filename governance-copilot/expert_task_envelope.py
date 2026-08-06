@@ -361,7 +361,8 @@ def patch_selector(selector: Any) -> None:
                 "openrouter-official-intelligence-top-150 -> paid-general-purpose-"
                 "flagships -> live-exact-endpoint-qualified -> authenticated-zdr-"
                 "endpoint-qualified -> minimum-two-provider-routes -> combined-token-"
-                "price-ascending -> distinct-primary-companies -> unique-recovery-models"
+                "price-ascending -> primary-excludes-governance-vendors -> "
+                "distinct-primary-companies -> unique-recovery-models"
             )
             plan["zdr_endpoint_qualification_required"] = True
             plan["zdr_endpoint_inventory_source"] = ZDR_ENDPOINTS_API
