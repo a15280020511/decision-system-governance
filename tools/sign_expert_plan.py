@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SELECTOR_PATH = ROOT / "governance-copilot" / "select_expert_team_plan.py"
 TASK_ENVELOPE_PATH = ROOT / "governance-copilot" / "expert_task_envelope.py"
 TOP20_POOL_PATH = ROOT / "governance-copilot" / "top20_reasoning_pool.py"
+TOP50_POOL_PATH = ROOT / "governance-copilot" / "top50_reasoning_pool_extension.py"
 TASK_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$")
 ALLOWED_FIELDS = {
     "task_id",
@@ -55,8 +56,13 @@ TOP20_POOL = _load_module(
     "governance_plan_preview_top20_pool",
     TOP20_POOL_PATH,
 )
+TOP50_POOL = _load_module(
+    "governance_plan_preview_top50_pool",
+    TOP50_POOL_PATH,
+)
 TASK_ENVELOPE.patch_selector(SELECTOR)
 TOP20_POOL.patch_selector(SELECTOR)
+TOP50_POOL.patch_selector(SELECTOR)
 
 
 def _canonical_json(value: Any) -> bytes:
@@ -192,6 +198,23 @@ def verify_signed_plan(
         raise ExpertPlanSigningError("top-20 reasoning pool is incomplete")
     if plan.get("old_flagship_filter_applied_to_top20_pool") is not False:
         raise ExpertPlanSigningError("old flagship filter must not alter the top-20 pool")
+    if plan.get("top50_reasoning_pool_size") != 50:
+        raise ExpertPlanSigningError("top-50 reasoning pool is incomplete")
+    if plan.get("top50_reasoning_pool_period") != "week":
+        raise ExpertPlanSigningError("top-50 popularity period must be week")
+    if plan.get("top50_candidate_pool_authority") != "decision-system-governance":
+        raise ExpertPlanSigningError("top-50 candidate-pool authority is invalid")
+    if plan.get("top50_model_assignment_authority") != "expert-assessment-center-ortools":
+        raise ExpertPlanSigningError("top-50 assignment authority is invalid")
+    top50_raw = plan.get("top50_reasoning_models")
+    top50_eligible = plan.get("top50_expert_selectable_candidates")
+    if not isinstance(top50_raw, list) or len(top50_raw) != 50:
+        raise ExpertPlanSigningError("top-50 reasoning rows are invalid")
+    top50_companies = _distinct_candidate_companies(top50_eligible)
+    if len(top50_companies) < 8:
+        raise ExpertPlanSigningError("top-50 pool has fewer than eight executable companies")
+    if plan.get("top50_expert_selectable_distinct_company_count") != len(top50_companies):
+        raise ExpertPlanSigningError("top-50 distinct-company count is inconsistent")
     raw_pool = plan.get("top20_reasoning_models")
     eligible = plan.get("expert_selectable_candidates")
     if not isinstance(raw_pool, list) or len(raw_pool) != 20:
@@ -330,6 +353,15 @@ def main() -> int:
         "model_assignment_authority": plan["model_assignment_authority"],
         "top20_reasoning_pool_size": plan["top20_reasoning_pool_size"],
         "top20_reasoning_pool_sha256": plan["top20_reasoning_pool_sha256"],
+        "top50_reasoning_pool_size": plan["top50_reasoning_pool_size"],
+        "top50_reasoning_pool_period": plan["top50_reasoning_pool_period"],
+        "top50_reasoning_pool_sha256": plan["top50_reasoning_pool_sha256"],
+        "top50_expert_selectable_candidate_count": plan[
+            "top50_expert_selectable_candidate_count"
+        ],
+        "top50_expert_selectable_distinct_company_count": plan[
+            "top50_expert_selectable_distinct_company_count"
+        ],
         "expert_selectable_candidate_count": plan[
             "expert_selectable_candidate_count"
         ],
