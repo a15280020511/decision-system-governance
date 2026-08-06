@@ -1,0 +1,122 @@
+name: Apply Unique Company Ranking
+
+on:
+  push:
+    branches:
+      - fix/unique-company-live-ranking
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: fix/unique-company-live-ranking
+          fetch-depth: 0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: '3.12'
+      - name: Patch selector and contracts
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace(path: Path, old: str, new: str, count: int = 1) -> None:
+              text = path.read_text(encoding='utf-8')
+              if text.count(old) < count:
+                  raise SystemExit(f'missing patch target in {path}: {old[:80]!r}')
+              path.write_text(text.replace(old, new, count), encoding='utf-8')
+
+          selector = Path('governance-copilot/select_expert_team_plan.py')
+          replace(selector,
+              'choose active experts from different companies, and continue down the same price\norder for distinct standby models.',
+              'keep only the cheapest qualified flagship from each company, and use the first\nfour companies as active experts plus the next four companies as ordered standbys.')
+          replace(selector,
+              'SELECTOR_SCHEMA_VERSION = "governance-openrouter-executable-flagship-price-v3"',
+              'SELECTOR_SCHEMA_VERSION = "governance-openrouter-executable-flagship-price-v4"')
+          replace(selector,
+              'OFFICIAL_INTELLIGENCE_RANK_LIMIT = 150',
+              'OFFICIAL_INTELLIGENCE_RANK_LIMIT = 1000')
+          replace(selector,
+              '        if not model_id or not company or model_id in models:\n            continue\n        row = _qualify_candidate(candidate, token, required_context)\n',
+              '        if (\n            not model_id\n            or not company\n            or model_id in models\n            or company in companies\n        ):\n            continue\n        row = _qualify_candidate(candidate, token, required_context)\n')
+          replace(selector,
+              '            "official intelligence top 150"\n',
+              '            "official intelligence top 1000"\n')
+          replace(selector,
+              '            or company in GOVERNANCE_COMPANIES\n            or model in models\n',
+              '            or model in models\n')
+          old_build = '''    rows = _live_executable_flagship_rows(\n        ticket,\n        token,\n        expert_count,\n        required_model_count,\n    )\n\n    selected_rows = _distinct_company_rows(rows, expert_count)\n    selected_model_ids = {str(row["model_id"]) for row in selected_rows}\n    recovery_rows = (\n        _distinct_model_rows(\n            rows,\n            recovery_count,\n            excluded_models=selected_model_ids,\n        )\n        if recovery_count\n        else []\n    )\n\n    selected_models = [\n'''
+          new_build = '''    rows = _live_executable_flagship_rows(\n        ticket,\n        token,\n        required_model_count,\n        required_model_count,\n    )\n\n    ranked_rows = _distinct_company_rows(rows, required_model_count)\n    selected_rows = ranked_rows[:expert_count]\n    recovery_rows = ranked_rows[expert_count:]\n    price_ranked_models = [\n        {**_model_record(row, slot=index), "price_rank": index}\n        for index, row in enumerate(ranked_rows, 1)\n    ]\n\n    selected_models = [\n'''
+          replace(selector, old_build, new_build)
+          replace(selector,
+              '            "ascending -> primary-excludes-governance-vendors -> "\n            "distinct-primary-companies -> unique-recovery-models"\n',
+              '            "ascending -> cheapest-qualified-model-per-company -> "\n            "eight-distinct-companies -> four-primary-four-recovery"\n')
+          replace(selector,
+              '        "selected_models": selected_models,\n        "recovery_models": recovery_models,\n',
+              '        "price_ranked_models": price_ranked_models,\n        "selected_models": selected_models,\n        "recovery_models": recovery_models,\n')
+          old_meta = '''        "governance_companies_excluded_from_primary": sorted(\n            GOVERNANCE_COMPANIES\n        ),\n        "governance_companies_allowed_in_recovery": True,\n'''
+          new_meta = '''        "catalog_fetch_mode": "live-per-task-no-cross-task-cache",\n        "company_uniqueness_scope": "selected-and-recovery",\n        "company_model_policy": "one-cheapest-qualified-flagship-per-company",\n'''
+          replace(selector, old_meta, new_meta)
+
+          envelope = Path('governance-copilot/expert_task_envelope.py')
+          replace(envelope,
+              'ordered governance-approved recovery reserve. The price-minimal distinct-company\nset is selected first;',
+              'ordered governance-approved recovery reserve. The live price ranking contains one\ncheapest qualified flagship per company;')
+          replace(envelope,
+              'MINIMUM_QUALIFIED_PROVIDER_COUNT = 2',
+              'MINIMUM_QUALIFIED_PROVIDER_COUNT = 1')
+          replace(envelope,
+              '"governance-openrouter-zdr-redundant-executable-flagship-price-v6"',
+              '"governance-openrouter-live-unique-company-flagship-price-v7"')
+          replace(envelope,
+              '    "price-minimal-distinct-company-set -> official-intelligence-rank-ascending -> "',
+              '    "live-price-minimal-unique-company-set -> official-intelligence-rank-ascending -> "')
+          replace(envelope,
+              '                "endpoint-qualified -> minimum-two-provider-routes -> combined-token-"\n                "price-ascending -> primary-excludes-governance-vendors -> "\n                "distinct-primary-companies -> unique-recovery-models"\n',
+              '                "endpoint-qualified -> minimum-one-zdr-provider-route -> combined-token-"\n                "price-ascending -> cheapest-qualified-model-per-company -> "\n                "eight-distinct-companies -> four-primary-four-recovery"\n')
+
+          strict_test = Path('tests/test_expert_plan_strict_flagship_policy.py')
+          text = strict_test.read_text(encoding='utf-8')
+          text = text.replace(
+              'test_catalog_keeps_strict_governance_vendor_candidates_for_standby',
+              'test_catalog_keeps_strict_candidates_across_top_1000')
+          text = text.replace('range(7, 150)', 'range(7, 1000)')
+          text = text.replace(
+              'test_primary_selection_still_excludes_governance_vendors',
+              'test_company_selection_keeps_only_one_model_per_company')
+          text = text.replace(
+              '[\n                "alpha/alpha-pro",\n                "beta/beta-pro",\n                "gamma/gamma-pro",\n                "delta/delta-pro",\n            ],',
+              '[\n                "openai/gpt-5-pro",\n                "anthropic/claude-opus",\n                "alpha/alpha-pro",\n                "beta/beta-pro",\n            ],',
+              1)
+          text = text.replace(
+              '        self.assertEqual(\n            plan["governance_companies_excluded_from_primary"],\n            ["anthropic", "openai"],\n        )\n        self.assertTrue(plan["governance_companies_allowed_in_recovery"])\n',
+              '        self.assertEqual(\n            plan["company_uniqueness_scope"],\n            "selected-and-recovery",\n        )\n        self.assertEqual(\n            plan["catalog_fetch_mode"],\n            "live-per-task-no-cross-task-cache",\n        )\n')
+          text = text.replace(
+              '            "primary-excludes-governance-vendors",',
+              '            "cheapest-qualified-model-per-company",')
+          strict_test.write_text(text, encoding='utf-8')
+
+          Path('tests/test_eight_model_ordered_recovery.py').write_text('''from __future__ import annotations\n\nimport hashlib\nimport importlib.util\nimport sys\nfrom pathlib import Path\nfrom unittest import mock\nimport unittest\n\nROOT = Path(__file__).resolve().parents[1]\nCOPILOT = ROOT / "governance-copilot"\nsys.path.insert(0, str(COPILOT))\nimport expert_task_envelope as envelope  # noqa: E402\n\n\ndef load_selector():\n    spec = importlib.util.spec_from_file_location(\n        "eight_model_ordered_recovery_selector",\n        COPILOT / "select_expert_team_plan.py",\n    )\n    assert spec is not None and spec.loader is not None\n    selector = importlib.util.module_from_spec(spec)\n    spec.loader.exec_module(selector)\n    envelope.patch_selector(selector)\n    return selector\n\n\ndef ticket() -> dict:\n    return {\n        "task_id": "eight-company-policy-001",\n        "route": "expert-team",\n        "task": {\n            "question": "Analyze one decision with four active experts.",\n            "requirements": [],\n            "language": "zh-CN",\n        },\n        "approved_budget": {\n            "calls": 4,\n            "maximum_recovery_calls": 0,\n            "cost_policy": "prompt_led_soft_governance",\n        },\n        "private_output": False,\n    }\n\n\ndef qualified(model_id: str, rank: int, price: float, providers: int = 1) -> dict:\n    company = model_id.split("/", 1)[0]\n    return {\n        "model_id": model_id,\n        "company": company,\n        "official_intelligence_rank": rank,\n        "context_length": 131_072,\n        "max_completion_tokens": 8_192,\n        "prompt_usd_per_million": price / 3,\n        "completion_usd_per_million": price * 2 / 3,\n        "request_usd": 0.0,\n        "price_rank_usd_per_million": price,\n        "estimated_task_cost_usd": price,\n        "flagship_basis": "explicit-product-tier",\n        "exact_endpoint_qualified": True,\n        "zdr_endpoint_qualified": True,\n        "qualified_provider_count": providers,\n        "endpoint_inventory_sha256": hashlib.sha256(model_id.encode("utf-8")).hexdigest(),\n        "required_context_tokens": 16_384,\n        "minimum_completion_tokens": 1_024,\n    }\n\n\nclass EightCompanyOrderedRecoveryTests(unittest.TestCase):\n    def test_four_zero_budget_normalizes_to_eight_four(self) -> None:\n        normalized = envelope.normalize_recovery_budget(ticket())\n        self.assertEqual(normalized["approved_budget"]["calls"], 8)\n        self.assertEqual(normalized["approved_budget"]["maximum_recovery_calls"], 4)\n\n    def test_live_price_ranking_contains_one_model_per_company(self) -> None:\n        selector = load_selector()\n        rows = [\n            qualified("openai/gpt-5.6-luna-pro", 251, 0.7, 2),\n            qualified("nex-agi/nex-n2-pro", 28, 1.25),\n            qualified("deepseek/deepseek-v4-pro", 23, 1.305, 8),\n            qualified("xiaomi/mimo-v2.5-pro", 25, 1.305, 2),\n            qualified("amazon/nova-pro-v1", 129, 4.0, 2),\n            qualified("nvidia/nemotron-3-ultra", 38, 4.2, 3),\n            qualified("google/gemini-2.5-pro", 63, 11.25, 5),\n            qualified("perplexity/sonar-pro", 274, 18.0),\n            qualified("anthropic/claude-opus-5", 1, 30.0, 5),\n        ]\n        with mock.patch.object(selector, "_live_executable_flagship_rows", return_value=rows):\n            plan = selector.build_plan(ticket(), token="fixture")\n\n        ranked = plan["price_ranked_models"]\n        self.assertEqual([row["price_rank"] for row in ranked], list(range(1, 9)))\n        self.assertEqual(\n            [row["model"] for row in ranked],\n            [\n                "openai/gpt-5.6-luna-pro",\n                "nex-agi/nex-n2-pro",\n                "deepseek/deepseek-v4-pro",\n                "xiaomi/mimo-v2.5-pro",\n                "amazon/nova-pro-v1",\n                "nvidia/nemotron-3-ultra",\n                "google/gemini-2.5-pro",\n                "perplexity/sonar-pro",\n            ],\n        )\n        companies = [row["company"] for row in ranked]\n        self.assertEqual(len(companies), len(set(companies)))\n        prices = [row["price_rank_usd_per_million"] for row in ranked]\n        self.assertEqual(prices, sorted(prices))\n        selected_companies = {row["company"] for row in plan["selected_models"]}\n        recovery_companies = {row["company"] for row in plan["recovery_models"]}\n        self.assertFalse(selected_companies & recovery_companies)\n        self.assertEqual(plan["company_uniqueness_scope"], "selected-and-recovery")\n        self.assertEqual(plan["catalog_fetch_mode"], "live-per-task-no-cross-task-cache")\n        self.assertEqual(plan["minimum_qualified_provider_count"], 1)\n        self.assertTrue(plan["recovery_models_are_price_ranked"])\n        self.assertTrue(plan["recovery_models_are_sequential"])\n\n\nif __name__ == "__main__":\n    unittest.main()\n''', encoding='utf-8')
+
+          for disposable in (\n              Path('.github/workflows/diagnose-unique-company-ranking.yml'),\n              Path('.github/workflows/apply-unique-company-ranking.yml'),\n          ):\n              if disposable.exists():\n                  disposable.unlink()\n          PY
+      - name: Commit patch
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: rank one live flagship per company'
+          for attempt in 1 2 3; do
+            if git push origin HEAD:fix/unique-company-live-ranking; then
+              exit 0
+            fi
+            git fetch origin fix/unique-company-live-ranking
+            git rebase origin/fix/unique-company-live-ranking
+          done
+          exit 1
