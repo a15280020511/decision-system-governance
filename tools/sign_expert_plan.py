@@ -18,6 +18,7 @@ from typing import Any, Mapping
 ROOT = Path(__file__).resolve().parents[1]
 SELECTOR_PATH = ROOT / "governance-copilot" / "select_expert_team_plan.py"
 TASK_ENVELOPE_PATH = ROOT / "governance-copilot" / "expert_task_envelope.py"
+TOP20_POOL_PATH = ROOT / "governance-copilot" / "top20_reasoning_pool.py"
 TASK_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$")
 ALLOWED_FIELDS = {
     "task_id",
@@ -50,7 +51,12 @@ TASK_ENVELOPE = _load_module(
     "governance_plan_preview_task_envelope",
     TASK_ENVELOPE_PATH,
 )
+TOP20_POOL = _load_module(
+    "governance_plan_preview_top20_pool",
+    TOP20_POOL_PATH,
+)
 TASK_ENVELOPE.patch_selector(SELECTOR)
+TOP20_POOL.patch_selector(SELECTOR)
 
 
 def _canonical_json(value: Any) -> bytes:
@@ -165,7 +171,21 @@ def verify_signed_plan(
     if plan.get("model_substitution_allowed") is not False:
         raise ExpertPlanSigningError("model substitution must be disabled")
     if plan.get("expert_center_reranking_allowed") is not False:
-        raise ExpertPlanSigningError("expert center reranking must be disabled")
+        raise ExpertPlanSigningError("unbounded expert center reranking must be disabled")
+    if plan.get("expert_center_pool_selection_allowed") is not True:
+        raise ExpertPlanSigningError("expert center top-20 pool selection is not enabled")
+    if plan.get("candidate_pool_authority") != "decision-system-governance":
+        raise ExpertPlanSigningError("candidate pool authority is invalid")
+    if plan.get("model_assignment_authority") != "expert-assessment-center":
+        raise ExpertPlanSigningError("model assignment authority is invalid")
+    if plan.get("top20_reasoning_pool_size") != 20:
+        raise ExpertPlanSigningError("top-20 reasoning pool is incomplete")
+    raw_pool = plan.get("top20_reasoning_models")
+    eligible = plan.get("expert_selectable_candidates")
+    if not isinstance(raw_pool, list) or len(raw_pool) != 20:
+        raise ExpertPlanSigningError("top-20 reasoning pool rows are invalid")
+    if not isinstance(eligible, list) or len(eligible) < 8:
+        raise ExpertPlanSigningError("expert selectable pool has fewer than eight models")
 
     expected_context = TASK_ENVELOPE.required_context_tokens(unsigned)
     if plan.get("required_context_tokens") != expected_context:
@@ -285,8 +305,19 @@ def main() -> int:
         "status": "PASS",
         "task_id": signed["task_id"],
         "plan_sha256": plan["plan_sha256"],
-        "selected_models": [row["model"] for row in plan["selected_models"]],
-        "recovery_models": [row["model"] for row in plan["recovery_models"]],
+        "candidate_pool_authority": plan["candidate_pool_authority"],
+        "model_assignment_authority": plan["model_assignment_authority"],
+        "top20_reasoning_pool_size": plan["top20_reasoning_pool_size"],
+        "top20_reasoning_pool_sha256": plan["top20_reasoning_pool_sha256"],
+        "expert_selectable_candidate_count": plan[
+            "expert_selectable_candidate_count"
+        ],
+        "governance_preview_selected_models": [
+            row["model"] for row in plan["selected_models"]
+        ],
+        "governance_preview_recovery_models": [
+            row["model"] for row in plan["recovery_models"]
+        ],
         "required_context_tokens": plan["required_context_tokens"],
         "minimum_qualified_provider_count": plan[
             "minimum_qualified_provider_count"
