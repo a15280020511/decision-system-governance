@@ -15,23 +15,27 @@ on:
         description: New unique expert retry ID
         required: true
         type: string
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: read
 
 concurrency:
-  group: governance-expert-child-plan-repair-${{ inputs.issue_number }}
+  group: governance-expert-child-plan-repair
   cancel-in-progress: false
 
 jobs:
   repair:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.issue.title == '[control]' &&
+       github.event.comment.user.login == github.repository_owner &&
+       startsWith(github.event.comment.body, '/repair-expert-child-plan '))
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       CHILD_REPOSITORY: a15280020511/expert-assessment-center
-      ISSUE_NUMBER: ${{ inputs.issue_number }}
-      EXPECTED_TASK_ID: ${{ inputs.expected_task_id }}
-      RETRY_ID: ${{ inputs.retry_id }}
       GH_TOKEN: ${{ secrets.CONTROL_PLANE_TOKEN }}
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
     steps:
@@ -45,16 +49,54 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Validate repair inputs
+      - name: Resolve and validate repair inputs
+        id: inputs
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_ISSUE_NUMBER: ${{ inputs.issue_number }}
+          DISPATCH_TASK_ID: ${{ inputs.expected_task_id }}
+          DISPATCH_RETRY_ID: ${{ inputs.retry_id }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
           set -euo pipefail
-          [[ "$ISSUE_NUMBER" =~ ^[1-9][0-9]*$ ]]
-          [[ "$EXPECTED_TASK_ID" =~ ^gov-[1-9][0-9]*-expert$ ]]
-          [[ "$RETRY_ID" =~ ^[A-Za-z0-9._-]{1,64}$ ]]
-          test -n "$GH_TOKEN"
-          test -n "$OPENROUTER_API_KEY"
+          python - <<'PY'
+          import os
+          import re
+          import shlex
+          from pathlib import Path
+
+          if os.environ["EVENT_NAME"] == "workflow_dispatch":
+              issue = os.environ.get("DISPATCH_ISSUE_NUMBER", "")
+              task = os.environ.get("DISPATCH_TASK_ID", "")
+              retry = os.environ.get("DISPATCH_RETRY_ID", "")
+          else:
+              parts = shlex.split(os.environ.get("COMMENT_BODY", ""))
+              if len(parts) != 4 or parts[0] != "/repair-expert-child-plan":
+                  raise SystemExit("invalid repair comment command")
+              _, issue, task, retry = parts
+
+          if not re.fullmatch(r"[1-9][0-9]*", issue):
+              raise SystemExit("invalid child issue number")
+          if not re.fullmatch(r"gov-[1-9][0-9]*-expert", task):
+              raise SystemExit("invalid expected task id")
+          if not re.fullmatch(r"[A-Za-z0-9._-]{1,64}", retry):
+              raise SystemExit("invalid retry id")
+          if not os.environ.get("GH_TOKEN"):
+              raise SystemExit("CONTROL_PLANE_TOKEN is missing")
+          if not os.environ.get("OPENROUTER_API_KEY"):
+              raise SystemExit("OPENROUTER_API_KEY is missing")
+
+          output = Path(os.environ["GITHUB_OUTPUT"])
+          with output.open("a", encoding="utf-8") as stream:
+              stream.write(f"issue_number={issue}\n")
+              stream.write(f"expected_task_id={task}\n")
+              stream.write(f"retry_id={retry}\n")
+          PY
 
       - name: Fetch exact existing child ticket
+        env:
+          ISSUE_NUMBER: ${{ steps.inputs.outputs.issue_number }}
+          EXPECTED_TASK_ID: ${{ steps.inputs.outputs.expected_task_id }}
         run: |
           set -euo pipefail
           title="$(gh api "repos/${CHILD_REPOSITORY}/issues/${ISSUE_NUMBER}" --jq '.title')"
@@ -63,6 +105,9 @@ jobs:
             --jq '.body // ""' > source-ticket.json
 
       - name: Regenerate executable immutable plan
+        env:
+          EXPECTED_TASK_ID: ${{ steps.inputs.outputs.expected_task_id }}
+          RETRY_ID: ${{ steps.inputs.outputs.retry_id }}
         run: |
           set -euo pipefail
           python tools/repair_expert_child_plan.py \
@@ -74,6 +119,9 @@ jobs:
             | tee repair-receipt.json
 
       - name: Update the same child Issue and trigger one controlled retry
+        env:
+          ISSUE_NUMBER: ${{ steps.inputs.outputs.issue_number }}
+          RETRY_ID: ${{ steps.inputs.outputs.retry_id }}
         run: |
           set -euo pipefail
           gh api --method PATCH \
@@ -87,7 +135,7 @@ jobs:
       - name: Upload repair evidence
         uses: actions/upload-artifact@v4
         with:
-          name: expert-child-plan-repair-${{ inputs.issue_number }}-${{ inputs.retry_id }}
+          name: expert-child-plan-repair-${{ steps.inputs.outputs.issue_number }}-${{ steps.inputs.outputs.retry_id }}
           path: |
             repaired-ticket.json
             regenerated-plan.json
