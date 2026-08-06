@@ -3,8 +3,8 @@
   "governance_version": "4.2.3",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
-  "file_count": 152,
-  "total_bytes": 997779,
+  "file_count": 154,
+  "total_bytes": 1012821,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -428,8 +428,8 @@
     },
     {
       "path": "control-plane/resilient_control.py",
-      "size_bytes": 5925,
-      "sha256": "584d245433bd0ca661f0ee0d79d841132c0abb69b69b435ede495a3fce525581"
+      "size_bytes": 6779,
+      "sha256": "94901e215d9bea4f0378eff8fc5714885a457140a2a740c66c401d72fd18b3f7"
     },
     {
       "path": "control-plane/resilient_http.py",
@@ -475,6 +475,11 @@
       "path": "governance-copilot/select_paid_governance_flagship_model.py",
       "size_bytes": 19513,
       "sha256": "e6ee963c3dad0f70c9107c855832f1cb272d764d1464e327073dcc56a6277fa5"
+    },
+    {
+      "path": "governance-copilot/top20_reasoning_pool.py",
+      "size_bytes": 10419,
+      "sha256": "9dfd1a43349474d60dd3ed3feec28b32cadb7e22513780fc431e36552508fc72"
     },
     {
       "path": "governance-resilience-matrix.json",
@@ -737,6 +742,11 @@
       "sha256": "f99f67e8807fe13c9aa09f576d133b3a6e6a295a71e99b736a56f4c0a962e0b6"
     },
     {
+      "path": "tests/test_top20_reasoning_pool.py",
+      "size_bytes": 2079,
+      "sha256": "d079ddc606b64fdebb989182b971ab1c6de9f2e87b32bd733a9a03dfa10cc0dd"
+    },
+    {
       "path": "tools/generate_governance_release_manifest.py",
       "size_bytes": 1875,
       "sha256": "ab9823c424f9a59e9d31d8c737cd371e54730604bdf13d64a7a027ec7a9dc771"
@@ -753,8 +763,8 @@
     },
     {
       "path": "tools/sign_expert_plan.py",
-      "size_bytes": 12618,
-      "sha256": "8528ea31744e700d2c36b4fe64a0fe3362b63c744222552986fa51ea4ade57d3"
+      "size_bytes": 14308,
+      "sha256": "282c516b6a2fa86b5b81213dab6e307aebe50e534748ceee6228e5334b8bbd31"
     },
     {
       "path": "tools/supply_chain_audit.py",
