@@ -112,9 +112,11 @@ def plan(ticket: dict, provider_count: int = 2) -> dict:
         "top20_reasoning_models": _pool_rows(),
         "expert_selectable_candidates": _eligible_rows(),
         "expert_selectable_candidate_count": 8,
+        "expert_selectable_distinct_company_count": 8,
         "candidate_pool_authority": "decision-system-governance",
         "model_assignment_authority": "expert-assessment-center",
         "expert_center_pool_selection_allowed": True,
+        "old_flagship_filter_applied_to_top20_pool": False,
     }
     value["plan_sha256"] = repair._plan_digest(value)
     return value
@@ -189,6 +191,19 @@ class ExpertChildPlanRepairTests(unittest.TestCase):
         with self.assertRaisesRegex(
             repair.ExpertChildRepairError,
             "frozen expert task envelope",
+        ):
+            repair.verify_repair(source, repaired, new_plan)
+
+    def test_verify_repair_rejects_inconsistent_distinct_company_count(self) -> None:
+        source = source_ticket()
+        repaired = dict(source)
+        new_plan = plan(repaired)
+        new_plan["expert_selectable_distinct_company_count"] = 7
+        new_plan["plan_sha256"] = repair._plan_digest(new_plan)
+        repaired["governance_model_plan"] = new_plan
+        with self.assertRaisesRegex(
+            repair.ExpertChildRepairError,
+            "distinct-company count is inconsistent",
         ):
             repair.verify_repair(source, repaired, new_plan)
 

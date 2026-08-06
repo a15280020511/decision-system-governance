@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Attach a live OpenRouter top-weekly reasoning pool to expert plans.
 
-Governance remains responsible for fetching, filtering and freezing the candidate
-pool. The expert center may assign primary and recovery models only from the
-frozen pool. No model call is made here.
+The top-20 ranking itself is the candidate universe. Governance freezes the
+server order and qualifies exact executable endpoints; it does not run the old
+company-flagship or benchmark preselection over this pool. No model call is
+made here.
 """
 from __future__ import annotations
 
@@ -17,6 +18,10 @@ TOP20_POOL_SIZE = 20
 MINIMUM_EXECUTABLE_CANDIDATES = 8
 POOL_SCHEMA_VERSION = "governance-openrouter-top20-reasoning-pool-v1"
 POOL_SOURCE = "openrouter-most-popular-last-week-token-volume"
+SELECTION_EVIDENCE = (
+    "openrouter-top-weekly-reasoning+live-exact-endpoint-qualified+"
+    "authenticated-zdr-endpoint-qualified"
+)
 
 
 class Top20ReasoningPoolError(RuntimeError):
@@ -54,11 +59,18 @@ def _price_per_million(pricing: Mapping[str, Any], key: str) -> float | None:
     return value * 1_000_000 if value < 0.1 else value
 
 
+def _request_price(pricing: Mapping[str, Any]) -> float:
+    value = _number(pricing.get("request"))
+    return value if value is not None and value >= 0 else 0.0
+
+
 def _company(model_id: str) -> str:
     return model_id.split("/", 1)[0].strip().casefold() if "/" in model_id else ""
 
 
-def _raw_pool_rows(selector: Any, token: str) -> tuple[list[dict[str, Any]], Mapping[str, Any]]:
+def _raw_pool_rows(
+    selector: Any, token: str
+) -> tuple[list[dict[str, Any]], Mapping[str, Any]]:
     query = urllib.parse.urlencode(
         {
             "sort": "most-popular",
@@ -105,6 +117,7 @@ def _raw_pool_rows(selector: Any, token: str) -> tuple[list[dict[str, Any]], Map
                 ),
                 "prompt_usd_per_million": prompt,
                 "completion_usd_per_million": completion,
+                "request_usd": _request_price(pricing),
                 "expiration_date": expiration,
                 "input_modalities": list(architecture.get("input_modalities") or []),
                 "output_modalities": list(architecture.get("output_modalities") or []),
@@ -119,7 +132,8 @@ def _raw_pool_rows(selector: Any, token: str) -> tuple[list[dict[str, Any]], Map
 
     if len(pool) != TOP20_POOL_SIZE:
         raise Top20ReasoningPoolError(
-            f"OpenRouter returned only {len(pool)} ranked reasoning models; need {TOP20_POOL_SIZE}"
+            f"OpenRouter returned only {len(pool)} ranked reasoning models; "
+            f"need {TOP20_POOL_SIZE}"
         )
     return pool, payload
 
@@ -145,78 +159,156 @@ def _intelligence_rank_map(selector: Any, token: str) -> dict[str, int]:
     return result
 
 
+def _direct_candidate(
+    pool_row: Mapping[str, Any], intelligence_rank: int
+) -> dict[str, Any] | None:
+    model_id = str(pool_row.get("model") or "").strip()
+    company = str(pool_row.get("company") or "").strip().casefold()
+    prompt = _number(pool_row.get("prompt_usd_per_million"))
+    completion = _number(pool_row.get("completion_usd_per_million"))
+    if (
+        not model_id
+        or not company
+        or prompt is None
+        or completion is None
+        or prompt < 0
+        or completion < 0
+    ):
+        return None
+    combined = prompt + completion
+    return {
+        "model_id": model_id,
+        "company": company,
+        "official_intelligence_rank": intelligence_rank,
+        "context_length": int(pool_row.get("context_length") or 0),
+        "max_completion_tokens": int(
+            pool_row.get("max_completion_tokens") or 0
+        ),
+        "prompt_usd_per_million": prompt,
+        "completion_usd_per_million": completion,
+        "request_usd": float(pool_row.get("request_usd") or 0.0),
+        "price_rank_usd_per_million": combined,
+        "estimated_task_cost_usd": combined,
+        "reasoning_parameter_required": True,
+        "popularity_rank": int(pool_row["popularity_rank"]),
+    }
+
+
+def _candidate_record(
+    qualified: Mapping[str, Any], slot: int
+) -> dict[str, Any]:
+    return {
+        "slot": slot,
+        "candidate_price_rank": slot,
+        "model": str(qualified["model_id"]),
+        "company": str(qualified["company"]),
+        "estimated_task_cost_usd": float(
+            qualified["estimated_task_cost_usd"]
+        ),
+        "price_rank_usd_per_million": float(
+            qualified["price_rank_usd_per_million"]
+        ),
+        "prompt_usd_per_million": float(
+            qualified["prompt_usd_per_million"]
+        ),
+        "completion_usd_per_million": float(
+            qualified["completion_usd_per_million"]
+        ),
+        "request_usd": float(qualified.get("request_usd") or 0.0),
+        "official_intelligence_rank": int(
+            qualified.get("official_intelligence_rank") or 1_000_000
+        ),
+        "popularity_rank": int(qualified["popularity_rank"]),
+        "qualified_provider_count": int(
+            qualified["qualified_provider_count"]
+        ),
+        "endpoint_inventory_sha256": str(
+            qualified["endpoint_inventory_sha256"]
+        ),
+        "required_context_tokens": int(
+            qualified["required_context_tokens"]
+        ),
+        "minimum_completion_tokens": int(
+            qualified["minimum_completion_tokens"]
+        ),
+        "reasoning_rank_verified": True,
+        "reasoning_supported": True,
+        "ranking_basis": POOL_SOURCE,
+        "source_pool_schema_version": POOL_SCHEMA_VERSION,
+        "source_pool": POOL_SOURCE,
+        "selection_evidence": SELECTION_EVIDENCE,
+        "expert_center_selectable": True,
+    }
+
+
 def _eligible_records(
     selector: Any,
     ticket: Mapping[str, Any],
     token: str,
     raw_pool: list[dict[str, Any]],
-    raw_payload: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
-    benchmark_query = urllib.parse.urlencode({"source": "artificial-analysis"})
-    benchmark_payload = selector._fetch_json(
-        f"{selector.BENCHMARKS_API}?{benchmark_query}", token
-    )
-    try:
-        candidates = selector._catalog_candidates(raw_payload, benchmark_payload)
-    except Exception as exc:  # noqa: BLE001 - preserve the selector's fail-closed semantics
-        raise Top20ReasoningPoolError(
-            f"top-20 reasoning flagship qualification failed: {exc}"
-        ) from exc
-
-    popularity = {str(row["model"]): int(row["popularity_rank"]) for row in raw_pool}
     intelligence = _intelligence_rank_map(selector, token)
     required_context = selector._required_context_tokens(ticket)
     qualified: list[dict[str, Any]] = []
-    companies: set[str] = set()
-    models: set[str] = set()
-    for candidate in candidates:
-        model_id = str(candidate.get("model_id") or "").strip()
-        company = str(candidate.get("company") or "").strip().casefold()
-        if model_id not in popularity or not company or model_id in models or company in companies:
+    seen_models: set[str] = set()
+    for pool_row in raw_pool:
+        model_id = str(pool_row.get("model") or "").strip()
+        if not model_id or model_id in seen_models:
+            continue
+        candidate = _direct_candidate(
+            pool_row,
+            int(intelligence.get(model_id, 1_000_000)),
+        )
+        if candidate is None:
             continue
         row = selector._qualify_candidate(candidate, token, required_context)
         if not isinstance(row, Mapping):
             continue
         normalized = dict(row)
-        normalized["official_intelligence_rank"] = int(
-            intelligence.get(model_id, 1_000_000)
-        )
-        record = selector._model_record(normalized, slot=len(qualified) + 1)
-        record.update(
-            {
-                "popularity_rank": popularity[model_id],
-                "source_pool_schema_version": POOL_SCHEMA_VERSION,
-                "source_pool": POOL_SOURCE,
-                "expert_center_selectable": True,
-            }
-        )
-        qualified.append(record)
-        companies.add(company)
-        models.add(model_id)
+        normalized["popularity_rank"] = int(pool_row["popularity_rank"])
+        qualified.append(_candidate_record(normalized, len(qualified) + 1))
+        seen_models.add(model_id)
 
     qualified.sort(
         key=lambda row: (
-            float(row.get("price_rank_usd_per_million") or 0.0),
-            int(row.get("popularity_rank") or 1_000_000),
-            int(row.get("official_intelligence_rank") or 1_000_000),
-            str(row.get("model") or ""),
+            float(row["price_rank_usd_per_million"]),
+            int(row["popularity_rank"]),
+            int(row["official_intelligence_rank"]),
+            str(row["model"]),
         )
     )
     for slot, row in enumerate(qualified, 1):
         row["slot"] = slot
         row["candidate_price_rank"] = slot
 
-    if len(qualified) < MINIMUM_EXECUTABLE_CANDIDATES:
+    distinct_companies = {
+        str(row.get("company") or "").strip().casefold()
+        for row in qualified
+        if str(row.get("company") or "").strip()
+    }
+    if len(distinct_companies) < MINIMUM_EXECUTABLE_CANDIDATES:
         raise Top20ReasoningPoolError(
             "top-20 reasoning pool has insufficient distinct-company executable "
-            f"candidates: need {MINIMUM_EXECUTABLE_CANDIDATES}, found {len(qualified)}"
+            f"candidates: need {MINIMUM_EXECUTABLE_CANDIDATES}, "
+            f"found {len(distinct_companies)}"
         )
     return qualified
 
 
-def attach_pool(selector: Any, ticket: Mapping[str, Any], plan: Mapping[str, Any], token: str) -> dict[str, Any]:
-    raw_pool, raw_payload = _raw_pool_rows(selector, token)
-    eligible = _eligible_records(selector, ticket, token, raw_pool, raw_payload)
+def attach_pool(
+    selector: Any,
+    ticket: Mapping[str, Any],
+    plan: Mapping[str, Any],
+    token: str,
+) -> dict[str, Any]:
+    raw_pool, _ = _raw_pool_rows(selector, token)
+    eligible = _eligible_records(selector, ticket, token, raw_pool)
+    distinct_company_count = len(
+        {
+            str(row["company"]).strip().casefold()
+            for row in eligible
+        }
+    )
     enriched = dict(plan)
     enriched.update(
         {
@@ -226,13 +318,16 @@ def attach_pool(selector: Any, ticket: Mapping[str, Any], plan: Mapping[str, Any
             "top20_reasoning_models": raw_pool,
             "expert_selectable_candidates": eligible,
             "expert_selectable_candidate_count": len(eligible),
+            "expert_selectable_distinct_company_count": distinct_company_count,
             "candidate_pool_authority": "decision-system-governance",
             "model_assignment_authority": "expert-assessment-center",
             "expert_center_pool_selection_allowed": True,
             "expert_center_pool_selection_policy": (
-                "top20-reasoning-only -> executable-and-zdr-qualified -> "
-                "different-company -> price-ascending -> four-primary-four-recovery"
+                "top20-reasoning-ranking-is-candidate-universe -> "
+                "exact-executable-zdr-endpoint-qualified -> distinct-company -> "
+                "price-ascending -> four-primary-four-recovery"
             ),
+            "old_flagship_filter_applied_to_top20_pool": False,
             "legacy_governance_selected_models_are_preview_only": True,
         }
     )
@@ -244,7 +339,9 @@ def attach_pool(selector: Any, ticket: Mapping[str, Any], plan: Mapping[str, Any
     ).hexdigest()
     material = dict(enriched)
     material.pop("plan_sha256", None)
-    enriched["plan_sha256"] = hashlib.sha256(_canonical_json(material)).hexdigest()
+    enriched["plan_sha256"] = hashlib.sha256(
+        _canonical_json(material)
+    ).hexdigest()
     return enriched
 
 

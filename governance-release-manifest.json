@@ -4,7 +4,7 @@
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 154,
-  "total_bytes": 1016262,
+  "total_bytes": 1026073,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -478,8 +478,8 @@
     },
     {
       "path": "governance-copilot/top20_reasoning_pool.py",
-      "size_bytes": 10419,
-      "sha256": "9dfd1a43349474d60dd3ed3feec28b32cadb7e22513780fc431e36552508fc72"
+      "size_bytes": 13241,
+      "sha256": "78c6e8896a4985e877fab673ea4f4154f6eb9ed179eac323795848d8f638ef91"
     },
     {
       "path": "governance-resilience-matrix.json",
@@ -628,8 +628,8 @@
     },
     {
       "path": "tests/test_expert_child_plan_repair.py",
-      "size_bytes": 9053,
-      "sha256": "aa97d2177fda2201e239988e50ef0748d7135d64f696bc4d0d72aecebd4c97db"
+      "size_bytes": 9742,
+      "sha256": "0c21b0b9a794cd20783dc42361db029fe0109130b1cb1501433440961c5f2365"
     },
     {
       "path": "tests/test_expert_intelligence_ranked_roles.py",
@@ -743,8 +743,8 @@
     },
     {
       "path": "tests/test_top20_reasoning_pool.py",
-      "size_bytes": 2079,
-      "sha256": "d079ddc606b64fdebb989182b971ab1c6de9f2e87b32bd733a9a03dfa10cc0dd"
+      "size_bytes": 6603,
+      "sha256": "fd252c2b76b82ef4d12be14fcd45fb66b1e80c69d27e609f034720cdb39c8dff"
     },
     {
       "path": "tools/generate_governance_release_manifest.py",
@@ -753,8 +753,8 @@
     },
     {
       "path": "tools/repair_expert_child_plan.py",
-      "size_bytes": 12175,
-      "sha256": "3ffa24f39e6f86e86a502cbde04fcd4d0fa3822b6c7fa2983d23785d2166e6e4"
+      "size_bytes": 12984,
+      "sha256": "b3ce26ca4f356d27d40e4f555fb669f78eff5621a14093831f9513298f8a7f92"
     },
     {
       "path": "tools/serverchan_notify.py",
@@ -763,8 +763,8 @@
     },
     {
       "path": "tools/sign_expert_plan.py",
-      "size_bytes": 14308,
-      "sha256": "282c516b6a2fa86b5b81213dab6e307aebe50e534748ceee6228e5334b8bbd31"
+      "size_bytes": 15275,
+      "sha256": "032407c8310ba54ebf5fa676b48a3e7da98c379e730e57308f741c74d34a3356"
     },
     {
       "path": "tools/supply_chain_audit.py",
