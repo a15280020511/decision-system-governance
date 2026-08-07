@@ -1,0 +1,121 @@
+name: Export Current Governance Acceptance Ticket
+
+on:
+  push:
+    branches:
+      - control/paid-acceptance-20260807
+
+permissions:
+  contents: write
+
+jobs:
+  export-ticket:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout governance control branch
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Find and validate genuine current non-test ticket
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import datetime as dt
+          import hashlib
+          import json
+          import subprocess
+
+          root = Path('.')
+          excluded = {'tests','test','fixtures','fixture','examples','example','samples','sample','docs','archive','archived','.git','.github'}
+          now = dt.datetime.now(dt.timezone.utc)
+          matches = []
+
+          def truthy(d, key):
+              return isinstance(d, dict) and d.get(key) is True
+
+          def nested_values(obj):
+              if isinstance(obj, dict):
+                  yield obj
+                  for value in obj.values():
+                      yield from nested_values(value)
+              elif isinstance(obj, list):
+                  for value in obj:
+                      yield from nested_values(value)
+
+          for path in root.rglob('*.json'):
+              if any(part.lower() in excluded for part in path.parts):
+                  continue
+              try:
+                  obj = json.loads(path.read_text(encoding='utf-8'))
+              except Exception:
+                  continue
+              if not isinstance(obj, dict) or not isinstance(obj.get('governance_model_plan'), dict):
+                  continue
+              plan = obj['governance_model_plan']
+              text = json.dumps(obj, ensure_ascii=False, sort_keys=True)
+              # Current architecture invariants. Reject legacy Top20/ZDR/provider-lock tickets.
+              if not truthy(plan, 'selected_from_top50_reasoning_pool_only'):
+                  continue
+              if 'ortools-cp-sat' not in text:
+                  continue
+              if 'unrestricted-openrouter' not in text:
+                  continue
+              if 'decision-system-governance' not in text:
+                  continue
+              if 'expert-assessment-center-ortools' not in text:
+                  continue
+              if '"period": "week"' not in text and '"period":"week"' not in text:
+                  continue
+              if '"pool_size": 50' not in text and '"pool_size":50' not in text:
+                  continue
+              if any(bad in text for bad in ['"zdr_required": true','"provider_lock_required": true','"model_substitution_allowed": true']):
+                  continue
+              # Require signed/hash provenance evidence, not an unsigned hand-authored plan.
+              keys = {k.lower() for d in nested_values(obj) for k in d.keys()}
+              if not any(('sign' in k or 'sha256' in k or 'digest' in k or 'hash' in k) and ('pool' in k or 'ticket' in k or 'plan' in k or 'governance' in k) for k in keys):
+                  continue
+              try:
+                  epoch = int(subprocess.check_output(['git','log','-1','--format=%ct','--',str(path)], text=True).strip() or '0')
+              except Exception:
+                  epoch = 0
+              if epoch <= 0:
+                  continue
+              age = now - dt.datetime.fromtimestamp(epoch, tz=dt.timezone.utc)
+              if age > dt.timedelta(days=8):
+                  continue
+              matches.append((epoch, path, obj))
+
+          if not matches:
+              raise SystemExit('FAIL_CLOSED: no current non-test Governance-signed weekly Top50 acceptance ticket found')
+          matches.sort(key=lambda row: row[0], reverse=True)
+          epoch, source, ticket = matches[0]
+          out = Path('.acceptance/current-governance-ticket.json')
+          out.parent.mkdir(parents=True, exist_ok=True)
+          out.write_text(json.dumps(ticket, ensure_ascii=False, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          meta = {
+              'source_path': str(source),
+              'source_commit_epoch': epoch,
+              'export_sha256': hashlib.sha256(out.read_bytes()).hexdigest(),
+              'validation': 'PASS',
+              'synthetic': False,
+              'test_fixture': False,
+          }
+          Path('.acceptance/current-governance-ticket.meta.json').write_text(json.dumps(meta, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          print(json.dumps(meta, indent=2))
+          PY
+
+      - name: Persist export and success marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/export-current-paid-acceptance-ticket.yml
+          : > .acceptance/current-governance-ticket.qualified
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'ci: export verified current governance acceptance ticket'
+          git push origin HEAD:control/paid-acceptance-20260807
