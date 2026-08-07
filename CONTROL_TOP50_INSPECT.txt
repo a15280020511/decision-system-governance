@@ -1,0 +1,102 @@
+# top50 generator help
+
+# signatures
+[
+  {
+    "name": "_canonical_json",
+    "args": [
+      "value"
+    ]
+  },
+  {
+    "name": "_mapping",
+    "args": [
+      "value"
+    ]
+  },
+  {
+    "name": "_number",
+    "args": [
+      "value"
+    ]
+  },
+  {
+    "name": "_price_per_million",
+    "args": [
+      "pricing",
+      "key"
+    ]
+  },
+  {
+    "name": "_request_price",
+    "args": [
+      "pricing"
+    ]
+  },
+  {
+    "name": "_company",
+    "args": [
+      "model_id"
+    ]
+  },
+  {
+    "name": "_raw_pool_rows",
+    "args": [
+      "selector",
+      "token"
+    ]
+  },
+  {
+    "name": "_intelligence_rank_map",
+    "args": [
+      "selector",
+      "token"
+    ]
+  },
+  {
+    "name": "_direct_candidate",
+    "args": [
+      "pool_row",
+      "intelligence_rank"
+    ]
+  },
+  {
+    "name": "_candidate_record",
+    "args": [
+      "candidate",
+      "slot",
+      "required_context"
+    ]
+  },
+  {
+    "name": "_exclusion",
+    "args": [
+      "pool_row",
+      "reason"
+    ]
+  },
+  {
+    "name": "_eligible_records",
+    "args": [
+      "selector",
+      "ticket",
+      "token",
+      "raw_pool"
+    ]
+  },
+  {
+    "name": "attach_pool",
+    "args": [
+      "selector",
+      "ticket",
+      "plan",
+      "token"
+    ]
+  },
+  {
+    "name": "patch_selector",
+    "args": [
+      "selector"
+    ]
+  }
+]
