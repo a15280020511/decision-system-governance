@@ -3,8 +3,8 @@
   "governance_version": "4.2.3",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
-  "file_count": 161,
-  "total_bytes": 1146740,
+  "file_count": 158,
+  "total_bytes": 1038112,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -130,6 +130,11 @@
       "path": ".github/workflows/supply-chain-audit.yml",
       "size_bytes": 2301,
       "sha256": "d97753cff2b7dcd304a27714fc507d21be343f126fff7297ece3647ab68d87d7"
+    },
+    {
+      "path": ".gitignore",
+      "size_bytes": 62,
+      "sha256": "04c10752f21ba87198fa03503938d038e532a844de9109e7338928dae60accac"
     },
     {
       "path": "ARCHITECTURE.md",
@@ -428,8 +433,8 @@
     },
     {
       "path": "control-plane/resilient_control.py",
-      "size_bytes": 6779,
-      "sha256": "94901e215d9bea4f0378eff8fc5714885a457140a2a740c66c401d72fd18b3f7"
+      "size_bytes": 6328,
+      "sha256": "3fd1f7b7b2bebbf6c4f8ea5cd876cb2834469aa4f3d30ecc2c989d454eaf7ed3"
     },
     {
       "path": "control-plane/resilient_http.py",
@@ -452,16 +457,6 @@
       "sha256": "b9d7453c388c1f4d9767aa8ad8081a60cc3ec436e8ce9120026cd5e06fdf47ee"
     },
     {
-      "path": "governance-copilot/__pycache__/top20_reasoning_pool.cpython-311.pyc",
-      "size_bytes": 21734,
-      "sha256": "2d2c120a5b4d11cc5f3ab344a7c635d377eeb5bda3c710e2ae4656e34b7da869"
-    },
-    {
-      "path": "governance-copilot/__pycache__/top50_reasoning_pool_extension.cpython-311.pyc",
-      "size_bytes": 21737,
-      "sha256": "80977dc3c27ba269fed30d645bf4178abafcda4dfeb9c126d903c8ecd9837b86"
-    },
-    {
       "path": "governance-copilot/expert_task_envelope.py",
       "size_bytes": 17695,
       "sha256": "0f6ec2b66e64e68a928793a519378317bd8352cea09dd4c97158d6b921f54422"
@@ -478,8 +473,8 @@
     },
     {
       "path": "governance-copilot/select_expert_team_plan.py",
-      "size_bytes": 31621,
-      "sha256": "8c0bc166374fda78a130e889588a461856edbaabdbc7c0f77b08820ca9514816"
+      "size_bytes": 5849,
+      "sha256": "f7b415a757cefc35e83194209ae03e990053d1c161bf480a1575a98c06d13fbd"
     },
     {
       "path": "governance-copilot/select_paid_governance_flagship_model.py",
@@ -493,8 +488,8 @@
     },
     {
       "path": "governance-copilot/top50_reasoning_pool_extension.py",
-      "size_bytes": 14564,
-      "sha256": "ee3d54f63e1ee834bad0c2fa98090f84fff7d09f9f8854a95be627aadc6fcacb"
+      "size_bytes": 11377,
+      "sha256": "eeec9971e335fdf4e422f7da8bda6d3ddc23eb514e5ff285cf11ca1eac59afb1"
     },
     {
       "path": "governance-resilience-matrix.json",
@@ -595,16 +590,6 @@
       "path": "security/gpts_ingress_canary.py",
       "size_bytes": 3623,
       "sha256": "5a581d01a0295fae64cdd039b70665b15352aee6611a8a6073f4f2c22cd81b15"
-    },
-    {
-      "path": "tests/__pycache__/test_top20_reasoning_pool.cpython-311.pyc",
-      "size_bytes": 20078,
-      "sha256": "265e97cdd83ea24023b93475536bbbdd943b13615fe650f707c016b5c3c6c999"
-    },
-    {
-      "path": "tests/__pycache__/test_top50_reasoning_pool_extension.cpython-311.pyc",
-      "size_bytes": 8640,
-      "sha256": "52d2195ff3e234e02b336341ae26b521ace8c5b8d9999a0beea8840576d62cd3"
     },
     {
       "path": "tests/stress_openrouter_governance_selector.py",
@@ -773,8 +758,8 @@
     },
     {
       "path": "tests/test_top50_reasoning_pool_extension.py",
-      "size_bytes": 3604,
-      "sha256": "8f86c98ea47529f5a51e877d7b3b8cb3bad11d82f7d484c7fbff3878ef0683d4"
+      "size_bytes": 6487,
+      "sha256": "15311ed4de902aa6836e2c845513b5a471f6d8aa8e7c33493acdf4e3d2ef63ab"
     },
     {
       "path": "tools/__pycache__/sign_expert_plan.cpython-311.pyc",
@@ -798,8 +783,8 @@
     },
     {
       "path": "tools/sign_expert_plan.py",
-      "size_bytes": 17198,
-      "sha256": "12d02d3bfbce7ce2c0f62f00bba8b9d9e0a97d489d74eb7f3ae8083e5385ba2d"
+      "size_bytes": 7224,
+      "sha256": "42e8d52a0673d76859391d0c0715354cbeae7c6eff587fe1e3760189d28e4f75"
     },
     {
       "path": "tools/supply_chain_audit.py",
