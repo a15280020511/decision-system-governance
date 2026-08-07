@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Attach the live OpenRouter model catalog as a dynamic expert candidate pool.
+"""Attach the live OpenRouter reasoning-popularity catalog as expert candidates.
 
-The historical Top50, reasoning-only, weekly popularity, intelligence-rank,
-company-count, context, price, flagship and Provider qualification gates are
-removed. Governance supplies every model identity returned by the live catalog.
-Ranking, capabilities and prices are advisory metadata only. The Expert Center
-selects and combines models dynamically for the current task.
+Governance defines the candidate *source* as models that OpenRouter reports as
+reasoning-capable and orders that source by current ``most-popular`` usage.  It
+never truncates the source to a fixed Top-N and never applies price, flagship,
+company, Provider, ZDR, endpoint, context, free-first, Canary, or optimizer
+qualification gates.  Those fields remain advisory metadata for the Expert
+Center's current-task optimizer.
+
+The only hard model-execution boundary declared by governance is no-tools: every
+candidate is marked as forbidden from tools/functions/search/browser/MCP and the
+Expert Center must enforce that boundary on both request and response.
 """
 from __future__ import annotations
 
@@ -15,17 +20,19 @@ import math
 import urllib.parse
 from typing import Any, Mapping
 
-TOP50_POOL_SIZE = 50  # compatibility constant only; never an execution constraint
+TOP50_POOL_SIZE = 50  # compatibility constant only; never an execution limit
 MINIMUM_EXECUTABLE_COMPANIES = 0
-POOL_SCHEMA_VERSION = "governance-openrouter-dynamic-model-pool-v2"
-POOL_SOURCE = "openrouter-live-unrestricted-model-catalog"
-POPULARITY_PERIOD = "live-advisory"
+POOL_SCHEMA_VERSION = "governance-openrouter-reasoning-popularity-pool-v3"
+POOL_SOURCE = "openrouter-live-reasoning-most-popular-catalog"
+POPULARITY_PERIOD = "openrouter-most-popular-live"
 SELECTION_PRINCIPLES = [
     "concrete-problem-concrete-analysis",
     "dynamic-adaptation",
     "small-effort-large-return",
 ]
-SELECTION_EVIDENCE = "live-model-identity+unrestricted-openrouter-provider-routing"
+SELECTION_EVIDENCE = (
+    "live-reasoning-popularity-identity+unrestricted-openrouter-provider-routing"
+)
 
 
 class Top50ReasoningPoolError(RuntimeError):
@@ -65,12 +72,27 @@ def _price_per_million(pricing: Mapping[str, Any], key: str) -> float | None:
 
 
 def _company(model_id: str) -> str:
-    return model_id.split("/", 1)[0].strip().casefold() if "/" in model_id else "unknown"
+    return (
+        model_id.split("/", 1)[0].strip().casefold()
+        if "/" in model_id
+        else "unknown"
+    )
 
 
 def _fetch_rows(selector: Any, token: str) -> list[Mapping[str, Any]]:
-    """Fetch the live catalog without capability or Provider eligibility filters."""
-    query = urllib.parse.urlencode({"sort": "most-popular"})
+    """Fetch the full live reasoning-capable popularity sequence.
+
+    ``supported_parameters=reasoning`` and text output define the requested
+    reasoning leaderboard source.  They are not post-fetch business gates.
+    No fixed Top-N is requested or applied.
+    """
+    query = urllib.parse.urlencode(
+        {
+            "sort": "most-popular",
+            "supported_parameters": "reasoning",
+            "output_modalities": "text",
+        }
+    )
     payload = selector._fetch_json(f"{selector.MODELS_API}?{query}", token)
     rows = payload.get("data") if isinstance(payload, Mapping) else None
     if not isinstance(rows, list):
@@ -79,7 +101,7 @@ def _fetch_rows(selector: Any, token: str) -> list[Mapping[str, Any]]:
 
 
 def _intelligence_rank_map(selector: Any, token: str) -> dict[str, int]:
-    """Best-effort advisory ranking. It never controls candidate eligibility."""
+    """Best-effort advisory intelligence ranking; never candidate eligibility."""
     try:
         query = urllib.parse.urlencode(
             {
@@ -99,7 +121,7 @@ def _intelligence_rank_map(selector: Any, token: str) -> dict[str, int]:
                 if model_id and model_id not in result:
                     result[model_id] = rank
         return result
-    except Exception:  # noqa: BLE001 - ranking is advisory only
+    except Exception:  # noqa: BLE001 - advisory metadata must never gate execution
         return {}
 
 
@@ -117,8 +139,14 @@ def _candidate_record(
     prompt = _price_per_million(pricing, "prompt")
     completion = _price_per_million(pricing, "completion")
     parameters = row.get("supported_parameters")
-    parameter_list = [str(value) for value in parameters] if isinstance(parameters, list) else []
-    reasoning_supported = "reasoning" in {value.casefold() for value in parameter_list}
+    parameter_list = (
+        [str(value) for value in parameters]
+        if isinstance(parameters, list)
+        else []
+    )
+    reasoning_supported = "reasoning" in {
+        value.casefold() for value in parameter_list
+    }
     combined = (prompt or 0.0) + (completion or 0.0)
     return {
         "slot": source_rank,
@@ -129,10 +157,13 @@ def _candidate_record(
         "canonical_slug": str(row.get("canonical_slug") or model_id),
         "source_rank": source_rank,
         "popularity_rank": source_rank,
+        "popularity_source": POPULARITY_PERIOD,
         "official_intelligence_rank": intelligence_rank or source_rank,
         "intelligence_rank_verified": intelligence_rank is not None,
         "context_length": int(row.get("context_length") or 0),
-        "max_completion_tokens": int(top_provider.get("max_completion_tokens") or 0),
+        "max_completion_tokens": int(
+            top_provider.get("max_completion_tokens") or 0
+        ),
         "prompt_usd_per_million": float(prompt or 0.0),
         "completion_usd_per_million": float(completion or 0.0),
         "price_rank_usd_per_million": float(combined),
@@ -143,10 +174,14 @@ def _candidate_record(
         "reasoning_supported": reasoning_supported,
         "reasoning_rank_verified": intelligence_rank is not None,
         "selection_evidence": SELECTION_EVIDENCE,
+        "candidate_source": "reasoning-popularity-board",
         "expert_center_selectable": True,
         "provider_routing_mode": "unrestricted-openrouter",
         "provider_restrictions_applied": False,
         "qualification_gates_applied": False,
+        "tool_use_forbidden": True,
+        "tools_allowed": False,
+        "external_tool_capability_exposed": False,
     }
 
 
@@ -169,7 +204,9 @@ def _candidate_inventory(selector: Any, token: str) -> list[dict[str, Any]]:
         result.append(candidate)
         seen.add(model_id)
     if not result:
-        raise Top50ReasoningPoolError("OpenRouter returned no model identities")
+        raise Top50ReasoningPoolError(
+            "OpenRouter returned no reasoning-popularity model identities"
+        )
     return result
 
 
@@ -192,14 +229,19 @@ def attach_pool(
             "expert_candidate_pool_distinct_company_count": distinct_company_count,
             "expert_candidate_pool_fixed_size": False,
             "expert_candidate_pool_top50_only": False,
+            # Compatibility booleans remain false because reasoning/text are
+            # source-definition fields, not post-discovery admission gates.
             "expert_candidate_pool_reasoning_only_required": False,
             "expert_candidate_pool_text_only_required": False,
+            "expert_candidate_pool_reasoning_popularity_source": True,
             "expert_candidate_pool_intelligence_rank_required": False,
             "expert_candidate_pool_price_required": False,
             "expert_candidate_pool_context_gate_required": False,
             "expert_candidate_pool_company_diversity_required": False,
             "candidate_pool_authority": "decision-system-governance",
-            "model_assignment_authority": "expert-assessment-center-dynamic-ortools",
+            "model_assignment_authority": (
+                "expert-assessment-center-dynamic-ortools"
+            ),
             "expert_center_pool_selection_allowed": True,
             "task_adaptive_assignment_required": True,
             "model_assignment_principles": list(SELECTION_PRINCIPLES),
@@ -215,9 +257,15 @@ def attach_pool(
             "optimizer_optimality_required": False,
             "free_first_required": False,
             "canary_required_before_execution": False,
+            "price_filter_required": False,
+            "flagship_filter_required": False,
+            "intelligence_rank_required": False,
+            "tool_use_forbidden": True,
+            "tools_allowed": False,
+            "only_hard_model_boundary": "no-tools",
             "model_calls": 0,
-            # Compatibility aliases. Their names are historical; their contents
-            # are the full unrestricted catalog and are not Top-50 constrained.
+            # Historical Top50 names are aliases only; contents are the entire
+            # live reasoning-popularity sequence and are never size-limited.
             "top50_reasoning_pool_schema_version": POOL_SCHEMA_VERSION,
             "top50_reasoning_pool_source": POOL_SOURCE,
             "top50_reasoning_pool_period": POPULARITY_PERIOD,
@@ -227,7 +275,9 @@ def attach_pool(
             "top50_expert_selectable_candidate_count": len(candidates),
             "top50_expert_selectable_distinct_company_count": distinct_company_count,
             "top50_candidate_pool_authority": "decision-system-governance",
-            "top50_model_assignment_authority": "expert-assessment-center-dynamic-ortools",
+            "top50_model_assignment_authority": (
+                "expert-assessment-center-dynamic-ortools"
+            ),
             "expert_center_top50_pool_selection_allowed": True,
             "top50_provider_routing_mode": "unrestricted-openrouter",
             "top50_provider_restrictions_applied": False,
