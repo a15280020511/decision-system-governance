@@ -4,7 +4,7 @@
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 161,
-  "total_bytes": 1040480,
+  "total_bytes": 1041472,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -553,8 +553,8 @@
     },
     {
       "path": "hf-justice-intelligence-gateway/encrypted_transport.py",
-      "size_bytes": 17372,
-      "sha256": "23393deb60014baae89efb5c5a32553f78186146d841254df99a74b74637303d"
+      "size_bytes": 17373,
+      "sha256": "ea07a21529a62e26bdd610fc433cb6a544273061c48324994f1be7efcb8dfbbe"
     },
     {
       "path": "hf-justice-intelligence-gateway/gateway.py",
@@ -573,8 +573,8 @@
     },
     {
       "path": "hf-justice-intelligence-gateway/tests/test_encrypted_transport.py",
-      "size_bytes": 4979,
-      "sha256": "d9380778551152536c2c902f75ba97dc323bc9bfe4abb94bce7e5c091fc0ee63"
+      "size_bytes": 5970,
+      "sha256": "97bec4d96717e22fce45090f1d02aab2c7bc757cbe08f469e0c8858e0e81f456"
     },
     {
       "path": "hf-justice-intelligence-gateway/tests/test_gateway.py",
