@@ -147,10 +147,10 @@ def _candidate_record(
         "reasoning_supported": reasoning_supported,
         "reasoning_rank_verified": intelligence_rank is not None,
         "selection_evidence": SELECTION_EVIDENCE,
-        "expert_center_selectable": true,
+        "expert_center_selectable": True,
         "provider_routing_mode": "unrestricted-openrouter",
-        "provider_restrictions_applied": false,
-        "qualification_gates_applied": false
+        "provider_restrictions_applied": False,
+        "qualification_gates_applied": False,
     }
 
 
@@ -219,7 +219,6 @@ def attach_pool(
             "free_first_required": False,
             "canary_required_before_execution": False,
             "model_calls": 0,
-            # Legacy fields remain mirrors only so old readers do not crash.
             "top50_reasoning_pool_schema_version": POOL_SCHEMA_VERSION,
             "top50_reasoning_pool_source": POOL_SOURCE,
             "top50_reasoning_pool_period": POPULARITY_PERIOD,
