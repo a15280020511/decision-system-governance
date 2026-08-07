@@ -1,89 +1,41 @@
-from __future__ import annotations
-
-import importlib.util
 from pathlib import Path
 import unittest
 
-
 ROOT = Path(__file__).resolve().parents[1]
-
-
-def _load():
-    path = ROOT / "control-plane" / "resilient_control.py"
-    spec = importlib.util.spec_from_file_location("expert_child_contract_test", path)
-    module = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(module)
-    return module
-
-
-RUNTIME = _load()
+CONTROL = ROOT / "control-plane" / "resilient_control.py"
 
 
 class ExpertChildContractAdapterTests(unittest.TestCase):
-    def test_governance_ticket_matches_expert_execution_contract(self) -> None:
-        adapted = RUNTIME._adapt_expert_execution_contract(
-            {
-                "task_id": "gov-172-expert",
-                "objective": "Assess strategy",
-                "pipeline": "expert-team",
-                "task": {
-                    "question": "Analyze the task",
-                    "requirements": ["Separate facts and inference"],
-                    "language": "zh-CN",
-                },
-                "approved_budget": {
-                    "calls": 8,
-                    "maximum_recovery_calls": 1,
-                },
-                "evidence": [],
-                "execution_acceptance": ["Publish final synthesis"],
-                "private_output": False,
-            }
-        )
-        self.assertEqual(adapted["route"], "expert-team")
-        self.assertEqual(
-            adapted["approved_budget"]["cost_policy"],
-            "prompt_led_soft_governance",
-        )
-        self.assertEqual(adapted["pipeline"]["pipeline_id"], "gov-172-expert")
-        self.assertEqual(adapted["pipeline"]["stage_id"], "expert")
-        self.assertFalse(adapted["private_output"])
+    @classmethod
+    def setUpClass(cls):
+        cls.text = CONTROL.read_text(encoding="utf-8")
 
-    def test_existing_budget_policy_is_preserved(self) -> None:
-        adapted = RUNTIME._adapt_expert_execution_contract(
-            {
-                "task_id": "gov-999-expert",
-                "pipeline": {
-                    "pipeline_id": "gov-999-expert",
-                    "stage_id": "expert",
-                },
-                "task": {"question": "Q"},
-                "approved_budget": {
-                    "calls": 8,
-                    "maximum_recovery_calls": 1,
-                    "cost_policy": "unbounded_with_anomaly_guard",
-                },
-            }
-        )
-        self.assertEqual(
-            adapted["approved_budget"]["cost_policy"],
-            "unbounded_with_anomaly_guard",
-        )
+    def test_governance_delegates_model_assignment_to_expert_center(self):
+        self.assertIn("expert-assessment-center-dynamic-ortools", self.text)
+        self.assertIn("unrestricted-openrouter", self.text)
 
-    def test_invalid_private_output_fails_closed(self) -> None:
-        with self.assertRaisesRegex(ValueError, "private_output"):
-            RUNTIME._adapt_expert_execution_contract(
-                {
-                    "task_id": "gov-172-expert",
-                    "task": {"question": "Q"},
-                    "approved_budget": {
-                        "calls": 8,
-                        "maximum_recovery_calls": 1,
-                    },
-                    "private_output": True,
-                }
-            )
+    def test_no_fixed_budget_or_team_qualification_is_injected(self):
+        for legacy in (
+            "budget must leave at least three initial expert calls",
+            "four_primary_zero_recovery",
+            "8+4",
+            "eight_total",
+            "distinct_expert_companies",
+            "MINIMUM_QUALIFIED_PROVIDER_COUNT",
+        ):
+            self.assertNotIn(legacy, self.text)
+
+    def test_private_output_is_not_an_expert_model_eligibility_gate(self):
+        self.assertNotIn("private_output must be false", self.text)
+
+    def test_provider_endpoint_and_zdr_qualification_are_disabled(self):
+        self.assertIn('"provider_routing_mode": "unrestricted-openrouter"', self.text)
+        self.assertIn('"provider_endpoint_qualification_required": False', self.text)
+        self.assertIn('"zdr_endpoint_qualification_required": False', self.text)
+
+    def test_governance_does_not_select_fixed_primary_or_recovery_models(self):
+        self.assertIn('"selected_model_count": 0', self.text)
+        self.assertIn('"recovery_model_count": 0', self.text)
 
 
 if __name__ == "__main__":
