@@ -3,8 +3,8 @@
   "governance_version": "4.2.3",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
-  "file_count": 158,
-  "total_bytes": 1033169,
+  "file_count": 156,
+  "total_bytes": 1000813,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -457,11 +457,6 @@
       "sha256": "b9d7453c388c1f4d9767aa8ad8081a60cc3ec436e8ce9120026cd5e06fdf47ee"
     },
     {
-      "path": "governance-copilot/expert_task_envelope.py",
-      "size_bytes": 17695,
-      "sha256": "0f6ec2b66e64e68a928793a519378317bd8352cea09dd4c97158d6b921f54422"
-    },
-    {
       "path": "governance-copilot/production-qualification.json",
       "size_bytes": 1916,
       "sha256": "eb768f9ccabaaa5b37eba23d4efce53a6855aa5838f56b77784efccc8242d447"
@@ -480,11 +475,6 @@
       "path": "governance-copilot/select_paid_governance_flagship_model.py",
       "size_bytes": 19513,
       "sha256": "e6ee963c3dad0f70c9107c855832f1cb272d764d1464e327073dcc56a6277fa5"
-    },
-    {
-      "path": "governance-copilot/top20_reasoning_pool.py",
-      "size_bytes": 14661,
-      "sha256": "a825475b224578341eacdb0a656785d5aa8b18282e13bdbe837f665d24089d7a"
     },
     {
       "path": "governance-copilot/top50_reasoning_pool_extension.py",
