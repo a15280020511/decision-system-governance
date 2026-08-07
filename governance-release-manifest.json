@@ -3,8 +3,8 @@
   "governance_version": "4.2.3",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
-  "file_count": 161,
-  "total_bytes": 1044273,
+  "file_count": 162,
+  "total_bytes": 1049823,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -368,8 +368,8 @@
     },
     {
       "path": "control-plane/async_reconcile.py",
-      "size_bytes": 9767,
-      "sha256": "8b53376f68e0f11495d088f7ea9f4af77219fc43783e4b654f857190450c9fa5"
+      "size_bytes": 10205,
+      "sha256": "4174602b2421855e6c7882c7a3f606814d63857a45af6d5dd1fac5a73f103171"
     },
     {
       "path": "control-plane/control-ticket.schema.json",
@@ -383,8 +383,8 @@
     },
     {
       "path": "control-plane/deferred_poll.py",
-      "size_bytes": 3187,
-      "sha256": "e454d03e6292dfaaec4ec919b3cb88c2139b6e3bbf715f2866cb090f9b4ec4e2"
+      "size_bytes": 3864,
+      "sha256": "8fb404871efc3825bc0016dcfdd8af724673c6f72253b77428d482e5d7effde6"
     },
     {
       "path": "control-plane/deferred_reconcile.py",
@@ -458,8 +458,8 @@
     },
     {
       "path": "control-plane/status-dictionary.json",
-      "size_bytes": 5932,
-      "sha256": "204189aaa6c1adcfe249684aefad30f7c0a73f0a25b417b049a8e65f7be2a823"
+      "size_bytes": 6505,
+      "sha256": "7a8abc70efe849e2ab2a31067f16ab3d4c6b0b21a23d505ca3a19aa385c407ef"
     },
     {
       "path": "control-plane/topology-contract.json",
@@ -685,6 +685,11 @@
       "path": "tests/test_expert_child_plan_repair.py",
       "size_bytes": 2934,
       "sha256": "87521b6a69dee7e0ca5a472f09b414e822f3922ff14bdb0f3b2f75fbd47ae9e8"
+    },
+    {
+      "path": "tests/test_expert_degraded_success_semantics.py",
+      "size_bytes": 3862,
+      "sha256": "50449d5b12b77163195bca58eb49599d6224dc26bf16496efed0eaf5706d3767"
     },
     {
       "path": "tests/test_expert_plan_preview_workflow.py",

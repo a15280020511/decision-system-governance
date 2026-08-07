@@ -36,6 +36,10 @@ def trusted_terminal(
     absorbing for its Task ID: later duplicate-admission, already-running or
     replay rejection comments cannot revoke an Artifact-backed completion. When
     no valid success exists, the latest trusted task-bound failure is returned.
+
+    Expert ``EXECUTION_DEGRADED`` is a successful-but-degraded delivery class,
+    not a business failure. It still must pass the exact same Artifact identity
+    contract as ``EXECUTION_COMPLETED`` before governance accepts it.
     """
     config = CONTROL.ROUTES[route]
     if not isinstance(rows, list):
@@ -53,16 +57,24 @@ def trusted_terminal(
         match_body = CONTROL._normalized_terminal_body(raw_body)
         matched_status = ""
         success = False
-        for prefix in config["success"]:
-            if match_body.startswith(prefix):
-                matched_status = prefix.removeprefix("## ").strip()
-                success = True
-                break
-        if not matched_status:
-            for prefix in config["failure"]:
+
+        # Degraded expert delivery is terminal and usable. Keep it distinct from
+        # full success, but classify it as successful for queue/finalization
+        # semantics after the normal success Artifact contract is verified.
+        if route == "expert" and match_body.startswith("## EXECUTION_DEGRADED"):
+            matched_status = "EXECUTION_DEGRADED"
+            success = True
+        else:
+            for prefix in config["success"]:
                 if match_body.startswith(prefix):
                     matched_status = prefix.removeprefix("## ").strip()
+                    success = True
                     break
+            if not matched_status:
+                for prefix in config["failure"]:
+                    if match_body.startswith(prefix):
+                        matched_status = prefix.removeprefix("## ").strip()
+                        break
         if not matched_status:
             continue
 

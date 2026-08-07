@@ -1,5 +1,5 @@
 {
-  "schema_version": "governance-status-dictionary-v2",
+  "schema_version": "governance-status-dictionary-v3",
   "language": "zh-CN",
   "statuses": {
     "RECEIVED": {
@@ -39,8 +39,13 @@
     },
     "CONTROL_COMPLETED": {
       "terminal": true,
-      "meaning": "可信子终态、Task ID 和成功 Artifact 合同均已通过。",
+      "meaning": "可信子终态、Task ID 和成功 Artifact 合同均已通过，并达到完整成功。",
       "next_action": "读取治理机器人回执和 Artifact 证据后交付结果。"
+    },
+    "CONTROL_DEGRADED": {
+      "terminal": true,
+      "meaning": "可信专家子终态已成功产生可用交付并通过 Artifact 合同，但一个或多个节点、质量门或恢复路径未达到 full_success。",
+      "next_action": "将结果作为成功但降级的交付使用；读取 child status、degradation、runtime feedback 和 Artifact，不得把它写成彻底失败或完整成功。"
     },
     "CONTROL_FAILED": {
       "terminal": true,
@@ -117,6 +122,7 @@
     "Only github-actions[bot] receipts are trusted.",
     "Prefer governance-machine-status JSON over natural-language inference.",
     "Success requires matching task_id and route-specific Artifact evidence.",
+    "Expert EXECUTION_DEGRADED with valid Artifact evidence is successful-but-degraded, not CONTROL_FAILED and not full success.",
     "Timeout and monitor error do not prove that the child task stopped.",
     "Scheduled polling releases the dispatch Runner; cron delay changes delivery latency, not child computation quality."
   ]
