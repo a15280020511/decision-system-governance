@@ -4,7 +4,7 @@
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 149,
-  "total_bytes": 947935,
+  "total_bytes": 945606,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -628,8 +628,8 @@
     },
     {
       "path": "tests/test_expert_plan_preview_workflow.py",
-      "size_bytes": 5569,
-      "sha256": "0991ac407bedc9bcf5b0d16f2f4dcf6a82361dc437b8d00e0629c6d2c108e33f"
+      "size_bytes": 3240,
+      "sha256": "5399ecd8b0d158cd005ce1e90a69022daf7d92888866fc7eac226cf1afde7abe"
     },
     {
       "path": "tests/test_expert_plan_workflow_secret.py",
