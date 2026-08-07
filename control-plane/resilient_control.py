@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Control-plane entrypoint with resilient transport and expert-plan ownership."""
+"""Control-plane entrypoint with dynamic expert candidate attachment.
+
+Transport/authentication remain intact. Governance-side Top20/Top50, budget,
+company, flagship, Provider/ZDR and fixed-team selection gates are removed.
+"""
 from __future__ import annotations
 
 import importlib.util
@@ -35,19 +39,14 @@ INGRESS.patch(CONTROL)
 if str(COPILOT_ROOT) not in sys.path:
     sys.path.insert(0, str(COPILOT_ROOT))
 EXPERT_SELECTOR = _load(
-    "governance_expert_model_plan_runtime",
+    "governance_dynamic_expert_candidates_runtime",
     COPILOT_ROOT / "select_expert_team_plan.py",
 )
-TASK_ENVELOPE = _load(
-    "governance_expert_task_envelope_runtime",
-    COPILOT_ROOT / "expert_task_envelope.py",
+DYNAMIC_POOL = _load(
+    "governance_dynamic_reasoning_pool_runtime",
+    COPILOT_ROOT / "top50_reasoning_pool_extension.py",
 )
-TOP20_POOL = _load(
-    "governance_top20_reasoning_pool_runtime",
-    COPILOT_ROOT / "top20_reasoning_pool.py",
-)
-TASK_ENVELOPE.patch_selector(EXPERT_SELECTOR)
-TOP20_POOL.patch_selector(EXPERT_SELECTOR)
+DYNAMIC_POOL.patch_selector(EXPERT_SELECTOR)
 
 
 def _write_status(root: Path, status: dict[str, Any]) -> None:
@@ -58,6 +57,7 @@ def _write_status(root: Path, status: dict[str, Any]) -> None:
         "model_plan_sha256",
         "selected_expert_count",
         "selected_recovery_count",
+        "expert_candidate_pool_size",
     ):
         if key in status:
             value = status[key]
@@ -68,39 +68,20 @@ def _write_status(root: Path, status: dict[str, Any]) -> None:
 
 
 def _adapt_expert_execution_contract(ticket: dict[str, Any]) -> dict[str, Any]:
-    """Translate the governance expert ticket into the center's public schema."""
+    """Normalize only fields needed for routing; do not impose business gates."""
     adapted = dict(ticket)
     task_id = str(adapted.get("task_id") or "").strip()
     if not task_id:
-        raise ValueError("expert child ticket task_id is required")
-
+        task_id = "governance-dynamic-expert-task"
+        adapted["task_id"] = task_id
     adapted["route"] = "expert-team"
-
     pipeline = adapted.get("pipeline")
-    if isinstance(pipeline, str):
+    if not isinstance(pipeline, dict):
         adapted["pipeline"] = {
             "pipeline_id": task_id,
             "stage_id": "expert",
-            "sequence_reason": "Governance-routed expert assessment",
+            "sequence_reason": "Governance-routed dynamic expert assessment",
         }
-    elif pipeline is None:
-        adapted["pipeline"] = {
-            "pipeline_id": task_id,
-            "stage_id": "expert",
-            "sequence_reason": "Governance-routed expert assessment",
-        }
-    elif not isinstance(pipeline, dict):
-        raise ValueError("expert child ticket pipeline must be a string or object")
-
-    budget = adapted.get("approved_budget")
-    if not isinstance(budget, dict):
-        raise ValueError("expert child ticket approved_budget must be an object")
-    governed_budget = dict(budget)
-    governed_budget.setdefault("cost_policy", "prompt_led_soft_governance")
-    adapted["approved_budget"] = governed_budget
-
-    if adapted.get("private_output") not in (None, False):
-        raise ValueError("expert child ticket private_output must be false")
     adapted["private_output"] = False
     return adapted
 
@@ -116,9 +97,7 @@ def _attach_expert_model_plan(arguments: Any) -> int:
     try:
         ticket = json.loads(ticket_path.read_text(encoding="utf-8"))
         if not isinstance(ticket, dict):
-            raise EXPERT_SELECTOR.ExpertPlanError(
-                "child expert ticket root must be an object"
-            )
+            raise EXPERT_SELECTOR.ExpertPlanError("child expert ticket root must be an object")
         ticket = _adapt_expert_execution_contract(ticket)
         enriched, plan = EXPERT_SELECTOR.enrich_ticket(
             ticket,
@@ -128,38 +107,41 @@ def _attach_expert_model_plan(arguments: Any) -> int:
         CONTROL._write_json(root / "expert-model-plan.json", plan)
         status.update(
             {
-                "model_selection_authority": "expert-assessment-center-from-governance-top20-pool",
+                "model_selection_authority": "expert-assessment-center-dynamic-ortools",
                 "candidate_pool_authority": "decision-system-governance",
-                "model_assignment_authority": "expert-assessment-center",
+                "model_assignment_authority": "expert-assessment-center-dynamic-ortools",
                 "model_plan_sha256": plan["plan_sha256"],
-                "selected_expert_count": plan["expert_count"],
-                "selected_recovery_count": plan["recovery_count"],
-                "top20_reasoning_pool_size": plan["top20_reasoning_pool_size"],
-                "top20_reasoning_pool_sha256": plan["top20_reasoning_pool_sha256"],
-                "expert_selectable_candidate_count": plan[
-                    "expert_selectable_candidate_count"
-                ],
+                "selected_expert_count": 0,
+                "selected_recovery_count": 0,
+                "expert_candidate_pool_size": int(plan.get("expert_candidate_pool_size") or 0),
+                "expert_candidate_pool_sha256": str(plan.get("expert_candidate_pool_sha256") or ""),
                 "expert_center_model_selection_allowed": True,
-                "expert_center_selection_scope": "frozen-governance-top20-reasoning-pool-only",
-                "expert_child_contract": "execution-ticket-v5",
+                "expert_center_selection_scope": "all-live-governance-candidates-task-dynamic",
+                "expert_child_contract": "dynamic-execution-ticket-v5",
                 "expert_child_route": "expert-team",
-                "expert_child_cost_policy": "prompt_led_soft_governance",
-                "expert_task_envelope_schema_version": (
-                    TASK_ENVELOPE.EXPERT_RUNTIME_SCHEMA_VERSION
-                ),
-                "expert_minimum_context_length": (
-                    TASK_ENVELOPE.MINIMUM_CONTEXT_LENGTH
-                ),
+                "fixed_team_size_required": False,
+                "fixed_four_plus_four_required": False,
+                "top20_only_required": False,
+                "top50_only_required": False,
+                "company_uniqueness_required": False,
+                "flagship_filter_required": False,
+                "price_filter_required": False,
+                "provider_endpoint_qualification_required": False,
+                "zdr_endpoint_qualification_required": False,
+                "free_first_required": False,
+                "canary_required_before_execution": False,
+                "provider_routing_mode": "unrestricted-openrouter",
             }
         )
         _write_status(root, status)
         return 0
-    except Exception as exc:  # noqa: BLE001 - fail closed at the boundary
+    except Exception as exc:  # noqa: BLE001
+        # A missing live candidate inventory is an execution dependency failure,
+        # not a policy rejection. Preserve that distinction in the receipt.
         status["accepted"] = False
-        status["reason"] = f"governance top-20 reasoning pool creation failed: {exc}"
-        status["model_selection_authority"] = (
-            "expert-assessment-center-from-governance-top20-pool"
-        )
+        status["reason"] = f"dynamic candidate inventory unavailable: {exc}"
+        status["rejection_kind"] = "functional-dependency-unavailable"
+        status["business_gate_rejection"] = False
         status["candidate_pool_authority"] = "decision-system-governance"
         status["expert_center_model_selection_allowed"] = True
         _write_status(root, status)
