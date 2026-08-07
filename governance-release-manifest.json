@@ -3,8 +3,8 @@
   "governance_version": "4.2.3",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
-  "file_count": 157,
-  "total_bytes": 1007883,
+  "file_count": 158,
+  "total_bytes": 1015640,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -110,6 +110,11 @@
       "path": ".github/workflows/hf-justice-intelligence-gateway.yml",
       "size_bytes": 9549,
       "sha256": "04488b35a7e2b2a4841a1e2a232ab50e891d33e621f5785d66f8439f81710a32"
+    },
+    {
+      "path": ".github/workflows/hf-justice-intelligence-query.yml",
+      "size_bytes": 7757,
+      "sha256": "0ce68144365a63337b0e11322c73d6f188fb3b45d689b32e500a40096d2f6ecb"
     },
     {
       "path": ".github/workflows/main-provenance-and-repository-protection.yml",
