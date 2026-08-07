@@ -4,7 +4,7 @@
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
   "file_count": 149,
-  "total_bytes": 945606,
+  "total_bytes": 944218,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -618,8 +618,8 @@
     },
     {
       "path": "tests/test_expert_child_contract_adapter.py",
-      "size_bytes": 3027,
-      "sha256": "fc53564bd51d072503599e8d27a690057e6123c3b8d2af5184f77808311b7378"
+      "size_bytes": 1639,
+      "sha256": "39445136ba0f046712bbd9175aee56e2e5ef7d96f93d8a73c29236085b7b0ae4"
     },
     {
       "path": "tests/test_expert_child_plan_repair.py",
