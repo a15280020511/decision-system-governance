@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -105,6 +106,28 @@ class EncryptedTransportTests(unittest.TestCase):
         envelope["aad"]["raw_source_url_included"] = True
         with self.assertRaises(MODULE.TransportError):
             MODULE.decrypt_envelope(envelope, token)
+
+    def test_poll_queries_newest_open_issues_first(self) -> None:
+        observed: list[str] = []
+        original = MODULE._github_request
+
+        def fake_request(method: str, url: str, token: str, payload=None):
+            observed.append(url)
+            if method == "GET" and f"repos/{MODULE.EVIDENCE_REPO}/issues" in url:
+                return []
+            raise AssertionError(f"unexpected call: {method} {url}")
+
+        MODULE._github_request = fake_request
+        try:
+            with tempfile.TemporaryDirectory() as temp:
+                result = MODULE.poll("control-token", "hf_test_private_value", Path(temp))
+            self.assertEqual(result["candidate_count"], 0)
+            self.assertEqual(len(observed), 1)
+            self.assertIn("sort=created", observed[0])
+            self.assertIn("direction=desc", observed[0])
+            self.assertNotIn("direction=asc", observed[0])
+        finally:
+            MODULE._github_request = original
 
     def test_validate_reports_no_actions_or_contents_permission(self) -> None:
         result = MODULE.validate()

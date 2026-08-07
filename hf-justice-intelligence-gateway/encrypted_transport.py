@@ -264,7 +264,7 @@ def poll(control_token: str, hf_token: str, output_dir: Path) -> dict[str, Any]:
         raise TransportError("HF_TOKEN is not configured")
     issues = _github_request(
         "GET",
-        f"https://api.github.com/repos/{EVIDENCE_REPO}/issues?state=open&per_page=100&sort=created&direction=asc",
+        f"https://api.github.com/repos/{EVIDENCE_REPO}/issues?state=open&per_page=100&sort=created&direction=desc",
         control_token,
     )
     candidates = [
