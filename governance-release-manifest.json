@@ -3,8 +3,8 @@
   "governance_version": "4.2.3",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
-  "file_count": 155,
-  "total_bytes": 992159,
+  "file_count": 156,
+  "total_bytes": 1004949,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -545,6 +545,11 @@
       "path": "hf-justice-intelligence-gateway/gateway.py",
       "size_bytes": 22281,
       "sha256": "ff5a33f87b597ead1ac66a0cceaf549e7c2b2927ad26021ccc6f8e99548c3ee5"
+    },
+    {
+      "path": "hf-justice-intelligence-gateway/query_report.py",
+      "size_bytes": 12790,
+      "sha256": "dd5fa17dc634270cbe24feae5febd23531335d2429791ca407a7197ffc6bbad4"
     },
     {
       "path": "hf-justice-intelligence-gateway/requirements.txt",
