@@ -34,8 +34,8 @@ class ExpertChildContractAdapterTests(unittest.TestCase):
         self.assertIn('"zdr_endpoint_qualification_required": False', self.text)
 
     def test_governance_does_not_select_fixed_primary_or_recovery_models(self):
-        self.assertIn('"selected_model_count": 0', self.text)
-        self.assertIn('"recovery_model_count": 0', self.text)
+        self.assertIn('"selected_expert_count": 0', self.text)
+        self.assertIn('"selected_recovery_count": 0', self.text)
 
 
 if __name__ == "__main__":
