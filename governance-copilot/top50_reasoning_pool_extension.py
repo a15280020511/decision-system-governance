@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Attach a broad live OpenRouter candidate inventory to governance plans.
+"""Attach the live OpenRouter model catalog as a dynamic expert candidate pool.
 
-The historical Top50/weekly/intelligence-rank/company-count/context/price gates
-are removed. Governance now supplies every usable model identity returned by the
-live reasoning-capable catalog and records ranking/capacity/price only as
-advisory metadata. The Expert Center decides the current task's team dynamically.
+The historical Top50, reasoning-only, weekly popularity, intelligence-rank,
+company-count, context, price, flagship and Provider qualification gates are
+removed. Governance supplies every model identity returned by the live catalog.
+Ranking, capabilities and prices are advisory metadata only. The Expert Center
+selects and combines models dynamically for the current task.
 """
 from __future__ import annotations
 
@@ -14,10 +15,10 @@ import math
 import urllib.parse
 from typing import Any, Mapping
 
-TOP50_POOL_SIZE = 50  # compatibility constant only; not an execution constraint
+TOP50_POOL_SIZE = 50  # compatibility constant only; never an execution constraint
 MINIMUM_EXECUTABLE_COMPANIES = 0
-POOL_SCHEMA_VERSION = "governance-openrouter-dynamic-reasoning-pool-v1"
-POOL_SOURCE = "openrouter-live-reasoning-candidate-inventory"
+POOL_SCHEMA_VERSION = "governance-openrouter-dynamic-model-pool-v2"
+POOL_SOURCE = "openrouter-live-unrestricted-model-catalog"
 POPULARITY_PERIOD = "live-advisory"
 SELECTION_PRINCIPLES = [
     "concrete-problem-concrete-analysis",
@@ -68,13 +69,8 @@ def _company(model_id: str) -> str:
 
 
 def _fetch_rows(selector: Any, token: str) -> list[Mapping[str, Any]]:
-    query = urllib.parse.urlencode(
-        {
-            "sort": "most-popular",
-            "output_modalities": "text",
-            "supported_parameters": "reasoning",
-        }
-    )
+    """Fetch the live catalog without capability or Provider eligibility filters."""
+    query = urllib.parse.urlencode({"sort": "most-popular"})
     payload = selector._fetch_json(f"{selector.MODELS_API}?{query}", token)
     rows = payload.get("data") if isinstance(payload, Mapping) else None
     if not isinstance(rows, list):
@@ -83,7 +79,7 @@ def _fetch_rows(selector: Any, token: str) -> list[Mapping[str, Any]]:
 
 
 def _intelligence_rank_map(selector: Any, token: str) -> dict[str, int]:
-    """Best-effort advisory ranking. Failure produces an empty map, not rejection."""
+    """Best-effort advisory ranking. It never controls candidate eligibility."""
     try:
         query = urllib.parse.urlencode(
             {
@@ -173,7 +169,7 @@ def _candidate_inventory(selector: Any, token: str) -> list[dict[str, Any]]:
         result.append(candidate)
         seen.add(model_id)
     if not result:
-        raise Top50ReasoningPoolError("OpenRouter returned no usable model identities")
+        raise Top50ReasoningPoolError("OpenRouter returned no model identities")
     return result
 
 
@@ -197,6 +193,7 @@ def attach_pool(
             "expert_candidate_pool_fixed_size": False,
             "expert_candidate_pool_top50_only": False,
             "expert_candidate_pool_reasoning_only_required": False,
+            "expert_candidate_pool_text_only_required": False,
             "expert_candidate_pool_intelligence_rank_required": False,
             "expert_candidate_pool_price_required": False,
             "expert_candidate_pool_context_gate_required": False,
@@ -219,6 +216,8 @@ def attach_pool(
             "free_first_required": False,
             "canary_required_before_execution": False,
             "model_calls": 0,
+            # Compatibility aliases. Their names are historical; their contents
+            # are the full unrestricted catalog and are not Top-50 constrained.
             "top50_reasoning_pool_schema_version": POOL_SCHEMA_VERSION,
             "top50_reasoning_pool_source": POOL_SOURCE,
             "top50_reasoning_pool_period": POPULARITY_PERIOD,
