@@ -1,0 +1,52 @@
+{
+  "schema_version": "governance-hf-justice-intelligence-gateway-v1",
+  "status": "production-control",
+  "storage_owner": "a15280020511/decision-system-governance",
+  "producer_repository": "a15280020511/evidence-data-center",
+  "token_environment_variable": "HF_TOKEN",
+  "repository": {
+    "repo_type": "dataset",
+    "visibility": "private",
+    "repository_variable": "HF_JUSTICE_INTELLIGENCE_DATASET_REPO",
+    "default_repository_name": "prc-justice-intelligence",
+    "purpose": "Versioned structured PRC justice derived intelligence, trend snapshots and queryable normalized records."
+  },
+  "accepted_export_schema": "governance-prc-justice-derived-export-v1",
+  "record_schema_version": "prc-justice-derived-intelligence-record-v1",
+  "boundaries": {
+    "gpts_is_only_external_controller": true,
+    "business_centers_direct_huggingface_access_allowed": false,
+    "derived_structured_records_only": true,
+    "opaque_evidence_reference_required": true,
+    "immutable_batch_files_required": true,
+    "raw_web_page_text_allowed": false,
+    "raw_pdf_text_allowed": false,
+    "raw_source_url_allowed": false,
+    "raw_model_response_allowed": false,
+    "personal_targeting_data_allowed": false,
+    "secret_operational_details_allowed": false,
+    "investigation_evasion_or_anti_forensics_allowed": false,
+    "credentials_or_private_endpoints_allowed": false,
+    "model_inference_in_gateway_allowed": false,
+    "training_allowed": false
+  },
+  "dataset_sections": [
+    "signals",
+    "capabilities",
+    "technology_lifecycle",
+    "practice_standards",
+    "doctrine",
+    "procurement_and_deployment",
+    "institutions_regions",
+    "judicial_outcomes",
+    "trend_snapshots",
+    "model_findings",
+    "compute_indices",
+    "report_snapshots"
+  ],
+  "required_bootstrap_files": [
+    "README.md",
+    "schema/derived-record-v1.json",
+    "schema/dataset-layout-v1.json"
+  ]
+}
