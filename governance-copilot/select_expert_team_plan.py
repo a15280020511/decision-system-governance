@@ -3,8 +3,14 @@
 
 Governance owns live candidate discovery and ticket integrity only. It does not
 apply flagship, price, intelligence-rank, company, Provider, ZDR, Top-N, fixed
-team-size or recovery gates. Expert composition is delegated to the Expert
-Center and recomputed from the current task.
+team-size, recovery, free-first, Canary, or optimizer-status admission gates.
+Expert composition is delegated to the Expert Center and recomputed from the
+current task.
+
+The single hard model-execution boundary declared here is ``no-tools``.  Every
+model supplied to the Expert Center must execute without tools/functions/search,
+browser, MCP, code execution, file search, connectors, or equivalent external
+action capabilities.
 """
 from __future__ import annotations
 
@@ -136,6 +142,9 @@ def _required_plan_fields(ticket: Mapping[str, Any]) -> dict[str, Any]:
         "free_first_required": False,
         "canary_required_before_execution": False,
         "cross_task_history_allowed": False,
+        "tool_use_forbidden": True,
+        "tools_allowed": False,
+        "only_hard_model_boundary": "no-tools",
     }
 
 
