@@ -1,0 +1,104 @@
+name: Control Live Smoke Generate Top50
+
+on:
+  push:
+    branches:
+      - control/live-smoke-top50-20260807
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          python-version: '3.12'
+      - name: Generate current weekly Top50 with repository generator
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/task-envelope.json <<'JSON'
+          {
+            "task_id": "live-smoke-20260807",
+            "question": "A SaaS team has 4 engineers and 8 weeks. Option A reduces cloud spend by 15 percent and saves 4000 USD per month. Option B builds a feature expected to add 6000 USD monthly recurring revenue but has a 40 percent probability of delay. Assume equal engineering opportunity cost. Which should be prioritized? State assumptions, expected-value comparison, main risk, and recommendation.",
+            "requirements": ["quantitative comparison", "assumptions", "risk review", "single recommendation"],
+            "language": "zh-CN",
+            "minimum_context_length": 16384
+          }
+          JSON
+          script='governance-copilot/top50_reasoning_pool_extension.py'
+          help="$(python "$script" --help 2>&1 || true)"
+          rm -f /tmp/pool.json /tmp/stdout.json
+          try_cmd() {
+            set +e
+            "$@" >/tmp/stdout.json 2>/tmp/generator.err
+            rc=$?
+            set -e
+            if [ $rc -eq 0 ]; then
+              python - <<'PY'
+          import json
+          from pathlib import Path
+          candidates=[Path('/tmp/pool.json'),Path('/tmp/stdout.json')]
+          for p in candidates:
+              if not p.is_file() or not p.read_text(encoding='utf-8').strip():
+                  continue
+              try:
+                  data=json.loads(p.read_text(encoding='utf-8'))
+              except Exception:
+                  continue
+              if isinstance(data,dict) and (data.get('selectable_candidates') or data.get('eligible_models') or data.get('models')):
+                  Path('/tmp/accepted-pool.json').write_text(json.dumps(data,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+                  raise SystemExit(0)
+          raise SystemExit(1)
+          PY
+              return $?
+            fi
+            return 1
+          }
+          if echo "$help" | grep -q -- '--task-envelope-json'; then
+            try_cmd python "$script" --task-envelope-json /tmp/task-envelope.json --output /tmp/pool.json || true
+          fi
+          if [ ! -f /tmp/accepted-pool.json ] && echo "$help" | grep -q -- '--task-envelope'; then
+            try_cmd python "$script" --task-envelope /tmp/task-envelope.json --output /tmp/pool.json || true
+          fi
+          if [ ! -f /tmp/accepted-pool.json ] && echo "$help" | grep -q -- '--output'; then
+            try_cmd python "$script" --output /tmp/pool.json || true
+          fi
+          if [ ! -f /tmp/accepted-pool.json ]; then
+            try_cmd python "$script" || true
+          fi
+          test -f /tmp/accepted-pool.json || { echo 'Top50 generator did not produce a valid pool'; cat /tmp/generator.err || true; exit 1; }
+          cp /tmp/accepted-pool.json LIVE_TOP50.json
+      - name: Validate Governance pool contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          p=json.load(open('LIVE_TOP50.json',encoding='utf-8'))
+          assert p.get('schema_version') == 'governance-openrouter-top50-reasoning-pool-v2-open-provider', p.get('schema_version')
+          rows=p.get('selectable_candidates') or p.get('eligible_models') or p.get('models') or []
+          raw=p.get('raw_top50') or rows
+          assert len(raw) == 50, len(raw)
+          assert p.get('provider_routing_mode') == 'unrestricted-openrouter' or p.get('provider_restrictions_applied') is False
+          companies={str(r.get('company') or r.get('provider') or '').strip().lower() for r in rows if isinstance(r,dict)}
+          companies.discard('')
+          assert len(companies) >= 8, len(companies)
+          assert len(rows) >= 8, len(rows)
+          print(json.dumps({'status':'PASS','raw_top50':len(raw),'selectable':len(rows),'companies':len(companies)},sort_keys=True))
+          PY
+      - name: Commit signed pool snapshot and self-remove
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/control-live-smoke-generate-top50.yml CONTROL_TOP50_INSPECT.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'control: materialize live weekly Top50 for expert smoke'
+          git push origin HEAD:control/live-smoke-top50-20260807
