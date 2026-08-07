@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Regenerate only the immutable governance model plan for one expert child Issue."""
+"""Refresh the governance candidate inventory for one existing expert child Issue.
+
+Repair is limited to replacing governance_model_plan with a fresh, unrestricted
+OpenRouter model catalog snapshot. It does not impose TopN, reasoning-only,
+company, flagship, price, budget, Provider/ZDR, fixed-team or recovery gates.
+"""
 from __future__ import annotations
 
 import argparse
@@ -13,14 +18,13 @@ from typing import Any, Mapping
 
 ROOT = Path(__file__).resolve().parents[1]
 SELECTOR_PATH = ROOT / "governance-copilot" / "select_expert_team_plan.py"
-TASK_ENVELOPE_PATH = ROOT / "governance-copilot" / "expert_task_envelope.py"
-TOP20_POOL_PATH = ROOT / "governance-copilot" / "top20_reasoning_pool.py"
+DYNAMIC_POOL_PATH = ROOT / "governance-copilot" / "top50_reasoning_pool_extension.py"
 RETRY_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 EXPECTED_ROUTE = "expert-team"
 
 
 class ExpertChildRepairError(RuntimeError):
-    """Raised when an existing child ticket cannot be repaired safely."""
+    """Raised when an existing child ticket cannot be represented safely."""
 
 
 def _load_module(name: str, path: Path):
@@ -32,20 +36,9 @@ def _load_module(name: str, path: Path):
     return module
 
 
-SELECTOR = _load_module(
-    "governance_expert_child_repair_selector",
-    SELECTOR_PATH,
-)
-TASK_ENVELOPE = _load_module(
-    "governance_expert_child_repair_task_envelope",
-    TASK_ENVELOPE_PATH,
-)
-TOP20_POOL = _load_module(
-    "governance_expert_child_repair_top20_pool",
-    TOP20_POOL_PATH,
-)
-TASK_ENVELOPE.patch_selector(SELECTOR)
-TOP20_POOL.patch_selector(SELECTOR)
+SELECTOR = _load_module("governance_dynamic_repair_selector", SELECTOR_PATH)
+DYNAMIC_POOL = _load_module("governance_dynamic_repair_pool", DYNAMIC_POOL_PATH)
+DYNAMIC_POOL.patch_selector(SELECTOR)
 
 
 def _canonical_json(value: Any) -> bytes:
@@ -55,6 +48,7 @@ def _canonical_json(value: Any) -> bytes:
         sort_keys=True,
         separators=(",", ":"),
         allow_nan=False,
+        default=str,
     ).encode("utf-8")
 
 
@@ -68,25 +62,18 @@ def _load_mapping(path: Path, field: str) -> dict[str, Any]:
     return dict(value)
 
 
-def prepare_base_ticket(
-    source: Mapping[str, Any], expected_task_id: str
-) -> dict[str, Any]:
+def prepare_base_ticket(source: Mapping[str, Any], expected_task_id: str) -> dict[str, Any]:
     task_id = str(source.get("task_id") or "").strip()
     if not expected_task_id or task_id != expected_task_id:
         raise ExpertChildRepairError(
             f"task_id mismatch: expected {expected_task_id!r}, found {task_id!r}"
         )
-    if source.get("route") != EXPECTED_ROUTE:
-        raise ExpertChildRepairError("expert child route must be expert-team")
-    if source.get("private_output") is not False:
-        raise ExpertChildRepairError("expert child private_output must be false")
-    if not isinstance(source.get("task"), Mapping):
-        raise ExpertChildRepairError("expert child task object is missing")
-    if not isinstance(source.get("approved_budget"), Mapping):
-        raise ExpertChildRepairError("expert child approved_budget object is missing")
-    if not isinstance(source.get("governance_model_plan"), Mapping):
-        raise ExpertChildRepairError("existing governance_model_plan is missing")
     base = dict(source)
+    base.setdefault("route", EXPECTED_ROUTE)
+    if not isinstance(base.get("task"), Mapping):
+        # Legacy tickets may encode the task at the root; the selector supports
+        # that shape, so do not reject it merely for missing a nested task.
+        base.pop("task", None)
     base.pop("governance_model_plan", None)
     return base
 
@@ -95,111 +82,6 @@ def _plan_digest(plan: Mapping[str, Any]) -> str:
     material = dict(plan)
     material.pop("plan_sha256", None)
     return hashlib.sha256(_canonical_json(material)).hexdigest()
-
-
-def _distinct_candidate_companies(eligible: Any) -> set[str]:
-    if not isinstance(eligible, list):
-        return set()
-    return {
-        str(row.get("company") or "").strip().casefold()
-        for row in eligible
-        if isinstance(row, Mapping) and str(row.get("company") or "").strip()
-    }
-
-
-def _verify_top20_pool(plan: Mapping[str, Any]) -> None:
-    if plan.get("top20_reasoning_pool_schema_version") != (
-        TOP20_POOL.POOL_SCHEMA_VERSION
-    ):
-        raise ExpertChildRepairError("regenerated top-20 pool schema is invalid")
-    if plan.get("top20_reasoning_pool_source") != TOP20_POOL.POOL_SOURCE:
-        raise ExpertChildRepairError("regenerated top-20 pool source is invalid")
-    if plan.get("top20_reasoning_pool_size") != TOP20_POOL.TOP20_POOL_SIZE:
-        raise ExpertChildRepairError("regenerated top-20 pool is incomplete")
-    if plan.get("candidate_pool_authority") != "decision-system-governance":
-        raise ExpertChildRepairError("regenerated candidate pool authority is invalid")
-    if plan.get("model_assignment_authority") != "expert-assessment-center":
-        raise ExpertChildRepairError("regenerated model assignment authority is invalid")
-    if plan.get("expert_center_pool_selection_allowed") is not True:
-        raise ExpertChildRepairError("expert center top-20 selection is not enabled")
-    if plan.get("old_flagship_filter_applied_to_top20_pool") is not False:
-        raise ExpertChildRepairError("old flagship filter altered the regenerated pool")
-    raw_pool = plan.get("top20_reasoning_models")
-    eligible = plan.get("expert_selectable_candidates")
-    if not isinstance(raw_pool, list) or len(raw_pool) != TOP20_POOL.TOP20_POOL_SIZE:
-        raise ExpertChildRepairError("regenerated top-20 pool rows are invalid")
-    companies = _distinct_candidate_companies(eligible)
-    if len(companies) < TOP20_POOL.MINIMUM_EXECUTABLE_CANDIDATES:
-        raise ExpertChildRepairError(
-            "regenerated top-20 pool has fewer than eight executable companies"
-        )
-    if plan.get("expert_selectable_distinct_company_count") != len(companies):
-        raise ExpertChildRepairError(
-            "regenerated distinct-company count is inconsistent"
-        )
-
-
-def _verify_model_rows(plan: Mapping[str, Any]) -> None:
-    selected_rows = list(plan.get("selected_models") or [])
-    recovery_rows = list(plan.get("recovery_models") or [])
-    companies: set[str] = set()
-    models: set[str] = set()
-    for field, rows in (
-        ("selected_models", selected_rows),
-        ("recovery_models", recovery_rows),
-    ):
-        for index, row in enumerate(rows):
-            if not isinstance(row, Mapping):
-                raise ExpertChildRepairError(f"{field}[{index}] is not an object")
-            model = str(row.get("model") or "").strip()
-            company = str(row.get("company") or "").strip().casefold()
-            endpoint_hash = str(row.get("endpoint_inventory_sha256") or "")
-            provider_count = row.get("qualified_provider_count")
-            evidence = str(row.get("selection_evidence") or "")
-            if not model or model in models:
-                raise ExpertChildRepairError(
-                    "regenerated plan contains duplicate model"
-                )
-            if not company:
-                raise ExpertChildRepairError(
-                    "regenerated plan model company is missing"
-                )
-            if company in companies:
-                raise ExpertChildRepairError(
-                    "regenerated plan reuses a model company"
-                )
-            basis = str(row.get("flagship_basis") or "")
-            if basis not in {"strict-product-tier", "company-local-natural-top-layer"}:
-                raise ExpertChildRepairError("repair model flagship basis is invalid")
-            if "verified-company-flagship-reasoning" not in evidence or basis not in evidence:
-                raise ExpertChildRepairError(
-                    "regenerated model lacks verified company reasoning flagship evidence"
-                )
-            benchmark_hash = str(row.get("benchmark_evidence_sha256") or "")
-            if len(benchmark_hash) != 64 or any(
-                character not in "0123456789abcdef"
-                for character in benchmark_hash
-            ):
-                raise ExpertChildRepairError(
-                    "repair model benchmark evidence hash is invalid"
-                )
-            if (
-                isinstance(provider_count, bool)
-                or not isinstance(provider_count, int)
-                or provider_count < TASK_ENVELOPE.MINIMUM_QUALIFIED_PROVIDER_COUNT
-            ):
-                raise ExpertChildRepairError(
-                    "model does not satisfy the qualified ZDR provider floor"
-                )
-            if len(endpoint_hash) != 64 or any(
-                character not in "0123456789abcdef"
-                for character in endpoint_hash
-            ):
-                raise ExpertChildRepairError(
-                    "model endpoint inventory hash is invalid"
-                )
-            models.add(model)
-            companies.add(company)
 
 
 def verify_repair(
@@ -211,34 +93,54 @@ def verify_repair(
     source_without_plan.pop("governance_model_plan", None)
     repaired_without_plan = dict(repaired)
     repaired_plan = repaired_without_plan.pop("governance_model_plan", None)
-    if source_without_plan != repaired_without_plan:
+
+    # The repair may only normalize a missing route; every other user/task field
+    # remains untouched.
+    expected = dict(source_without_plan)
+    expected.setdefault("route", EXPECTED_ROUTE)
+    if repaired_without_plan != expected:
         raise ExpertChildRepairError(
-            "repair changed child ticket fields outside governance_model_plan"
+            "repair changed child ticket content outside governance_model_plan"
         )
     if repaired_plan != plan:
         raise ExpertChildRepairError("repaired ticket and plan output disagree")
     if plan.get("plan_sha256") != _plan_digest(plan):
         raise ExpertChildRepairError("regenerated plan digest mismatch")
-    if plan.get("task_sha256") != SELECTOR.task_sha256(repaired):
+    if plan.get("task_sha256") != SELECTOR.task_sha256(expected):
         raise ExpertChildRepairError("regenerated plan task hash mismatch")
-    if plan.get("endpoint_qualification_performed_by_governance") is not True:
-        raise ExpertChildRepairError("regenerated plan lacks endpoint qualification")
 
-    expected_context = TASK_ENVELOPE.required_context_tokens(repaired)
-    if plan.get("required_context_tokens") != expected_context:
-        raise ExpertChildRepairError(
-            "regenerated plan does not match the frozen expert task envelope"
-        )
-    if expected_context < TASK_ENVELOPE.MINIMUM_CONTEXT_LENGTH:
-        raise ExpertChildRepairError("expert context floor was not enforced")
-
-    _verify_top20_pool(plan)
-    _verify_model_rows(plan)
+    candidates = plan.get("expert_candidate_pool")
+    if not isinstance(candidates, list) or not candidates:
+        raise ExpertChildRepairError("regenerated live candidate inventory is empty")
+    if plan.get("candidate_pool_authority") != "decision-system-governance":
+        raise ExpertChildRepairError("regenerated candidate pool authority is invalid")
+    if plan.get("model_assignment_authority") != "expert-assessment-center-dynamic-ortools":
+        raise ExpertChildRepairError("regenerated model assignment authority is invalid")
+    if plan.get("provider_routing_mode") != "unrestricted-openrouter":
+        raise ExpertChildRepairError("regenerated Provider routing is restricted")
+    if plan.get("provider_restrictions_applied") is not False:
+        raise ExpertChildRepairError("regenerated plan applied Provider restrictions")
+    for gate in (
+        "fixed_team_size_required",
+        "fixed_four_plus_four_required",
+        "company_uniqueness_required",
+        "flagship_filter_required",
+        "price_filter_required",
+        "intelligence_rank_required",
+        "provider_endpoint_qualification_required",
+        "zdr_endpoint_qualification_required",
+        "free_first_required",
+        "canary_required_before_execution",
+    ):
+        if plan.get(gate) is not False:
+            raise ExpertChildRepairError(f"regenerated plan unexpectedly enables {gate}")
 
 
 def regenerate(
     source: Mapping[str, Any], expected_task_id: str, token: str
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    if not str(token or "").strip():
+        raise ExpertChildRepairError("OPENROUTER_API_KEY is required to read the live catalog")
     base = prepare_base_ticket(source, expected_task_id)
     repaired, plan = SELECTOR.enrich_ticket(base, token)
     verify_repair(source, repaired, plan)
@@ -257,16 +159,17 @@ def main() -> int:
     if not RETRY_ID_RE.fullmatch(args.retry_id):
         raise ExpertChildRepairError("retry_id has an invalid format")
     source = _load_mapping(Path(args.source_body), "source issue body")
-    token = os.getenv("OPENROUTER_API_KEY", "")
-    if not token:
-        raise ExpertChildRepairError("OPENROUTER_API_KEY is required")
-    repaired, plan = regenerate(source, args.expected_task_id, token)
+    repaired, plan = regenerate(
+        source,
+        args.expected_task_id,
+        os.getenv("OPENROUTER_API_KEY", ""),
+    )
     Path(args.output_ticket).write_text(
-        json.dumps(repaired, ensure_ascii=False, indent=2) + "\n",
+        json.dumps(repaired, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     Path(args.output_plan).write_text(
-        json.dumps(plan, ensure_ascii=False, indent=2) + "\n",
+        json.dumps(plan, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     print(
@@ -276,31 +179,14 @@ def main() -> int:
                 "task_id": args.expected_task_id,
                 "retry_id": args.retry_id,
                 "plan_sha256": plan["plan_sha256"],
-                "top20_reasoning_pool_size": plan["top20_reasoning_pool_size"],
-                "top20_reasoning_pool_sha256": plan[
-                    "top20_reasoning_pool_sha256"
-                ],
-                "expert_selectable_candidate_count": plan[
-                    "expert_selectable_candidate_count"
-                ],
-                "expert_selectable_distinct_company_count": plan[
-                    "expert_selectable_distinct_company_count"
-                ],
-                "expert_count": plan["expert_count"],
-                "recovery_count": plan["recovery_count"],
-                "required_context_tokens": plan["required_context_tokens"],
-                "task_envelope_schema_version": (
-                    TASK_ENVELOPE.EXPERT_RUNTIME_SCHEMA_VERSION
-                ),
-                "minimum_qualified_provider_count": (
-                    TASK_ENVELOPE.MINIMUM_QUALIFIED_PROVIDER_COUNT
-                ),
-                "selected_models": [
-                    row["model"] for row in plan["selected_models"]
-                ],
-                "recovery_models": [
-                    row["model"] for row in plan["recovery_models"]
-                ],
+                "candidate_count": int(plan.get("expert_candidate_pool_size") or 0),
+                "candidate_pool_sha256": str(plan.get("expert_candidate_pool_sha256") or ""),
+                "model_assignment_authority": plan["model_assignment_authority"],
+                "provider_routing_mode": "unrestricted-openrouter",
+                "governance_selected_model_count": 0,
+                "governance_recovery_model_count": 0,
+                "qualification_gates_applied": False,
+                "model_calls": 0,
             },
             ensure_ascii=False,
             sort_keys=True,
