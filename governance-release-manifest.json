@@ -3,8 +3,8 @@
   "governance_version": "4.2.3",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
-  "file_count": 158,
-  "total_bytes": 1015640,
+  "file_count": 161,
+  "total_bytes": 1040480,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -107,9 +107,14 @@
       "sha256": "878fec96e1984eabdc062cd0b8c55e93cc1c9d3500153001ae45a9d60bf15e8e"
     },
     {
+      "path": ".github/workflows/hf-justice-encrypted-transport.yml",
+      "size_bytes": 7319,
+      "sha256": "a6a3309c4387c9ffce0beb45944f775db61659e69ae44fda2ed18eeb7a757f42"
+    },
+    {
       "path": ".github/workflows/hf-justice-intelligence-gateway.yml",
-      "size_bytes": 9549,
-      "sha256": "04488b35a7e2b2a4841a1e2a232ab50e891d33e621f5785d66f8439f81710a32"
+      "size_bytes": 4698,
+      "sha256": "a18b185eb0cbcb38a10fa0e5a4f14b56f263b70ec24bcc40cc0687ed93a31368"
     },
     {
       "path": ".github/workflows/hf-justice-intelligence-query.yml",
@@ -547,6 +552,11 @@
       "sha256": "57e97c201cb68c79f8f28685ea09365f6a1dfa0b21f179a2029cfbdffe00201d"
     },
     {
+      "path": "hf-justice-intelligence-gateway/encrypted_transport.py",
+      "size_bytes": 17372,
+      "sha256": "23393deb60014baae89efb5c5a32553f78186146d841254df99a74b74637303d"
+    },
+    {
       "path": "hf-justice-intelligence-gateway/gateway.py",
       "size_bytes": 22281,
       "sha256": "ff5a33f87b597ead1ac66a0cceaf549e7c2b2927ad26021ccc6f8e99548c3ee5"
@@ -558,8 +568,13 @@
     },
     {
       "path": "hf-justice-intelligence-gateway/requirements.txt",
-      "size_bytes": 24,
-      "sha256": "ad70d24cf6060f54403e37d5c3b922e13a07dde84ab621d507fc35df01bfca26"
+      "size_bytes": 45,
+      "sha256": "e81a46a806c3e6e4897d5f833f799b273f9df83a3b7026b23df37b4edefb2515"
+    },
+    {
+      "path": "hf-justice-intelligence-gateway/tests/test_encrypted_transport.py",
+      "size_bytes": 4979,
+      "sha256": "d9380778551152536c2c902f75ba97dc323bc9bfe4abb94bce7e5c091fc0ee63"
     },
     {
       "path": "hf-justice-intelligence-gateway/tests/test_gateway.py",
