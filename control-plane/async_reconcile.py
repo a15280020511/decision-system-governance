@@ -91,12 +91,21 @@ def age_seconds(item: Mapping[str, Any], now: datetime | None = None) -> int:
 
 def render_terminal(item: Mapping[str, Any], terminal: tuple[str, str, bool]) -> str:
     heading, child_body, success = terminal
+    degraded = bool(success and heading == "EXECUTION_DEGRADED")
+    governance_heading = (
+        "## CONTROL_DEGRADED"
+        if degraded
+        else "## CONTROL_COMPLETED"
+        if success
+        else "## CONTROL_FAILED"
+    )
     return "\n".join([
-        "## CONTROL_COMPLETED" if success else "## CONTROL_FAILED",
+        governance_heading,
         "",
         f"- Task ID: `{item['task_id']}`",
         f"- Route: `{item['route']}`",
         f"- Child status: `{heading}`",
+        f"- Governance completion class: `{'degraded-success' if degraded else 'full-success' if success else 'failure'}`",
         f"- Child Issue: {item['child_issue_url']}",
         "- Reconciliation mode: `asynchronous scheduled polling`",
         f"- Poll interval target: `{POLL_INTERVAL_SECONDS} seconds`",
@@ -214,6 +223,7 @@ def reconcile(repository: str, *, now: datetime | None = None) -> dict[str, Any]
             "finalized": 1,
             "waiting": 0,
             "success": terminal[2],
+            "degraded": terminal[0] == "EXECUTION_DEGRADED",
             "child_status": terminal[0],
             "elapsed_seconds": elapsed,
             "recovery_attempted": False,
@@ -236,6 +246,7 @@ def reconcile(repository: str, *, now: datetime | None = None) -> dict[str, Any]
             "finalized": 1,
             "waiting": 0,
             "success": False,
+            "degraded": False,
             "child_status": "CONTROL_ASYNC_DEADLINE_EXCEEDED",
             "elapsed_seconds": elapsed,
             "recovery_attempted": False,
@@ -256,6 +267,7 @@ def reconcile(repository: str, *, now: datetime | None = None) -> dict[str, Any]
         "finalized": 0,
         "waiting": 1,
         "success": None,
+        "degraded": None,
         "child_status": None,
         "elapsed_seconds": elapsed,
         "deadline_seconds": deadline,
