@@ -3,8 +3,8 @@
   "governance_version": "4.2.3",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
-  "file_count": 152,
-  "total_bytes": 968032,
+  "file_count": 149,
+  "total_bytes": 950230,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -627,11 +627,6 @@
       "sha256": "0c21b0b9a794cd20783dc42361db029fe0109130b1cb1501433440961c5f2365"
     },
     {
-      "path": "tests/test_expert_intelligence_ranked_roles.py",
-      "size_bytes": 5451,
-      "sha256": "6d1207607c0c0357afcfe2c589e548f2292658c6b3cfe460553e088aabf6b4b4"
-    },
-    {
       "path": "tests/test_expert_plan_preview_workflow.py",
       "size_bytes": 5569,
       "sha256": "0991ac407bedc9bcf5b0d16f2f4dcf6a82361dc437b8d00e0629c6d2c108e33f"
@@ -650,11 +645,6 @@
       "path": "tests/test_governance_paid_canary_contract.py",
       "size_bytes": 3883,
       "sha256": "1b018de1ccc74e26716095a8e7804c293b8776a0b97ec509a7afcde5009b4a6f"
-    },
-    {
-      "path": "tests/test_governance_recovery_budget.py",
-      "size_bytes": 3622,
-      "sha256": "52f22ebbfc45127acffb08002ae57bf7cd4a5c45c59c1dc28cd48c0579fec5a8"
     },
     {
       "path": "tests/test_governance_transport_package.py",
@@ -720,11 +710,6 @@
       "path": "tests/test_resilient_http.py",
       "size_bytes": 5867,
       "sha256": "f99f67e8807fe13c9aa09f576d133b3a6e6a295a71e99b736a56f4c0a962e0b6"
-    },
-    {
-      "path": "tests/test_top20_reasoning_pool.py",
-      "size_bytes": 8729,
-      "sha256": "b164cf607b1abf590130e7ef93864ed5573d5e9c7938b56cd0ef663f6a534bfa"
     },
     {
       "path": "tests/test_top50_reasoning_pool_extension.py",
