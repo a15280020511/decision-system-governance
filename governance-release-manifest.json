@@ -3,8 +3,8 @@
   "governance_version": "4.2.3",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
-  "file_count": 149,
-  "total_bytes": 943785,
+  "file_count": 150,
+  "total_bytes": 952301,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -615,6 +615,11 @@
       "path": "tests/test_deferred_reconcile.py",
       "size_bytes": 2921,
       "sha256": "f604348ff11496be5140080d2d0582436e886a7b19cba0e004b24d7c4a86090c"
+    },
+    {
+      "path": "tests/test_expert_candidate_transport.py",
+      "size_bytes": 8516,
+      "sha256": "1c74563b1864500eeae3f66c33d244ad110b5d388b7ff331ad67ea9f8ff9b597"
     },
     {
       "path": "tests/test_expert_child_contract_adapter.py",
