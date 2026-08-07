@@ -12,8 +12,6 @@ on:
     paths:
       - "hf-justice-intelligence-gateway/**"
       - ".github/workflows/hf-justice-intelligence-gateway.yml"
-  issues:
-    types: [opened, reopened]
   workflow_dispatch:
     inputs:
       operation:
@@ -25,18 +23,13 @@ on:
 
 permissions:
   contents: read
-  issues: write
-  actions: read
 
 concurrency:
-  group: governance-hf-justice-${{ github.event_name }}-${{ github.event.issue.number || github.ref || github.run_id }}
+  group: governance-hf-justice-${{ github.event_name }}-${{ github.ref || github.run_id }}
   cancel-in-progress: false
 
 jobs:
   validate:
-    if: >-
-      github.event_name != 'issues' ||
-      (github.event.issue.title == '[hf-justice-ingest]' && github.event.sender.login == github.repository_owner)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -52,7 +45,7 @@ jobs:
           cache: pip
           cache-dependency-path: hf-justice-intelligence-gateway/requirements.txt
 
-      - name: Install pinned dependency
+      - name: Install pinned dependencies
         run: |
           set -euo pipefail
           python -m pip install --disable-pip-version-check --no-input -r hf-justice-intelligence-gateway/requirements.txt
@@ -64,8 +57,11 @@ jobs:
           HF_JUSTICE_INTELLIGENCE_DATASET_REPO: ""
         run: |
           set -euo pipefail
-          python -m py_compile hf-justice-intelligence-gateway/gateway.py
-          python -m unittest hf-justice-intelligence-gateway/tests/test_gateway.py -v
+          python -m py_compile \
+            hf-justice-intelligence-gateway/gateway.py \
+            hf-justice-intelligence-gateway/query_report.py \
+            hf-justice-intelligence-gateway/encrypted_transport.py
+          python -m unittest discover -s hf-justice-intelligence-gateway/tests -p 'test_*.py' -v
           python hf-justice-intelligence-gateway/gateway.py validate --output-dir hf-justice-validation
           python - <<'PY'
           import json
@@ -78,6 +74,7 @@ jobs:
           git diff --check
 
       - name: Upload validation evidence
+        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: governance-hf-justice-validation-${{ github.run_id }}
@@ -85,20 +82,14 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  execute:
-    if: >-
-      always() &&
-      (github.event_name == 'issues' || github.event_name == 'workflow_dispatch') &&
-      needs.validate.result == 'success'
+  execute-health-or-bootstrap:
+    if: github.event_name == 'workflow_dispatch' && needs.validate.result == 'success'
     needs: [validate]
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 20
     env:
-      GH_TOKEN: ${{ secrets.PRC_JUSTICE_AUTOMATION_TOKEN || github.token }}
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
       HF_JUSTICE_INTELLIGENCE_DATASET_REPO: ${{ vars.HF_JUSTICE_INTELLIGENCE_DATASET_REPO }}
-      ISSUE_NUMBER: ${{ github.event.issue.number }}
-      DISPATCH_OPERATION: ${{ inputs.operation || '' }}
       HF_HUB_DISABLE_TELEMETRY: "1"
       HF_HUB_DISABLE_PROGRESS_BARS: "1"
     steps:
@@ -114,112 +105,25 @@ jobs:
           cache: pip
           cache-dependency-path: hf-justice-intelligence-gateway/requirements.txt
 
-      - name: Install pinned dependency
+      - name: Install pinned dependencies
         run: |
           set -euo pipefail
           python -m pip install --disable-pip-version-check --no-input -r hf-justice-intelligence-gateway/requirements.txt
           python -m pip check
 
-      - name: Resolve authorized operation
-        id: prepare
+      - name: Run governed HF maintenance operation
         run: |
           set -euo pipefail
-          python - <<'PY' >> "$GITHUB_OUTPUT"
-          import json, os, re
-          from pathlib import Path
-          event = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text(encoding='utf-8'))
-          if os.environ['GITHUB_EVENT_NAME'] == 'issues':
-              issue = event.get('issue') or {}
-              sender = event.get('sender') or {}
-              if issue.get('title') != '[hf-justice-ingest]':
-                  raise SystemExit('issue title must be exactly [hf-justice-ingest]')
-              if sender.get('login') != os.environ['GITHUB_REPOSITORY_OWNER']:
-                  raise SystemExit('ingest ticket actor must be repository owner')
-              body = json.loads(issue.get('body') or '')
-              required = {
-                  'schema_version','source_repository','source_run_id','source_commit','artifact_name',
-                  'export_path','export_sha256','record_count','raw_source_text_included',
-                  'raw_source_url_included','raw_model_response_included'
-              }
-              if set(body) != required:
-                  raise SystemExit('ingest ticket fields mismatch')
-              if body['schema_version'] != 'governance-hf-justice-ingest-ticket-v1':
-                  raise SystemExit('unsupported ingest ticket schema')
-              if body['source_repository'] != 'a15280020511/evidence-data-center':
-                  raise SystemExit('unexpected producer repository')
-              if not isinstance(body['source_run_id'], int) or body['source_run_id'] <= 0:
-                  raise SystemExit('source_run_id must be positive')
-              if not re.fullmatch(r'prc-justice-derived-[0-9]+', str(body['artifact_name'])):
-                  raise SystemExit('artifact_name is invalid')
-              if body['export_path'] != 'governance-hf-justice-export.json':
-                  raise SystemExit('export_path is invalid')
-              if not re.fullmatch(r'[0-9a-f]{64}', str(body['export_sha256'])):
-                  raise SystemExit('export_sha256 is invalid')
-              if not 1 <= int(body['record_count']) <= 2000:
-                  raise SystemExit('record_count outside allowed range')
-              for key in ('raw_source_text_included','raw_source_url_included','raw_model_response_included'):
-                  if body[key] is not False:
-                      raise SystemExit(f'unsafe ingest ticket: {key}')
-              print('operation=ingest')
-              for key in ('source_repository','source_run_id','artifact_name','export_path','export_sha256','record_count'):
-                  print(f'{key}={body[key]}')
-          else:
-              operation = os.environ.get('DISPATCH_OPERATION') or ''
-              if operation not in {'bootstrap','health'}:
-                  raise SystemExit('workflow_dispatch operation must be bootstrap or health')
-              print(f'operation={operation}')
-          PY
-
-      - name: Download sanitized Evidence Center artifact
-        if: steps.prepare.outputs.operation == 'ingest'
-        run: |
-          set -euo pipefail
-          rm -rf justice-handoff
-          mkdir -p justice-handoff
-          gh run download "${{ steps.prepare.outputs.source_run_id }}" \
-            --repo "${{ steps.prepare.outputs.source_repository }}" \
-            --name "${{ steps.prepare.outputs.artifact_name }}" \
-            --dir justice-handoff
-          test -f "justice-handoff/${{ steps.prepare.outputs.export_path }}"
-          actual="$(sha256sum "justice-handoff/${{ steps.prepare.outputs.export_path }}" | awk '{print $1}')"
-          test "$actual" = "${{ steps.prepare.outputs.export_sha256 }}"
-
-      - name: Run governed HF operation
-        id: execute
-        continue-on-error: true
-        run: |
-          set -euo pipefail
-          operation="${{ steps.prepare.outputs.operation }}"
-          if [[ "$operation" == "ingest" ]]; then
-            python hf-justice-intelligence-gateway/gateway.py ingest \
-              --input "justice-handoff/${{ steps.prepare.outputs.export_path }}" \
-              --output-dir hf-justice-run
-          else
-            python hf-justice-intelligence-gateway/gateway.py "$operation" --output-dir hf-justice-run
-          fi
-
-      - name: Render safe receipt
-        if: always()
-        run: |
-          python hf-justice-intelligence-gateway/gateway.py render --output-dir hf-justice-run > hf-justice-comment.md || true
-          cat hf-justice-comment.md >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Publish issue receipt
-        if: always() && github.event_name == 'issues'
-        run: |
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/${ISSUE_NUMBER}/comments" -F body=@hf-justice-comment.md
+          python hf-justice-intelligence-gateway/gateway.py "${{ inputs.operation }}" --output-dir hf-justice-run
+          python hf-justice-intelligence-gateway/gateway.py render --output-dir hf-justice-run | tee hf-justice-summary.md
+          cat hf-justice-summary.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload safe governance receipt
-        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: governance-hf-justice-${{ github.run_id }}
           path: |
             hf-justice-run/*.json
-            hf-justice-comment.md
-          if-no-files-found: warn
+            hf-justice-summary.md
+          if-no-files-found: error
           retention-days: 90
-
-      - name: Mark failed operation
-        if: always() && steps.execute.outcome != 'success'
-        run: exit 1
