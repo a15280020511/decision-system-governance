@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Sign one expert ticket with the frozen governance production contract.
+"""Attach governance integrity metadata and a live dynamic expert candidate pool.
 
-This entrypoint performs catalog and endpoint qualification only. It never
-creates a child Issue, posts an expert execution command, or calls a model.
+Signing no longer preselects models or enforces Top20/Top50, 4+4, company,
+flagship, price, intelligence, Provider, ZDR, budget or recovery constraints.
+The Expert Center composes the actual team from the current task.
 """
 from __future__ import annotations
 
@@ -11,31 +12,16 @@ import hashlib
 import importlib.util
 import json
 import os
-import re
 from pathlib import Path
 from typing import Any, Mapping
 
 ROOT = Path(__file__).resolve().parents[1]
 SELECTOR_PATH = ROOT / "governance-copilot" / "select_expert_team_plan.py"
-TASK_ENVELOPE_PATH = ROOT / "governance-copilot" / "expert_task_envelope.py"
-TOP20_POOL_PATH = ROOT / "governance-copilot" / "top20_reasoning_pool.py"
-TOP50_POOL_PATH = ROOT / "governance-copilot" / "top50_reasoning_pool_extension.py"
-TASK_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$")
-ALLOWED_FIELDS = {
-    "task_id",
-    "objective",
-    "pipeline",
-    "route",
-    "task",
-    "execution_acceptance",
-    "evidence",
-    "approved_budget",
-    "private_output",
-}
+DYNAMIC_POOL_PATH = ROOT / "governance-copilot" / "top50_reasoning_pool_extension.py"
 
 
 class ExpertPlanSigningError(RuntimeError):
-    """Raised when an expert plan cannot be signed without weakening policy."""
+    """Raised only when a ticket or live candidate inventory cannot be represented."""
 
 
 def _load_module(name: str, path: Path):
@@ -47,22 +33,9 @@ def _load_module(name: str, path: Path):
     return module
 
 
-SELECTOR = _load_module("governance_plan_preview_selector", SELECTOR_PATH)
-TASK_ENVELOPE = _load_module(
-    "governance_plan_preview_task_envelope",
-    TASK_ENVELOPE_PATH,
-)
-TOP20_POOL = _load_module(
-    "governance_plan_preview_top20_pool",
-    TOP20_POOL_PATH,
-)
-TOP50_POOL = _load_module(
-    "governance_plan_preview_top50_pool",
-    TOP50_POOL_PATH,
-)
-TASK_ENVELOPE.patch_selector(SELECTOR)
-TOP20_POOL.patch_selector(SELECTOR)
-TOP50_POOL.patch_selector(SELECTOR)
+SELECTOR = _load_module("governance_dynamic_selector", SELECTOR_PATH)
+DYNAMIC_POOL = _load_module("governance_dynamic_pool", DYNAMIC_POOL_PATH)
+DYNAMIC_POOL.patch_selector(SELECTOR)
 
 
 def _canonical_json(value: Any) -> bytes:
@@ -72,6 +45,7 @@ def _canonical_json(value: Any) -> bytes:
         sort_keys=True,
         separators=(",", ":"),
         allow_nan=False,
+        default=str,
     ).encode("utf-8")
 
 
@@ -85,80 +59,24 @@ def _load_issue_ticket(event_path: Path) -> dict[str, Any]:
     try:
         ticket = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise ExpertPlanSigningError("Issue body must be exactly one JSON object") from exc
+        raise ExpertPlanSigningError("Issue body must be one JSON object") from exc
     if not isinstance(ticket, Mapping):
-        raise ExpertPlanSigningError("Issue body must be exactly one JSON object")
+        raise ExpertPlanSigningError("Issue body must be one JSON object")
     return dict(ticket)
 
 
 def validate_unsigned_ticket(ticket: Mapping[str, Any]) -> None:
-    if "governance_model_plan" in ticket:
-        raise ExpertPlanSigningError(
-            "unsigned ticket must not contain governance_model_plan"
-        )
-    unknown = sorted(set(ticket) - ALLOWED_FIELDS)
-    if unknown:
-        raise ExpertPlanSigningError(f"unknown expert ticket fields: {unknown}")
-    task_id = str(ticket.get("task_id") or "")
-    if not TASK_ID_RE.fullmatch(task_id):
-        raise ExpertPlanSigningError("task_id is invalid")
-    if ticket.get("route") != "expert-team":
-        raise ExpertPlanSigningError("route must be expert-team")
-    if ticket.get("private_output") is not False:
-        raise ExpertPlanSigningError("private_output must be false")
-
-    pipeline = ticket.get("pipeline")
-    if not isinstance(pipeline, Mapping):
-        raise ExpertPlanSigningError("pipeline must be an object")
-    if not str(pipeline.get("pipeline_id") or ""):
-        raise ExpertPlanSigningError("pipeline.pipeline_id is required")
-    if not str(pipeline.get("stage_id") or ""):
-        raise ExpertPlanSigningError("pipeline.stage_id is required")
-
+    if not isinstance(ticket, Mapping):
+        raise ExpertPlanSigningError("ticket must be an object")
     task = ticket.get("task")
-    if not isinstance(task, Mapping) or not str(task.get("question") or "").strip():
-        raise ExpertPlanSigningError("task.question is required")
-
-    budget = ticket.get("approved_budget")
-    if not isinstance(budget, Mapping):
-        raise ExpertPlanSigningError("approved_budget is required")
-    calls = budget.get("calls")
-    recovery = budget.get("maximum_recovery_calls")
-    if isinstance(calls, bool) or not isinstance(calls, int) or not 4 <= calls <= 16:
-        raise ExpertPlanSigningError("approved_budget.calls must be 4..16")
-    if (
-        isinstance(recovery, bool)
-        or not isinstance(recovery, int)
-        or not 0 <= recovery <= 4
-    ):
-        raise ExpertPlanSigningError(
-            "approved_budget.maximum_recovery_calls must be 0..4"
-        )
-    if calls - recovery < 3:
-        raise ExpertPlanSigningError(
-            "budget must leave at least three initial expert calls"
-        )
-    if budget.get("cost_policy") not in {
-        "prompt_led_soft_governance",
-        "unbounded_with_anomaly_guard",
-    }:
-        raise ExpertPlanSigningError("approved_budget.cost_policy is invalid")
+    if task is not None and not isinstance(task, Mapping):
+        raise ExpertPlanSigningError("task must be an object when supplied")
 
 
 def _plan_digest(plan: Mapping[str, Any]) -> str:
     material = dict(plan)
     material.pop("plan_sha256", None)
     return hashlib.sha256(_canonical_json(material)).hexdigest()
-
-
-def _distinct_candidate_companies(eligible: Any) -> set[str]:
-    if not isinstance(eligible, list):
-        return set()
-    return {
-        str(row.get("company") or "").strip().casefold()
-        for row in eligible
-        if isinstance(row, Mapping) and str(row.get("company") or "").strip()
-    }
 
 
 def verify_signed_plan(
@@ -168,151 +86,33 @@ def verify_signed_plan(
 ) -> None:
     signed_without_plan = dict(signed)
     signed_plan = signed_without_plan.pop("governance_model_plan", None)
-    if signed_without_plan != dict(unsigned):
-        raise ExpertPlanSigningError("signing changed ticket fields outside the plan")
+    unsigned_without_plan = dict(unsigned)
+    unsigned_without_plan.pop("governance_model_plan", None)
+    if signed_without_plan != unsigned_without_plan:
+        raise ExpertPlanSigningError("signing changed ticket content outside governance_model_plan")
     if signed_plan != plan:
-        raise ExpertPlanSigningError("signed ticket and plan file differ")
+        raise ExpertPlanSigningError("signed ticket and plan differ")
     if plan.get("plan_sha256") != _plan_digest(plan):
         raise ExpertPlanSigningError("plan digest mismatch")
-    if plan.get("task_sha256") != SELECTOR.task_sha256(signed):
+    if plan.get("task_sha256") != SELECTOR.task_sha256(unsigned_without_plan):
         raise ExpertPlanSigningError("plan task hash mismatch")
-    if plan.get("selection_authority") != "decision-system-governance":
-        raise ExpertPlanSigningError("selection authority is not governance")
-    if plan.get("model_calls") != 0:
-        raise ExpertPlanSigningError("plan does not prove zero model calls")
-    if plan.get("endpoint_qualification_performed_by_governance") is not True:
-        raise ExpertPlanSigningError("live exact endpoint qualification is missing")
-    if plan.get("zdr_endpoint_qualification_required") is not True:
-        raise ExpertPlanSigningError("authenticated ZDR qualification is missing")
-    if plan.get("model_substitution_allowed") is not False:
-        raise ExpertPlanSigningError("model substitution must be disabled")
-    if plan.get("expert_center_reranking_allowed") is not False:
-        raise ExpertPlanSigningError("unbounded expert center reranking must be disabled")
-    if plan.get("expert_center_pool_selection_allowed") is not True:
-        raise ExpertPlanSigningError("expert center top-20 pool selection is not enabled")
+    candidates = plan.get("expert_candidate_pool")
+    if not isinstance(candidates, list) or not candidates:
+        raise ExpertPlanSigningError("live candidate inventory is empty")
     if plan.get("candidate_pool_authority") != "decision-system-governance":
-        raise ExpertPlanSigningError("candidate pool authority is invalid")
-    if plan.get("model_assignment_authority") != "expert-assessment-center":
-        raise ExpertPlanSigningError("model assignment authority is invalid")
-    if plan.get("top20_reasoning_pool_size") != 20:
-        raise ExpertPlanSigningError("top-20 reasoning pool is incomplete")
-    if plan.get("old_flagship_filter_applied_to_top20_pool") is not False:
-        raise ExpertPlanSigningError("old flagship filter must not alter the top-20 pool")
-    if plan.get("top50_reasoning_pool_size") != 50:
-        raise ExpertPlanSigningError("top-50 reasoning pool is incomplete")
-    if plan.get("top50_reasoning_pool_period") != "week":
-        raise ExpertPlanSigningError("top-50 popularity period must be week")
-    if plan.get("top50_candidate_pool_authority") != "decision-system-governance":
-        raise ExpertPlanSigningError("top-50 candidate-pool authority is invalid")
-    if plan.get("top50_model_assignment_authority") != "expert-assessment-center-ortools":
-        raise ExpertPlanSigningError("top-50 assignment authority is invalid")
-    top50_raw = plan.get("top50_reasoning_models")
-    top50_eligible = plan.get("top50_expert_selectable_candidates")
-    if not isinstance(top50_raw, list) or len(top50_raw) != 50:
-        raise ExpertPlanSigningError("top-50 reasoning rows are invalid")
-    top50_companies = _distinct_candidate_companies(top50_eligible)
-    if len(top50_companies) < 8:
-        raise ExpertPlanSigningError("top-50 pool has fewer than eight executable companies")
-    if plan.get("top50_expert_selectable_distinct_company_count") != len(top50_companies):
-        raise ExpertPlanSigningError("top-50 distinct-company count is inconsistent")
-    raw_pool = plan.get("top20_reasoning_models")
-    eligible = plan.get("expert_selectable_candidates")
-    if not isinstance(raw_pool, list) or len(raw_pool) != 20:
-        raise ExpertPlanSigningError("top-20 reasoning pool rows are invalid")
-    companies = _distinct_candidate_companies(eligible)
-    if len(companies) < 8:
-        raise ExpertPlanSigningError(
-            "expert selectable pool has fewer than eight distinct companies"
-        )
-    if plan.get("expert_selectable_distinct_company_count") != len(companies):
-        raise ExpertPlanSigningError(
-            "expert selectable distinct-company count is inconsistent"
-        )
-
-    expected_context = TASK_ENVELOPE.required_context_tokens(unsigned)
-    if plan.get("required_context_tokens") != expected_context:
-        raise ExpertPlanSigningError(
-            "plan does not match the frozen expert task envelope"
-        )
-    if expected_context < TASK_ENVELOPE.MINIMUM_CONTEXT_LENGTH:
-        raise ExpertPlanSigningError("expert context floor was not enforced")
-    if plan.get("minimum_qualified_provider_count") != (
-        TASK_ENVELOPE.MINIMUM_QUALIFIED_PROVIDER_COUNT
-    ):
-        raise ExpertPlanSigningError("ZDR provider floor is not frozen")
-
-    selected = plan.get("selected_models")
-    recovery = plan.get("recovery_models")
-    if not isinstance(selected, list) or not 3 <= len(selected) <= 6:
-        raise ExpertPlanSigningError("selected expert count is invalid")
-    if not isinstance(recovery, list):
-        raise ExpertPlanSigningError("recovery model list is invalid")
-
-    companies = set()
-    models: set[str] = set()
-    for field, rows in (("selected_models", selected), ("recovery_models", recovery)):
-        for index, row in enumerate(rows):
-            if not isinstance(row, Mapping):
-                raise ExpertPlanSigningError(
-                    f"{field}[{index}] is not an object"
-                )
-            model = str(row.get("model") or "").strip()
-            company = str(row.get("company") or "").strip().casefold()
-            provider_count = row.get("qualified_provider_count")
-            endpoint_hash = str(row.get("endpoint_inventory_sha256") or "")
-            evidence = str(row.get("selection_evidence") or "")
-            if not model or model in models:
-                raise ExpertPlanSigningError(
-                    "expert models are not globally distinct"
-                )
-            if not company:
-                raise ExpertPlanSigningError("expert model company is missing")
-            if company in companies:
-                raise ExpertPlanSigningError(
-                    "expert model companies are not globally distinct"
-                )
-            if (
-                isinstance(provider_count, bool)
-                or not isinstance(provider_count, int)
-                or provider_count < TASK_ENVELOPE.MINIMUM_QUALIFIED_PROVIDER_COUNT
-            ):
-                raise ExpertPlanSigningError(
-                    "model does not satisfy the qualified ZDR provider floor"
-                )
-            basis = str(row.get("flagship_basis") or "")
-            if basis not in {"strict-product-tier", "company-local-natural-top-layer"}:
-                raise ExpertPlanSigningError("signer model flagship basis is invalid")
-            if "verified-company-flagship-reasoning" not in evidence or basis not in evidence:
-                raise ExpertPlanSigningError(
-                    "model lacks verified company reasoning flagship evidence"
-                )
-            benchmark_hash = str(row.get("benchmark_evidence_sha256") or "")
-            if len(benchmark_hash) != 64 or any(
-                character not in "0123456789abcdef"
-                for character in benchmark_hash
-            ):
-                raise ExpertPlanSigningError("signer model benchmark evidence hash is invalid")
-            if "authenticated-zdr-endpoint-qualified" not in evidence:
-                raise ExpertPlanSigningError(
-                    "model lacks authenticated ZDR selection evidence"
-                )
-            if len(endpoint_hash) != 64 or any(
-                character not in "0123456789abcdef"
-                for character in endpoint_hash
-            ):
-                raise ExpertPlanSigningError(
-                    "model endpoint inventory hash is invalid"
-                )
-            models.add(model)
-            companies.add(company)
+        raise ExpertPlanSigningError("candidate pool authority mismatch")
+    if plan.get("provider_routing_mode") != "unrestricted-openrouter":
+        raise ExpertPlanSigningError("Provider routing is not unrestricted")
 
 
 def sign(ticket: Mapping[str, Any], token: str) -> tuple[dict[str, Any], dict[str, Any]]:
     validate_unsigned_ticket(ticket)
     if not str(token or "").strip():
-        raise ExpertPlanSigningError("OPENROUTER_API_KEY is required")
-    signed, plan = SELECTOR.enrich_ticket(ticket, token)
-    verify_signed_plan(ticket, signed, plan)
+        raise ExpertPlanSigningError("OPENROUTER_API_KEY is required to read the live catalog")
+    unsigned = dict(ticket)
+    unsigned.pop("governance_model_plan", None)
+    signed, plan = SELECTOR.enrich_ticket(unsigned, token)
+    verify_signed_plan(unsigned, signed, plan)
     return signed, plan
 
 
@@ -327,8 +127,10 @@ def main() -> int:
     ticket = _load_issue_ticket(Path(args.event_path))
     signed, plan = sign(ticket, os.getenv("OPENROUTER_API_KEY", ""))
 
+    unsigned = dict(ticket)
+    unsigned.pop("governance_model_plan", None)
     (output / "unsigned-ticket.json").write_text(
-        json.dumps(ticket, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        json.dumps(unsigned, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     (output / "signed-ticket.json").write_text(
@@ -343,47 +145,36 @@ def main() -> int:
         json.dumps(plan, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    preview_selected = [row["model"] for row in plan["selected_models"]]
-    preview_recovery = [row["model"] for row in plan["recovery_models"]]
+
     receipt = {
         "status": "PASS",
-        "task_id": signed["task_id"],
+        "task_id": str(signed.get("task_id") or ""),
         "plan_sha256": plan["plan_sha256"],
         "candidate_pool_authority": plan["candidate_pool_authority"],
         "model_assignment_authority": plan["model_assignment_authority"],
-        "top20_reasoning_pool_size": plan["top20_reasoning_pool_size"],
-        "top20_reasoning_pool_sha256": plan["top20_reasoning_pool_sha256"],
-        "top50_reasoning_pool_size": plan["top50_reasoning_pool_size"],
-        "top50_reasoning_pool_period": plan["top50_reasoning_pool_period"],
-        "top50_reasoning_pool_sha256": plan["top50_reasoning_pool_sha256"],
-        "top50_expert_selectable_candidate_count": plan[
-            "top50_expert_selectable_candidate_count"
-        ],
-        "top50_expert_selectable_distinct_company_count": plan[
-            "top50_expert_selectable_distinct_company_count"
-        ],
-        "expert_selectable_candidate_count": plan[
-            "expert_selectable_candidate_count"
-        ],
-        "expert_selectable_distinct_company_count": plan[
-            "expert_selectable_distinct_company_count"
-        ],
-        "selected_models": preview_selected,
-        "recovery_models": preview_recovery,
-        "governance_preview_selected_models": preview_selected,
-        "governance_preview_recovery_models": preview_recovery,
-        "required_context_tokens": plan["required_context_tokens"],
-        "minimum_qualified_provider_count": plan[
-            "minimum_qualified_provider_count"
-        ],
+        "candidate_count": int(plan.get("expert_candidate_pool_size") or 0),
+        "candidate_pool_sha256": str(plan.get("expert_candidate_pool_sha256") or ""),
+        "governance_selected_model_count": 0,
+        "governance_recovery_model_count": 0,
+        "expert_center_dynamic_composition_required": True,
+        "fixed_team_size_required": False,
+        "fixed_four_plus_four_required": False,
+        "company_uniqueness_required": False,
+        "flagship_filter_required": False,
+        "price_filter_required": False,
+        "intelligence_rank_required": False,
+        "provider_endpoint_qualification_required": False,
+        "zdr_endpoint_qualification_required": False,
+        "free_first_required": False,
+        "canary_required_before_execution": False,
+        "provider_routing_mode": "unrestricted-openrouter",
         "model_calls": 0,
-        "child_dispatch": False,
     }
-    (output / "plan-preview-receipt.json").write_text(
+    (output / "governance-signing-receipt.json").write_text(
         json.dumps(receipt, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    print(json.dumps(receipt, ensure_ascii=False, sort_keys=True))
+    print(json.dumps(receipt, ensure_ascii=False))
     return 0
 
 

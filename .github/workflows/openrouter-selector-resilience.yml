@@ -107,7 +107,7 @@ jobs:
   live-contract-validation:
     name: live-openrouter-contract
     needs: offline-validation
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
@@ -130,9 +130,34 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p live-selection
           for attempt in 1 2 3; do
-            python governance-copilot/select_paid_governance_flagship_model.py \
-              --output-dir "live-selection/${attempt}/flagships"
+            selected=false
+            for network_try in 1 2 3 4; do
+              rm -rf "live-selection/${attempt}/flagships"
+              mkdir -p "live-selection/${attempt}"
+              error_log="live-selection/${attempt}/selector-error-${network_try}.log"
+              if python governance-copilot/select_paid_governance_flagship_model.py \
+                --output-dir "live-selection/${attempt}/flagships" 2>"${error_log}"; then
+                rm -f "${error_log}"
+                selected=true
+                break
+              fi
+
+              if ! grep -Eiq \
+                'HTTP (408|429|5[0-9]{2})|timed? ?out|timeout|temporar|network|urlerror|connection reset' \
+                "${error_log}"; then
+                cat "${error_log}" >&2
+                exit 1
+              fi
+              if [[ "${network_try}" -ge 4 ]]; then
+                cat "${error_log}" >&2
+                exit 1
+              fi
+              sleep $((2 ** (network_try - 1)))
+            done
+            test "${selected}" = true
+
             python governance-copilot/rank_flagships_by_task_cost.py \
               --input "live-selection/${attempt}/flagships/selection.json" \
               --output-dir "live-selection/${attempt}/task-cost" \
