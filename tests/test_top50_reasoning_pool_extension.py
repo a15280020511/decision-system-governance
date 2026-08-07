@@ -39,8 +39,8 @@ class DynamicCandidatePoolTests(unittest.TestCase):
         self.urls: list[str] = []
         rows = [
             _row("same/model-a", reasoning=True),
-            _row("same/model-b", reasoning=False),
-            _row("other/model-c", reasoning=False, output=["image"]),
+            _row("same/model-b", reasoning=True),
+            _row("other/model-c", reasoning=True),
         ]
 
         class FakeSelector:
@@ -57,25 +57,37 @@ class DynamicCandidatePoolTests(unittest.TestCase):
 
         self.selector = FakeSelector
 
-    def test_live_catalog_has_no_reasoning_or_text_eligibility_filter(self):
+    def test_live_source_is_reasoning_popularity_sequence(self):
         rows = self.module._fetch_rows(self.selector, "token")
         self.assertEqual(len(rows), 3)
         query = parse_qs(urlparse(self.urls[0]).query)
-        self.assertNotIn("supported_parameters", query)
-        self.assertNotIn("output_modalities", query)
+        self.assertEqual(query.get("sort"), ["most-popular"])
+        self.assertEqual(query.get("supported_parameters"), ["reasoning"])
+        self.assertEqual(query.get("output_modalities"), ["text"])
 
-    def test_all_model_identities_are_selectable_even_same_company(self):
-        plan = self.module.attach_pool(self.selector, {}, {"plan_sha256": "old"}, "token")
+    def test_full_reasoning_sequence_is_selectable_without_topn_or_company_gate(self):
+        plan = self.module.attach_pool(
+            self.selector, {}, {"plan_sha256": "old"}, "token"
+        )
         candidates = plan["expert_candidate_pool"]
-        self.assertEqual([row["model"] for row in candidates], [
-            "same/model-a", "same/model-b", "other/model-c"
-        ])
+        self.assertEqual(
+            [row["model"] for row in candidates],
+            ["same/model-a", "same/model-b", "other/model-c"],
+        )
         self.assertEqual(plan["expert_candidate_pool_size"], 3)
         self.assertEqual(plan["expert_candidate_pool_distinct_company_count"], 2)
-        self.assertFalse(plan["expert_candidate_pool_reasoning_only_required"])
-        self.assertFalse(plan["expert_candidate_pool_text_only_required"])
+        self.assertFalse(plan["expert_candidate_pool_top50_only"])
+        self.assertTrue(plan["expert_candidate_pool_reasoning_popularity_source"])
         self.assertFalse(plan["expert_candidate_pool_company_diversity_required"])
         self.assertFalse(plan["company_uniqueness_required"])
+
+    def test_only_hard_model_boundary_is_no_tools(self):
+        plan = self.module.attach_pool(self.selector, {}, {}, "token")
+        self.assertTrue(plan["tool_use_forbidden"])
+        self.assertFalse(plan["tools_allowed"])
+        self.assertEqual(plan["only_hard_model_boundary"], "no-tools")
+        self.assertTrue(all(row["tool_use_forbidden"] for row in plan["expert_candidate_pool"]))
+        self.assertTrue(all(not row["tools_allowed"] for row in plan["expert_candidate_pool"]))
 
     def test_provider_and_other_qualification_gates_are_disabled(self):
         plan = self.module.attach_pool(self.selector, {}, {}, "token")
@@ -88,11 +100,16 @@ class DynamicCandidatePoolTests(unittest.TestCase):
         self.assertFalse(plan["optimizer_optimality_required"])
         self.assertFalse(plan["free_first_required"])
         self.assertFalse(plan["canary_required_before_execution"])
+        self.assertFalse(plan["price_filter_required"])
+        self.assertFalse(plan["flagship_filter_required"])
+        self.assertFalse(plan["intelligence_rank_required"])
 
     def test_top50_named_fields_are_compatibility_aliases_not_size_limits(self):
         plan = self.module.attach_pool(self.selector, {}, {}, "token")
         self.assertEqual(plan["top50_reasoning_pool_size"], 3)
-        self.assertEqual(plan["top50_reasoning_models"], plan["expert_candidate_pool"])
+        self.assertEqual(
+            plan["top50_reasoning_models"], plan["expert_candidate_pool"]
+        )
         self.assertFalse(plan["expert_candidate_pool_top50_only"])
 
 
