@@ -47,9 +47,14 @@ INGRESS = _load(
     "governance_gpts_ingress_normalization_runtime",
     ROOT / "gpts_ingress_normalization.py",
 )
+ROUTE_PAUSE = _load(
+    "governance_route_pause_policy_runtime",
+    ROOT / "route_pause_policy.py",
+)
 CONTROL._github_request = HTTP.github_request
 RELIABILITY.patch(CONTROL)
 INGRESS.patch(CONTROL)
+ROUTE_PAUSE.patch(CONTROL)
 
 if str(COPILOT_ROOT) not in sys.path:
     sys.path.insert(0, str(COPILOT_ROOT))
