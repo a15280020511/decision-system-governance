@@ -11,84 +11,144 @@ permissions:
   contents: read
 
 jobs:
-  probe:
+  browser-search:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      CN_PROXY: http://115.231.181.40:8128
     steps:
-      - name: Direct baseline
+      - name: Verify working CN proxy
         shell: bash
         run: |
-          set +e
-          echo '=== DIRECT BAIDU ==='
-          curl -I -L -sS --connect-timeout 5 --max-time 12 -w '\nHTTP=%{http_code} REMOTE=%{remote_ip} TOTAL=%{time_total}\n' https://www.baidu.com/ | head -n 8
-          echo '=== DIRECT WENSHU ==='
-          curl -I -L -sS --connect-timeout 5 --max-time 12 -w '\nHTTP=%{http_code} REMOTE=%{remote_ip} TOTAL=%{time_total}\n' https://wenshu.court.gov.cn/ | head -n 12
+          set -x
+          curl -L -sS --connect-timeout 5 --max-time 15 -x "$CN_PROXY" -o /tmp/list.html -w 'HTTP=%{http_code} CONNECT=%{time_connect} TLS=%{time_appconnect} TOTAL=%{time_total} REMOTE=%{remote_ip}\n' 'https://wenshu.court.gov.cn/website/wenshu/181217BMTKHNT2W0/index.html'
+          echo "BYTES=$(wc -c < /tmp/list.html)"
 
-      - name: Probe current CN proxies
-        id: proxies
+      - name: Browser environment
         shell: bash
         run: |
-          set +e
-          proxies=(
-            'socks4://221.10.57.128:5138'
-            'socks4://116.233.109.135:1080'
-            'http://103.213.97.78:80'
-            'http://221.231.13.198:1080'
-            'http://58.216.109.14:800'
-            'http://115.231.181.40:8128'
-            'socks5h://59.46.216.131:30001'
-            'socks5h://203.25.208.163:1100'
-            'http://120.92.211.211:7890'
-            'http://112.93.118.61:3128'
-            'http://113.204.79.230:9091'
-            'http://116.171.106.15:3000'
-            'http://36.138.53.26:10017'
-            'http://116.171.106.78:3000'
-            'http://203.19.38.114:1080'
-            'http://116.171.106.111:3000'
-            'http://58.216.109.17:800'
-            'http://61.158.175.38:9002'
-            'socks5h://203.25.208.163:1145'
-            'http://49.4.117.146:3128'
-            'http://113.108.13.120:8083'
-            'http://39.185.41.193:5911'
-            'http://120.132.52.172:8888'
-            'http://218.77.183.214:5224'
-            'http://36.138.53.26:10019'
-          )
-          : > /tmp/results.txt
-          winner=''
-          for p in "${proxies[@]}"; do
-            echo "=== $p ===" | tee -a /tmp/results.txt
-            out=$(curl -L -sS --connect-timeout 4 --max-time 9 -x "$p" -o /tmp/wenshu.html -w 'HTTP=%{http_code} CONNECT=%{time_connect} TLS=%{time_appconnect} TOTAL=%{time_total} REMOTE=%{remote_ip}' 'https://wenshu.court.gov.cn/' 2>&1)
-            rc=$?
-            echo "RC=$rc $out" | tee -a /tmp/results.txt
-            if [ "$rc" -eq 0 ] && echo "$out" | grep -Eq 'HTTP=(200|301|302|403|412|429)'; then
-              bytes=$(wc -c < /tmp/wenshu.html 2>/dev/null || echo 0)
-              echo "BODY_BYTES=$bytes" | tee -a /tmp/results.txt
-              winner="$p"
-              break
-            fi
-          done
-          echo "winner=$winner" >> "$GITHUB_OUTPUT"
-          echo '=== SUMMARY ==='
-          cat /tmp/results.txt
+          google-chrome --version || google-chrome-stable --version || chromium --version || true
+          chromedriver --version || true
+          python --version
+          python -m pip install -q selenium
 
-      - name: Test search/list page through working proxy
-        if: steps.proxies.outputs.winner != ''
+      - name: Search 劳动争议 in browser
         shell: bash
-        env:
-          PROXY: ${{ steps.proxies.outputs.winner }}
         run: |
-          set +e
-          echo "WINNER=$PROXY"
-          echo '=== HOME ==='
-          curl -L -sS --connect-timeout 5 --max-time 15 -x "$PROXY" -D /tmp/home.h -o /tmp/home.html 'https://wenshu.court.gov.cn/'
-          sed -n '1,15p' /tmp/home.h
-          echo "HOME_BYTES=$(wc -c < /tmp/home.html)"
-          echo '=== LIST PAGE ==='
-          curl -L -sS --connect-timeout 5 --max-time 15 -x "$PROXY" -D /tmp/list.h -o /tmp/list.html 'https://wenshu.court.gov.cn/website/wenshu/181217BMTKHNT2W0/index.html'
-          sed -n '1,15p' /tmp/list.h
-          echo "LIST_BYTES=$(wc -c < /tmp/list.html)"
-          echo '=== PAGE MARKERS ==='
-          grep -Eo '裁判文书网|文书列表|高级检索|案由|案件名称|验证码|登录' /tmp/list.html | sort | uniq -c | head -n 30 || true
+          cat > /tmp/probe.py <<'PY'
+          import os, time, json
+          from selenium import webdriver
+          from selenium.webdriver.chrome.options import Options
+          from selenium.webdriver.common.by import By
+          from selenium.webdriver.common.keys import Keys
+          from selenium.webdriver.support.ui import WebDriverWait
+
+          proxy = os.environ['CN_PROXY']
+          opts = Options()
+          opts.add_argument('--headless=new')
+          opts.add_argument('--no-sandbox')
+          opts.add_argument('--disable-dev-shm-usage')
+          opts.add_argument('--disable-gpu')
+          opts.add_argument('--window-size=1440,1200')
+          opts.add_argument(f'--proxy-server={proxy}')
+          opts.add_argument('--ignore-certificate-errors')
+          opts.add_argument('--lang=zh-CN')
+          opts.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0 Safari/537.36')
+
+          d = webdriver.Chrome(options=opts)
+          d.set_page_load_timeout(45)
+          url = 'https://wenshu.court.gov.cn/website/wenshu/181217BMTKHNT2W0/index.html'
+          try:
+              d.get(url)
+              time.sleep(8)
+              print('INITIAL_URL=', d.current_url)
+              print('TITLE=', d.title)
+              body = d.find_element(By.TAG_NAME, 'body').text
+              print('INITIAL_BODY=', body[:4000].replace('\n',' | '))
+
+              print('INPUTS_BEGIN')
+              inputs = d.find_elements(By.CSS_SELECTOR, 'input')
+              for i,e in enumerate(inputs):
+                  try:
+                      print(i, json.dumps({
+                          'type': e.get_attribute('type'),
+                          'id': e.get_attribute('id'),
+                          'name': e.get_attribute('name'),
+                          'placeholder': e.get_attribute('placeholder'),
+                          'class': e.get_attribute('class'),
+                          'displayed': e.is_displayed(),
+                          'enabled': e.is_enabled(),
+                      }, ensure_ascii=False))
+                  except Exception as ex:
+                      print(i, 'ERR', repr(ex))
+              print('INPUTS_END')
+
+              # Open advanced search if available.
+              adv = d.find_elements(By.XPATH, "//*[contains(normalize-space(.), '高级检索')]")
+              for e in adv:
+                  try:
+                      if e.is_displayed() and e.is_enabled():
+                          print('CLICK_ADV=', e.tag_name, e.text[:100])
+                          d.execute_script('arguments[0].click();', e)
+                          time.sleep(2)
+                          break
+                  except Exception:
+                      pass
+
+              # Re-enumerate visible text inputs after advanced search opens.
+              candidates=[]
+              for i,e in enumerate(d.find_elements(By.CSS_SELECTOR, 'input')):
+                  try:
+                      typ=(e.get_attribute('type') or 'text').lower()
+                      ph=e.get_attribute('placeholder') or ''
+                      if e.is_displayed() and e.is_enabled() and typ in ('text','search',''):
+                          candidates.append((i,e,ph))
+                  except Exception:
+                      pass
+              print('VISIBLE_TEXT_INPUTS=', [(i,ph) for i,_,ph in candidates])
+
+              target=None
+              preferred=('案由','关键词','全文','案件名称','请输入')
+              for key in preferred:
+                  for i,e,ph in candidates:
+                      if key in ph:
+                          target=e; print('TARGET_BY_PLACEHOLDER=', key, ph); break
+                  if target: break
+              if target is None and candidates:
+                  target=candidates[0][1]
+                  print('TARGET_FALLBACK_INDEX=', candidates[0][0])
+
+              if target is not None:
+                  target.clear()
+                  target.send_keys('劳动争议')
+                  print('FILLED_VALUE=', target.get_attribute('value'))
+                  # First try explicit search/retrieve button.
+                  clicked=False
+                  for label in ('搜索','检索','查询'):
+                      els=d.find_elements(By.XPATH, f"//*[self::button or self::a or @role='button'][contains(normalize-space(.), '{label}')]")
+                      for e in els:
+                          try:
+                              if e.is_displayed() and e.is_enabled():
+                                  print('CLICK_SEARCH=', label, e.tag_name, e.text[:100])
+                                  d.execute_script('arguments[0].click();', e)
+                                  clicked=True
+                                  break
+                          except Exception:
+                              pass
+                      if clicked: break
+                  if not clicked:
+                      target.send_keys(Keys.ENTER)
+                      print('SEARCH_BY_ENTER=1')
+                  time.sleep(10)
+                  print('AFTER_URL=', d.current_url)
+                  print('AFTER_TITLE=', d.title)
+                  after=d.find_element(By.TAG_NAME,'body').text
+                  print('AFTER_BODY=', after[:7000].replace('\n',' | '))
+                  for marker in ('劳动争议','裁判日期','法院','案号','登录','验证码','暂无数据','无数据','文书'):
+                      print('MARKER', marker, after.count(marker))
+              else:
+                  print('NO_SEARCH_INPUT_FOUND')
+          finally:
+              d.quit()
+          PY
+          python /tmp/probe.py
