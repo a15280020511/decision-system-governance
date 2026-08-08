@@ -2,11 +2,20 @@
 """Attach the live OpenRouter reasoning-popularity catalog as expert candidates.
 
 Governance defines the candidate *source* as models that OpenRouter reports as
-reasoning-capable and orders that source by current ``most-popular`` usage.  It
+reasoning-capable and orders that source by current ``most-popular`` usage. It
 never truncates the source to a fixed Top-N and never applies price, flagship,
 company, Provider, ZDR, endpoint, context, free-first, Canary, or optimizer
-qualification gates.  Those fields remain advisory metadata for the Expert
+qualification gates. Those fields remain advisory metadata for the Expert
 Center's current-task optimizer.
+
+In addition to the unrestricted public catalog, governance best-effort fetches
+OpenRouter's authenticated ``/api/v1/models/user`` view. OpenRouter documents that
+view as filtered by the current user's provider preferences, privacy settings and
+guardrails. Membership is attached only as transport-compatibility telemetry; it
+never removes a model from the normal candidate pool and never changes Provider
+routing. The Expert Center may use the signal after a real transport failure (for
+example an account-credit 402 followed by zero-cost recovery) to avoid obviously
+incompatible endpoints without weakening the account's privacy policy.
 
 The only hard model-execution boundary declared by governance is no-tools: every
 candidate is marked as forbidden from tools/functions/search/browser/MCP and the
@@ -22,9 +31,10 @@ from typing import Any, Mapping
 
 TOP50_POOL_SIZE = 50  # compatibility constant only; never an execution limit
 MINIMUM_EXECUTABLE_COMPANIES = 0
-POOL_SCHEMA_VERSION = "governance-openrouter-reasoning-popularity-pool-v3"
+POOL_SCHEMA_VERSION = "governance-openrouter-reasoning-popularity-pool-v4-user-policy-telemetry"
 POOL_SOURCE = "openrouter-live-reasoning-most-popular-catalog"
 POPULARITY_PERIOD = "openrouter-most-popular-live"
+USER_POLICY_SOURCE = "openrouter-authenticated-models-user"
 SELECTION_PRINCIPLES = [
     "concrete-problem-concrete-analysis",
     "dynamic-adaptation",
@@ -83,7 +93,7 @@ def _fetch_rows(selector: Any, token: str) -> list[Mapping[str, Any]]:
     """Fetch the full live reasoning-capable popularity sequence.
 
     ``supported_parameters=reasoning`` and text output define the requested
-    reasoning leaderboard source.  They are not post-fetch business gates.
+    reasoning leaderboard source. They are not post-fetch business gates.
     No fixed Top-N is requested or applied.
     """
     query = urllib.parse.urlencode(
@@ -98,6 +108,52 @@ def _fetch_rows(selector: Any, token: str) -> list[Mapping[str, Any]]:
     if not isinstance(rows, list):
         raise Top50ReasoningPoolError("OpenRouter model response is invalid")
     return [row for row in rows if isinstance(row, Mapping)]
+
+
+def _user_models_url(selector: Any) -> str:
+    base = str(selector.MODELS_API).rstrip("/")
+    return f"{base}/user"
+
+
+def _user_policy_model_ids(
+    selector: Any,
+    token: str,
+) -> tuple[set[str] | None, dict[str, Any]]:
+    """Fetch account-policy compatibility as non-gating advisory telemetry.
+
+    ``None`` means the authenticated view could not be obtained, so absence must
+    never be interpreted as incompatibility. An actual set (including an empty
+    set) means the upstream request succeeded and membership is authoritative for
+    the current account/key view at this instant.
+    """
+    try:
+        payload = selector._fetch_json(_user_models_url(selector), token)
+        rows = payload.get("data") if isinstance(payload, Mapping) else None
+        if not isinstance(rows, list):
+            raise Top50ReasoningPoolError("OpenRouter /models/user response is invalid")
+        model_ids = {
+            str(row.get("id") or "").strip()
+            for row in rows
+            if isinstance(row, Mapping) and str(row.get("id") or "").strip()
+        }
+        return model_ids, {
+            "available": True,
+            "source": USER_POLICY_SOURCE,
+            "model_count": len(model_ids),
+            "used_as_normal_candidate_gate": False,
+            "used_to_change_provider_routing": False,
+            "cross_task_history_used": False,
+        }
+    except Exception as exc:  # noqa: BLE001 - telemetry must never gate the pool
+        return None, {
+            "available": False,
+            "source": USER_POLICY_SOURCE,
+            "model_count": None,
+            "error_type": type(exc).__name__,
+            "used_as_normal_candidate_gate": False,
+            "used_to_change_provider_routing": False,
+            "cross_task_history_used": False,
+        }
 
 
 def _intelligence_rank_map(selector: Any, token: str) -> dict[str, int]:
@@ -129,6 +185,7 @@ def _candidate_record(
     row: Mapping[str, Any],
     source_rank: int,
     intelligence_rank: int | None,
+    user_policy_model_ids: set[str] | None,
 ) -> dict[str, Any] | None:
     model_id = str(row.get("id") or "").strip()
     if not model_id:
@@ -148,6 +205,10 @@ def _candidate_record(
         value.casefold() for value in parameter_list
     }
     combined = (prompt or 0.0) + (completion or 0.0)
+    if user_policy_model_ids is None:
+        user_policy_compatible: bool | None = None
+    else:
+        user_policy_compatible = model_id in user_policy_model_ids
     return {
         "slot": source_rank,
         "candidate_price_rank": source_rank,
@@ -179,15 +240,22 @@ def _candidate_record(
         "provider_routing_mode": "unrestricted-openrouter",
         "provider_restrictions_applied": False,
         "qualification_gates_applied": False,
+        "user_policy_compatibility_source": USER_POLICY_SOURCE,
+        "user_policy_compatible": user_policy_compatible,
+        "user_policy_compatibility_is_normal_gate": False,
         "tool_use_forbidden": True,
         "tools_allowed": False,
         "external_tool_capability_exposed": False,
     }
 
 
-def _candidate_inventory(selector: Any, token: str) -> list[dict[str, Any]]:
+def _candidate_inventory(
+    selector: Any,
+    token: str,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     rows = _fetch_rows(selector, token)
     intelligence = _intelligence_rank_map(selector, token)
+    user_policy_model_ids, user_policy_audit = _user_policy_model_ids(selector, token)
     result: list[dict[str, Any]] = []
     seen: set[str] = set()
     for source_rank, row in enumerate(rows, 1):
@@ -195,6 +263,7 @@ def _candidate_inventory(selector: Any, token: str) -> list[dict[str, Any]]:
             row,
             source_rank,
             intelligence.get(str(row.get("id") or "").strip()),
+            user_policy_model_ids,
         )
         if candidate is None:
             continue
@@ -207,7 +276,18 @@ def _candidate_inventory(selector: Any, token: str) -> list[dict[str, Any]]:
         raise Top50ReasoningPoolError(
             "OpenRouter returned no reasoning-popularity model identities"
         )
-    return result
+    user_policy_audit = dict(user_policy_audit)
+    if user_policy_model_ids is not None:
+        user_policy_audit["candidate_pool_compatible_count"] = sum(
+            1 for row in result if row.get("user_policy_compatible") is True
+        )
+        user_policy_audit["candidate_pool_incompatible_count"] = sum(
+            1 for row in result if row.get("user_policy_compatible") is False
+        )
+    else:
+        user_policy_audit["candidate_pool_compatible_count"] = None
+        user_policy_audit["candidate_pool_incompatible_count"] = None
+    return result, user_policy_audit
 
 
 def attach_pool(
@@ -217,7 +297,7 @@ def attach_pool(
     token: str,
 ) -> dict[str, Any]:
     del ticket
-    candidates = _candidate_inventory(selector, token)
+    candidates, user_policy_audit = _candidate_inventory(selector, token)
     distinct_company_count = len({str(row["company"]) for row in candidates})
     enriched = dict(plan)
     enriched.update(
@@ -251,6 +331,8 @@ def attach_pool(
             "provider_restrictions_applied": False,
             "provider_endpoint_qualification_required": False,
             "zdr_provider_qualification_required": False,
+            "user_policy_compatibility_telemetry": user_policy_audit,
+            "user_policy_compatibility_normal_candidate_gate_required": False,
             "fixed_team_size_required": False,
             "fixed_four_plus_four_required": False,
             "company_uniqueness_required": False,
