@@ -31,11 +31,21 @@ def trusted_terminal(
 ) -> tuple[str, str, bool] | None:
     """Return a task-bound terminal without allowing success revocation.
 
-    A bot terminal with a missing/mismatched Task ID or an incomplete success
-    Artifact is provisional and is never accepted. A valid completed success is
-    absorbing for its Task ID: later duplicate-admission, already-running or
-    replay rejection comments cannot revoke an Artifact-backed completion. When
-    no valid success exists, the latest trusted task-bound failure is returned.
+    The default contract treats a missing/mismatched Task ID as provisional and
+    also ignores incomplete success evidence. Success always requires the exact
+    Task ID plus its normal Artifact contract.
+
+    Failures normally require the exact Task ID as well. The sole compatibility
+    exception is a trusted Expert ``EXECUTION_REJECTED`` with no Task ID at all:
+    admission can fail before the Expert ticket parser persists ``task_id``. The
+    reconciler already binds this scan to the exact child Issue created for the
+    governance task, so an unbound structural rejection on that child is safe to
+    accept. A rejection carrying a wrong Task ID remains ignored.
+
+    A valid completed success is absorbing for its Task ID: later duplicate-
+    admission, already-running or replay rejection comments cannot revoke an
+    Artifact-backed completion. When no valid success exists, the latest trusted
+    acceptable failure is returned.
 
     Expert ``EXECUTION_DEGRADED`` is a successful-but-degraded delivery class,
     not a business failure. It still must pass the exact same Artifact identity
@@ -79,7 +89,17 @@ def trusted_terminal(
             continue
 
         actual_task_id = CONTROL._extract_task_id(raw_body)
-        if expected_task_id and actual_task_id != expected_task_id:
+        unbound_expert_admission_rejection = bool(
+            expected_task_id
+            and route == "expert"
+            and matched_status == "EXECUTION_REJECTED"
+            and not actual_task_id
+        )
+        if (
+            expected_task_id
+            and actual_task_id != expected_task_id
+            and not unbound_expert_admission_rejection
+        ):
             continue
         if success:
             if CONTROL._artifact_contract_error(route, raw_body):

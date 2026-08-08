@@ -48,13 +48,42 @@ class DeferredTerminalTests(unittest.TestCase):
             "- Model calls: `0`"
         )
 
-    def test_missing_task_id_is_not_terminal(self) -> None:
-        body = "## EXECUTION_REJECTED\n\n模型调用：`0`"
+    def test_unbound_expert_admission_rejection_is_terminal(self) -> None:
+        body = (
+            "## EXECUTION_REJECTED\n\n"
+            "输入无法形成可执行动态专家图：protocol validation failed。\n"
+            "模型调用：`0`"
+        )
+        heading, observed, success = MODULE.trusted_terminal(
+            [self.bot(body)],
+            route="expert",
+            expected_task_id="gov-79-expert",
+        )
+        self.assertEqual(heading, "EXECUTION_REJECTED")
+        self.assertEqual(observed, body)
+        self.assertFalse(success)
+
+    def test_wrong_bound_expert_rejection_remains_ignored(self) -> None:
+        body = (
+            "## EXECUTION_REJECTED\n\n"
+            "- Task ID: `gov-wrong-expert`\n"
+            "- Model calls: `0`"
+        )
         self.assertIsNone(
             MODULE.trusted_terminal(
                 [self.bot(body)],
                 route="expert",
                 expected_task_id="gov-79-expert",
+            )
+        )
+
+    def test_unbound_non_expert_failure_is_not_terminal(self) -> None:
+        body = "## COMPUTE_REJECTED\n\n- Model calls: `0`"
+        self.assertIsNone(
+            MODULE.trusted_terminal(
+                [self.bot(body)],
+                route="compute",
+                expected_task_id="gov-79-compute",
             )
         )
 
