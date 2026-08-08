@@ -3,8 +3,8 @@
   "governance_version": "4.2.3",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
-  "file_count": 163,
-  "total_bytes": 1058651,
+  "file_count": 164,
+  "total_bytes": 1061749,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -448,13 +448,18 @@
     },
     {
       "path": "control-plane/resilient_control.py",
-      "size_bytes": 12699,
-      "sha256": "132b9018be0e28ff09dfc2363e3bcf91c11d37f92a8b55e1bedfacc396a397ff"
+      "size_bytes": 12830,
+      "sha256": "efe1b0e740bfbb1fa154818aa750daadd99410174ee4fbf1ba23ffd7c1a3c74c"
     },
     {
       "path": "control-plane/resilient_http.py",
       "size_bytes": 1990,
       "sha256": "273b502c68606c8df7250d9008bd35de68348d12345ae84c35907f4e14467be9"
+    },
+    {
+      "path": "control-plane/route_pause_policy.py",
+      "size_bytes": 2967,
+      "sha256": "e1bf207332b59a72c5ba235fe72103d45c88b11312cdbc4ae7a9831dd7ea249f"
     },
     {
       "path": "control-plane/status-dictionary.json",
