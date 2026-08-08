@@ -42,17 +42,15 @@ jobs:
           CONTROL_PLANE_TOKEN: ${{ secrets.CONTROL_PLANE_TOKEN }}
           GOVERNANCE_HTTP_AUDIT_FILE: async-reconcile-http-audit.jsonl
           GOVERNANCE_HTTP_MAX_ATTEMPTS: "4"
+          GOVERNANCE_WATCH_INTERVAL_SECONDS: "30"
           EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
 
           # A workflow_run reconciliation is the durable watcher for the ticket
-          # it just dispatched.  The previous 10-minute observation window could
-          # finish immediately before a valid expert terminal arrived, leaving
-          # correctness to best-effort cron scheduling.  Keep polling until the
-          # control-plane ticket itself reaches a terminal or the maximum
-          # governance wait envelope is exhausted.  This is asynchronous control
-          # plane waiting, not a model/business execution gate.
+          # it just dispatched. Keep polling until the control-plane ticket
+          # reaches terminal or the bounded watcher envelope is exhausted.
+          # The five-minute cron remains only the scheduled fallback.
           if [ "$EVENT_NAME" = "workflow_run" ]; then
             deadline=$(( $(date +%s) + 2640 ))
             attempt=0
@@ -70,7 +68,7 @@ jobs:
                 echo "Watcher envelope exhausted; deferred reconciliation remains available."
                 break
               fi
-              sleep 30
+              sleep "$GOVERNANCE_WATCH_INTERVAL_SECONDS"
             done
           else
             python control-plane/async_reconcile.py \
