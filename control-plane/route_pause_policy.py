@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Fail-closed route pause overlay for governance-controlled child centers.
+"""Fail-closed route seal overlay for governance-controlled child centers.
 
-This overlay is intentionally separate from the stable route table. Pausing a
+This overlay is intentionally separate from the stable route table. Sealing a
 center must not delete its repository, credentials, history, or schemas; it only
-prevents new governance dispatches until the policy is explicitly changed.
+prevents new governance dispatches until the operator explicitly unseals it.
 """
 from __future__ import annotations
 
@@ -14,9 +14,9 @@ from typing import Any
 
 PAUSED_ROUTES = {
     "intelligence": {
-        "state": "paused-risk-review",
-        "reason": "Evidence/intelligence center use is paused pending risk review.",
-        "resume": "manual-governance-change-required",
+        "state": "sealed-security-hold",
+        "reason": "Evidence/intelligence center is fully sealed pending security review; no child execution is permitted.",
+        "resume": "explicit-operator-approved-unseal-required",
     }
 }
 
@@ -48,7 +48,7 @@ def patch(control: Any) -> None:
         status["accepted"] = False
         status["reason"] = (
             f"CONTROL_ROUTE_PAUSED: route={route}; state={policy['state']}; "
-            f"{policy['reason']} Resume requires an explicit governance code change."
+            f"{policy['reason']} Resume requires an explicit operator-approved governance code change."
         )
         status["route_pause_state"] = policy["state"]
         status["route_pause_resume"] = policy["resume"]
