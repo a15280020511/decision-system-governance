@@ -58,18 +58,20 @@ class AsyncReconcileTests(unittest.TestCase):
         self.assertEqual(MODULE.age_seconds(item, now), 14400)
         receipt = MODULE.render_deadline(item, 14400)
         self.assertIn("CONTROL_ASYNC_DEADLINE_EXCEEDED", receipt)
-        self.assertIn("Runner-held waiting: `false`", receipt)
+        self.assertIn("Runner-held model/business execution waiting: `false`", receipt)
         self.assertIn("child Issue created_at", receipt)
 
-    def test_terminal_receipt_declares_scheduled_polling(self):
+    def test_terminal_receipt_distinguishes_watcher_and_schedule_fallback(self):
         item = MODULE.candidate(self.issue())
         receipt = MODULE.render_terminal(
             item,
             ("COMPUTE_COMPLETED", "## COMPUTE_COMPLETED\n\n- Task ID: `gov-42-compute`", True),
         )
         self.assertTrue(receipt.startswith("## CONTROL_COMPLETED"))
-        self.assertIn("asynchronous scheduled polling", receipt)
-        self.assertIn("Runner-held waiting: `false`", receipt)
+        self.assertIn("workflow-run watcher with scheduled fallback", receipt)
+        self.assertIn("Active workflow-run watcher interval target: `30 seconds`", receipt)
+        self.assertIn("Scheduled fallback interval target: `300 seconds`", receipt)
+        self.assertIn("Runner-held model/business execution waiting: `false`", receipt)
         self.assertIn("child Issue created_at", receipt)
 
     def test_workflow_owns_two_separate_child_token_assignments(self):
@@ -85,11 +87,16 @@ class AsyncReconcileTests(unittest.TestCase):
         self.assertIn('cron: "*/5 * * * *"', workflow)
         self.assertIn("timeout-minutes: 50", workflow)
         self.assertIn("+ 2640", workflow)
-        self.assertIn("sleep 30", workflow)
+        self.assertIn('GOVERNANCE_WATCH_INTERVAL_SECONDS: "30"', workflow)
+        self.assertIn('sleep "$GOVERNANCE_WATCH_INTERVAL_SECONDS"', workflow)
         self.assertIn('EVENT_NAME: ${{ github.event_name }}', workflow)
         self.assertIn('if [ "$status" != "ASYNC_WAITING" ]; then', workflow)
         self.assertIn("deferred_reconcile.py", workflow)
         self.assertNotIn("while true", workflow)
+
+    def test_reconciler_polling_constants_match_workflow_contract(self):
+        self.assertEqual(MODULE.WORKFLOW_RUN_WATCH_INTERVAL_SECONDS, 30)
+        self.assertEqual(MODULE.SCHEDULE_FALLBACK_INTERVAL_SECONDS, 300)
 
 
 if __name__ == "__main__":
