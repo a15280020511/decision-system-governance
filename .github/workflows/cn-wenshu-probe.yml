@@ -1,0 +1,94 @@
+name: CN Wenshu Probe
+
+on:
+  push:
+    branches:
+      - probe/cn-wenshu-20260808
+    paths:
+      - .github/workflows/cn-wenshu-probe.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Direct baseline
+        shell: bash
+        run: |
+          set +e
+          echo '=== DIRECT BAIDU ==='
+          curl -I -L -sS --connect-timeout 5 --max-time 12 -w '\nHTTP=%{http_code} REMOTE=%{remote_ip} TOTAL=%{time_total}\n' https://www.baidu.com/ | head -n 8
+          echo '=== DIRECT WENSHU ==='
+          curl -I -L -sS --connect-timeout 5 --max-time 12 -w '\nHTTP=%{http_code} REMOTE=%{remote_ip} TOTAL=%{time_total}\n' https://wenshu.court.gov.cn/ | head -n 12
+
+      - name: Probe current CN proxies
+        id: proxies
+        shell: bash
+        run: |
+          set +e
+          proxies=(
+            'socks4://221.10.57.128:5138'
+            'socks4://116.233.109.135:1080'
+            'http://103.213.97.78:80'
+            'http://221.231.13.198:1080'
+            'http://58.216.109.14:800'
+            'http://115.231.181.40:8128'
+            'socks5h://59.46.216.131:30001'
+            'socks5h://203.25.208.163:1100'
+            'http://120.92.211.211:7890'
+            'http://112.93.118.61:3128'
+            'http://113.204.79.230:9091'
+            'http://116.171.106.15:3000'
+            'http://36.138.53.26:10017'
+            'http://116.171.106.78:3000'
+            'http://203.19.38.114:1080'
+            'http://116.171.106.111:3000'
+            'http://58.216.109.17:800'
+            'http://61.158.175.38:9002'
+            'socks5h://203.25.208.163:1145'
+            'http://49.4.117.146:3128'
+            'http://113.108.13.120:8083'
+            'http://39.185.41.193:5911'
+            'http://120.132.52.172:8888'
+            'http://218.77.183.214:5224'
+            'http://36.138.53.26:10019'
+          )
+          : > /tmp/results.txt
+          winner=''
+          for p in "${proxies[@]}"; do
+            echo "=== $p ===" | tee -a /tmp/results.txt
+            out=$(curl -L -sS --connect-timeout 4 --max-time 9 -x "$p" -o /tmp/wenshu.html -w 'HTTP=%{http_code} CONNECT=%{time_connect} TLS=%{time_appconnect} TOTAL=%{time_total} REMOTE=%{remote_ip}' 'https://wenshu.court.gov.cn/' 2>&1)
+            rc=$?
+            echo "RC=$rc $out" | tee -a /tmp/results.txt
+            if [ "$rc" -eq 0 ] && echo "$out" | grep -Eq 'HTTP=(200|301|302|403|412|429)'; then
+              bytes=$(wc -c < /tmp/wenshu.html 2>/dev/null || echo 0)
+              echo "BODY_BYTES=$bytes" | tee -a /tmp/results.txt
+              winner="$p"
+              break
+            fi
+          done
+          echo "winner=$winner" >> "$GITHUB_OUTPUT"
+          echo '=== SUMMARY ==='
+          cat /tmp/results.txt
+
+      - name: Test search/list page through working proxy
+        if: steps.proxies.outputs.winner != ''
+        shell: bash
+        env:
+          PROXY: ${{ steps.proxies.outputs.winner }}
+        run: |
+          set +e
+          echo "WINNER=$PROXY"
+          echo '=== HOME ==='
+          curl -L -sS --connect-timeout 5 --max-time 15 -x "$PROXY" -D /tmp/home.h -o /tmp/home.html 'https://wenshu.court.gov.cn/'
+          sed -n '1,15p' /tmp/home.h
+          echo "HOME_BYTES=$(wc -c < /tmp/home.html)"
+          echo '=== LIST PAGE ==='
+          curl -L -sS --connect-timeout 5 --max-time 15 -x "$PROXY" -D /tmp/list.h -o /tmp/list.html 'https://wenshu.court.gov.cn/website/wenshu/181217BMTKHNT2W0/index.html'
+          sed -n '1,15p' /tmp/list.h
+          echo "LIST_BYTES=$(wc -c < /tmp/list.html)"
+          echo '=== PAGE MARKERS ==='
+          grep -Eo '裁判文书网|文书列表|高级检索|案由|案件名称|验证码|登录' /tmp/list.html | sort | uniq -c | head -n 30 || true
