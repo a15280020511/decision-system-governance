@@ -3,8 +3,8 @@
   "governance_version": "4.2.3",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
-  "file_count": 162,
-  "total_bytes": 1051832,
+  "file_count": 163,
+  "total_bytes": 1056783,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -348,8 +348,8 @@
     },
     {
       "path": "contracts/expert-team-capabilities.snapshot.json",
-      "size_bytes": 5456,
-      "sha256": "71e8fb5e2da6301ff6ff6c2a8d1ef7dbd50d1e6e69b6bf2f00100da909956c59"
+      "size_bytes": 7752,
+      "sha256": "212e491250bbecec5bdfcbbc4be6b9ff6e6387c3358ef20a844d135e716444b8"
     },
     {
       "path": "contracts/gpts-control-ticket-templates.json",
@@ -483,8 +483,8 @@
     },
     {
       "path": "governance-copilot/select_expert_team_plan.py",
-      "size_bytes": 6274,
-      "sha256": "4a4d0b3f388c6290be3d437bbcd7231f9c71f5566da79eb5c3a9eeb97f57af17"
+      "size_bytes": 7018,
+      "sha256": "430270feea361d962fad8c4ce1744b717fa6776196bf7d0f1d5046bba5cc9729"
     },
     {
       "path": "governance-copilot/select_paid_governance_flagship_model.py",
@@ -690,6 +690,11 @@
       "path": "tests/test_expert_degraded_success_semantics.py",
       "size_bytes": 3862,
       "sha256": "50449d5b12b77163195bca58eb49599d6224dc26bf16496efed0eaf5706d3767"
+    },
+    {
+      "path": "tests/test_expert_plan_authority_truth.py",
+      "size_bytes": 1911,
+      "sha256": "aa66de293e42ba0653f57e559c77849bc0c461fc112999e9a4de0ec63ec388c5"
     },
     {
       "path": "tests/test_expert_plan_preview_workflow.py",
