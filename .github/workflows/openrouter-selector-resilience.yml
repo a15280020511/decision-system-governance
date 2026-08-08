@@ -97,7 +97,7 @@ jobs:
           fi
 
       - name: Upload offline evidence
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: openrouter-selector-offline-${{ matrix.os }}-${{ github.run_id }}
           path: selector-validation/
@@ -293,7 +293,7 @@ jobs:
           PY
 
       - name: Upload live evidence
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: openrouter-selector-live-${{ github.run_id }}
           path: live-selection/

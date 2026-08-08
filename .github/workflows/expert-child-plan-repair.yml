@@ -134,7 +134,7 @@ jobs:
             -f body="/retry-expert-team ${RETRY_ID}"
 
       - name: Upload repair evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: expert-child-plan-repair-${{ steps.inputs.outputs.issue_number }}-${{ steps.inputs.outputs.retry_id }}
           path: |
