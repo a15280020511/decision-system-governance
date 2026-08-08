@@ -24,7 +24,7 @@ jobs:
       github.event_name != 'workflow_run' ||
       github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 50
     steps:
       - name: Checkout governance control plane
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -45,29 +45,37 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          attempts=1
-          interval=0
+
+          # A workflow_run reconciliation is the durable watcher for the ticket
+          # it just dispatched.  The previous 10-minute observation window could
+          # finish immediately before a valid expert terminal arrived, leaving
+          # correctness to best-effort cron scheduling.  Keep polling until the
+          # control-plane ticket itself reaches a terminal or the maximum
+          # governance wait envelope is exhausted.  This is asynchronous control
+          # plane waiting, not a model/business execution gate.
           if [ "$EVENT_NAME" = "workflow_run" ]; then
-            attempts=20
-            interval=30
-          fi
-          for attempt in $(seq 1 "$attempts"); do
-            echo "Asynchronous reconciliation attempt ${attempt}/${attempts}"
-            output=$(python control-plane/async_reconcile.py \
-              --repository "$GITHUB_REPOSITORY")
-            echo "$output"
-            status=$(printf '%s\n' "$output" | tail -n 1 | python -c 'import json,sys; print(json.load(sys.stdin)["status"])')
-            case "$status" in
-              ASYNC_WAITING)
-                if [ "$attempt" -lt "$attempts" ]; then
-                  sleep "$interval"
-                fi
-                ;;
-              *)
+            deadline=$(( $(date +%s) + 2640 ))
+            attempt=0
+            while :; do
+              attempt=$(( attempt + 1 ))
+              echo "Asynchronous reconciliation attempt ${attempt}"
+              output=$(python control-plane/async_reconcile.py \
+                --repository "$GITHUB_REPOSITORY")
+              echo "$output"
+              status=$(printf '%s\n' "$output" | tail -n 1 | python -c 'import json,sys; print(json.load(sys.stdin)["status"])')
+              if [ "$status" != "ASYNC_WAITING" ]; then
                 break
-                ;;
-            esac
-          done
+              fi
+              if [ "$(date +%s)" -ge "$deadline" ]; then
+                echo "Watcher envelope exhausted; deferred reconciliation remains available."
+                break
+              fi
+              sleep 30
+            done
+          else
+            python control-plane/async_reconcile.py \
+              --repository "$GITHUB_REPOSITORY"
+          fi
 
       - name: Reconcile closed late terminal results
         env:
