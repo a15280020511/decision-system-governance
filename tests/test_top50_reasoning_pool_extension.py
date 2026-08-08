@@ -42,6 +42,7 @@ class DynamicCandidatePoolTests(unittest.TestCase):
             _row("same/model-b", reasoning=True),
             _row("other/model-c", reasoning=True),
         ]
+        user_rows = [rows[0], rows[2]]
 
         class FakeSelector:
             MODELS_API = "https://example.invalid/models"
@@ -50,7 +51,10 @@ class DynamicCandidatePoolTests(unittest.TestCase):
             def _fetch_json(url: str, token: str):
                 del token
                 self.urls.append(url)
-                query = parse_qs(urlparse(url).query)
+                parsed = urlparse(url)
+                if parsed.path.endswith("/models/user"):
+                    return {"data": user_rows}
+                query = parse_qs(parsed.query)
                 if query.get("sort") == ["intelligence-high-to-low"]:
                     return {"data": [rows[0]]}
                 return {"data": rows}
@@ -81,6 +85,59 @@ class DynamicCandidatePoolTests(unittest.TestCase):
         self.assertFalse(plan["expert_candidate_pool_company_diversity_required"])
         self.assertFalse(plan["company_uniqueness_required"])
 
+    def test_user_policy_view_is_advisory_metadata_not_candidate_gate(self):
+        plan = self.module.attach_pool(self.selector, {}, {}, "token")
+        candidates = plan["expert_candidate_pool"]
+        self.assertEqual(len(candidates), 3)
+        compatibility = {
+            row["model"]: row["user_policy_compatible"] for row in candidates
+        }
+        self.assertEqual(
+            compatibility,
+            {
+                "same/model-a": True,
+                "same/model-b": False,
+                "other/model-c": True,
+            },
+        )
+        audit = plan["user_policy_compatibility_telemetry"]
+        self.assertTrue(audit["available"])
+        self.assertEqual(audit["candidate_pool_compatible_count"], 2)
+        self.assertEqual(audit["candidate_pool_incompatible_count"], 1)
+        self.assertFalse(audit["used_as_normal_candidate_gate"])
+        self.assertFalse(plan["user_policy_compatibility_normal_candidate_gate_required"])
+        self.assertFalse(plan["provider_endpoint_qualification_required"])
+        self.assertFalse(plan["provider_restrictions_applied"])
+
+    def test_user_policy_fetch_failure_leaves_unknown_and_never_filters(self):
+        module = self.module
+        rows = [
+            _row("same/model-a", reasoning=True),
+            _row("same/model-b", reasoning=True),
+        ]
+
+        class FailingUserSelector:
+            MODELS_API = "https://example.invalid/models"
+
+            @staticmethod
+            def _fetch_json(url: str, token: str):
+                del token
+                parsed = urlparse(url)
+                if parsed.path.endswith("/models/user"):
+                    raise RuntimeError("user view unavailable")
+                return {"data": rows}
+
+        plan = module.attach_pool(FailingUserSelector, {}, {}, "token")
+        self.assertEqual(len(plan["expert_candidate_pool"]), 2)
+        self.assertTrue(
+            all(
+                row["user_policy_compatible"] is None
+                for row in plan["expert_candidate_pool"]
+            )
+        )
+        self.assertFalse(plan["user_policy_compatibility_telemetry"]["available"])
+        self.assertFalse(plan["provider_restrictions_applied"])
+
     def test_only_hard_model_boundary_is_no_tools(self):
         plan = self.module.attach_pool(self.selector, {}, {}, "token")
         self.assertTrue(plan["tool_use_forbidden"])
@@ -95,6 +152,7 @@ class DynamicCandidatePoolTests(unittest.TestCase):
         self.assertFalse(plan["provider_restrictions_applied"])
         self.assertFalse(plan["provider_endpoint_qualification_required"])
         self.assertFalse(plan["zdr_provider_qualification_required"])
+        self.assertFalse(plan["user_policy_compatibility_normal_candidate_gate_required"])
         self.assertFalse(plan["fixed_team_size_required"])
         self.assertFalse(plan["fixed_four_plus_four_required"])
         self.assertFalse(plan["optimizer_optimality_required"])
