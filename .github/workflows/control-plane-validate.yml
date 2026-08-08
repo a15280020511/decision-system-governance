@@ -154,13 +154,14 @@ jobs:
               "gpts_ingress_canary.py", "issues: write", "persist-credentials: false",
           )
           missing = [item for item in required_canary if item not in canary_workflow]
-          if missing: raise SystemExit(f"ingress canary entries missing: {missing}")
+          if missing: raise SystemExit(f"ingress canary workflow entries missing: {missing}")
 
           required_reconcile = (
               "Governance Async Terminal Reconciliation", 'cron: "*/5 * * * *"',
               "group: governance-control-global-worker", "async_reconcile.py",
               "deferred_reconcile.py", "CONTROL_PLANE_TOKEN:",
-              "persist-credentials: false",
+              "persist-credentials: false", "GOVERNANCE_WATCH_INTERVAL_SECONDS",
+              'sleep "$GOVERNANCE_WATCH_INTERVAL_SECONDS"',
           )
           missing = [item for item in required_reconcile if item not in reconcile]
           if missing: raise SystemExit(f"reconcile workflow entries missing: {missing}")
@@ -197,13 +198,17 @@ jobs:
           if missing: raise SystemExit(f"ingress acknowledgement runtime entries missing: {missing}")
 
           required_async_runtime = (
-              "POLL_INTERVAL_SECONDS = 300", "RECOVERY_AFTER_SECONDS = 900",
-              "ROUTE_DEADLINES", "def candidate(", "def render_terminal(",
-              "def render_deadline(", "def _wake_next(", "ASYNC_WAITING",
+              "SCHEDULE_FALLBACK_INTERVAL_SECONDS = 300",
+              "WORKFLOW_RUN_WATCH_INTERVAL_SECONDS = int(",
+              'os.getenv("GOVERNANCE_WATCH_INTERVAL_SECONDS", "30")',
+              "RECOVERY_AFTER_SECONDS = 900", "ROUTE_DEADLINES", "def candidate(",
+              "def render_terminal(", "def render_deadline(", "def _wake_next(", "ASYNC_WAITING",
               "CONTROL_ASYNC_DEADLINE_EXCEEDED",
               "CONTROL._trusted_terminal = DEFERRED.trusted_terminal",
               "CONTROL._github_request = HTTP.github_request",
-              "Runner-held waiting: `false`",
+              "Active workflow-run watcher interval target:",
+              "Scheduled fallback interval target:",
+              "Runner-held model/business execution waiting: `false`",
           )
           missing = [item for item in required_async_runtime if item not in async_runtime]
           if missing: raise SystemExit(f"asynchronous reconciliation entries missing: {missing}")
