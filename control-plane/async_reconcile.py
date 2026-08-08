@@ -17,7 +17,10 @@ from pathlib import Path
 from typing import Any, Mapping
 
 ROOT = Path(__file__).resolve().parent
-POLL_INTERVAL_SECONDS = 300
+SCHEDULE_FALLBACK_INTERVAL_SECONDS = 300
+WORKFLOW_RUN_WATCH_INTERVAL_SECONDS = int(
+    os.getenv("GOVERNANCE_WATCH_INTERVAL_SECONDS", "30")
+)
 RECOVERY_AFTER_SECONDS = 900
 ROUTE_DEADLINES = {
     "intelligence": 7_200,
@@ -89,6 +92,15 @@ def age_seconds(item: Mapping[str, Any], now: datetime | None = None) -> int:
     return max(0, int((observed - dispatched_at).total_seconds()))
 
 
+def _polling_audit_lines() -> list[str]:
+    return [
+        "- Reconciliation mode: `workflow-run watcher with scheduled fallback`",
+        f"- Active workflow-run watcher interval target: `{WORKFLOW_RUN_WATCH_INTERVAL_SECONDS} seconds`",
+        f"- Scheduled fallback interval target: `{SCHEDULE_FALLBACK_INTERVAL_SECONDS} seconds`",
+        "- Runner-held model/business execution waiting: `false`",
+    ]
+
+
 def render_terminal(item: Mapping[str, Any], terminal: tuple[str, str, bool]) -> str:
     heading, child_body, success = terminal
     degraded = bool(success and heading == "EXECUTION_DEGRADED")
@@ -107,9 +119,7 @@ def render_terminal(item: Mapping[str, Any], terminal: tuple[str, str, bool]) ->
         f"- Child status: `{heading}`",
         f"- Governance completion class: `{'degraded-success' if degraded else 'full-success' if success else 'failure'}`",
         f"- Child Issue: {item['child_issue_url']}",
-        "- Reconciliation mode: `asynchronous scheduled polling`",
-        f"- Poll interval target: `{POLL_INTERVAL_SECONDS} seconds`",
-        "- Runner-held waiting: `false`",
+        *_polling_audit_lines(),
         "- Deadline anchor: `child Issue created_at`",
         "- Authoritative result: `trusted github-actions[bot] terminal comment and validated child Artifact`",
         "",
@@ -132,8 +142,7 @@ def render_deadline(item: Mapping[str, Any], elapsed: int) -> str:
         f"- Elapsed seconds: `{elapsed}`",
         f"- Route deadline seconds: `{ROUTE_DEADLINES[item['route']]}`",
         "- Deadline anchor: `child Issue created_at`",
-        "- Reconciliation mode: `asynchronous scheduled polling`",
-        "- Runner-held waiting: `false`",
+        *_polling_audit_lines(),
         "- Late trusted terminal reconciliation: `enabled`",
         "- Business success claimed: `false`",
     ])
