@@ -17,12 +17,11 @@ jobs:
     steps:
       - name: Install Selenium
         run: python -m pip install -q selenium
-
-      - name: Direct browser search
+      - name: Force real search actions
         shell: bash
         run: |
-          cat > /tmp/search_probe.py <<'PY'
-          import time
+          cat > /tmp/probe2.py <<'PY'
+          import time,re
           from selenium import webdriver
           from selenium.webdriver.chrome.options import Options
           from selenium.webdriver.common.by import By
@@ -32,107 +31,94 @@ jobs:
           for a in ['--headless=new','--no-sandbox','--disable-dev-shm-usage','--window-size=1600,1400','--lang=zh-CN']:
               opts.add_argument(a)
           opts.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0 Safari/537.36')
-          d=webdriver.Chrome(options=opts)
-          d.set_page_load_timeout(35)
+          d=webdriver.Chrome(options=opts); d.set_page_load_timeout(35)
 
           def body():
               try:return d.find_element(By.TAG_NAME,'body').text
               except:return ''
-
-          def visible_text_controls():
-              els=[]
-              sels=['input','textarea','[contenteditable="true"]','[role="textbox"]']
-              seen=set()
-              for sel in sels:
-                  for e in d.find_elements(By.CSS_SELECTOR,sel):
+          def click_exact(text):
+              for e in d.find_elements(By.XPATH,f"//*[normalize-space(text())='{text}']"):
+                  try:
+                      if e.is_displayed():
+                          d.execute_script('arguments[0].click();',e); print('CLICK_TEXT',text,e.tag_name); time.sleep(3); return True
+                  except:pass
+              return False
+          def set_native(e,val):
+              d.execute_script("""
+              const el=arguments[0], v=arguments[1];
+              const proto=el.tagName==='TEXTAREA'?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;
+              const setter=Object.getOwnPropertyDescriptor(proto,'value').set; setter.call(el,v);
+              el.dispatchEvent(new Event('input',{bubbles:true}));
+              el.dispatchEvent(new Event('change',{bubbles:true}));
+              el.dispatchEvent(new KeyboardEvent('keyup',{key:'Enter',code:'Enter',keyCode:13,which:13,bubbles:true}));
+              """,e,val)
+          def nearby(e):
+              try:return d.execute_script('return arguments[0].parentElement.outerHTML',e)[:5000]
+              except:return ''
+          def click_searchish():
+              sels=['button','a','i','span','div']
+              words=['搜索','检索','查询']
+              for s in sels:
+                  for e in d.find_elements(By.CSS_SELECTOR,s):
                       try:
-                          k=e.id
-                          if k in seen: continue
-                          seen.add(k)
-                          if e.is_displayed() and e.is_enabled():
-                              els.append(e)
-                      except: pass
-              return els
-
-          def describe(e):
-              try:
-                  return {
-                    'tag':e.tag_name,'type':e.get_attribute('type'),'placeholder':e.get_attribute('placeholder'),
-                    'aria':e.get_attribute('aria-label'),'role':e.get_attribute('role'),'class':(e.get_attribute('class') or '')[:120],
-                    'text':(e.text or '')[:100]
-                  }
-              except:return {}
-
-          def click_text(exacts):
-              for text in exacts:
-                  for xp in [f"//*[normalize-space(text())='{text}']", f"//*[contains(normalize-space(.),'{text}')]"]:
-                      for e in d.find_elements(By.XPATH,xp):
-                          try:
-                              if e.is_displayed() and e.is_enabled():
-                                  d.execute_script("arguments[0].click();",e); print('CLICK',text,e.tag_name,(e.text or '')[:80]); time.sleep(3); return True
-                          except: pass
+                          if not e.is_displayed(): continue
+                          txt=(e.text or '').strip(); aria=e.get_attribute('aria-label') or ''; title=e.get_attribute('title') or ''; cls=e.get_attribute('class') or ''
+                          bag=' '.join([txt,aria,title,cls])
+                          if any(w in bag for w in words) or any(k in cls.lower() for k in ['search-btn','searchbtn','btn-search','icon-search']):
+                              print('SEARCH_CANDIDATE',e.tag_name,txt[:60],aria,title,cls[:120])
+                              try:d.execute_script('arguments[0].click();',e); time.sleep(10); print('SEARCH_CLICKED'); return True
+                              except:pass
+                      except:pass
               return False
 
-          def choose_search_control():
-              ctrls=visible_text_controls()
-              print('CONTROLS=',[describe(e) for e in ctrls])
-              keys=['搜索','检索','关键词','关键字','案由','标题','请输入','模糊搜索']
-              for key in keys:
-                  for e in ctrls:
-                      s=' '.join(str(describe(e).get(k) or '') for k in ['placeholder','aria','text'])
-                      if key in s:
-                          print('TARGET_KEY=',key,describe(e)); return e
-              if ctrls:
-                  print('TARGET_FALLBACK=',describe(ctrls[0])); return ctrls[0]
-              return None
-
-          def submit(e, keyword='劳动争议'):
+          # Alpha
+          print('===== ALPHA2 =====')
+          d.get('https://alphalawyer.cn/main/'); time.sleep(8); click_exact('案例'); time.sleep(5)
+          ins=[]
+          for e in d.find_elements(By.CSS_SELECTOR,'input'):
               try:
-                  d.execute_script('arguments[0].scrollIntoView({block:"center"});',e)
-                  time.sleep(1)
-                  try:e.click()
-                  except:d.execute_script('arguments[0].click();',e)
-                  try:e.clear()
-                  except:pass
-                  try:
-                      e.send_keys(Keys.CONTROL,'a'); e.send_keys(keyword); e.send_keys(Keys.ENTER)
-                  except Exception as ex:
-                      print('SENDKEY_ERR',type(ex).__name__,str(ex)[:200]); return False
-                  print('SUBMITTED',keyword); time.sleep(10); return True
-              except Exception as ex:
-                  print('SUBMIT_ERR',type(ex).__name__,str(ex)[:300]); return False
+                  if e.is_displayed() and e.is_enabled(): ins.append(e)
+              except: pass
+          print('ALPHA_INPUTS',[(e.get_attribute('aria-label'),e.get_attribute('class')) for e in ins])
+          target=next((e for e in ins if (e.get_attribute('aria-label') or '')=='检索输入框'),None)
+          if target:
+              print('ALPHA_PARENT',nearby(target)); set_native(target,'劳动争议');
+              try: target.send_keys(Keys.ENTER)
+              except Exception as ex: print('ALPHA_ENTER_ERR',type(ex).__name__)
+              time.sleep(3); print('ALPHA_VALUE',target.get_attribute('value'))
+              click_searchish(); time.sleep(8)
+              b=body(); print('ALPHA_URL',d.current_url); print('ALPHA_BODY',b[:6000].replace('\n',' | '))
+              print('ALPHA_STATS',{m:b.count(m) for m in ['劳动争议','劳动合同','案号','法院','裁判日期','登录']})
+              mt=re.search(r'共找到([0-9,]+)篇文书',b); print('ALPHA_COUNT',mt.group(1) if mt else 'NA')
+          else: print('ALPHA_NO_TARGET')
 
-          # ALPHA
-          print('\n===== ALPHA =====')
-          try:
-              d.get('https://alphalawyer.cn/main/'); time.sleep(8)
-              print('START_URL=',d.current_url,'TITLE=',d.title)
-              print('START_BODY=',body()[:2200].replace('\n',' | '))
-              click_text(['案例'])
-              time.sleep(4)
-              print('AFTER_CASE_URL=',d.current_url)
-              t=choose_search_control()
-              if t and submit(t):
-                  b=body(); print('RESULT_URL=',d.current_url,'TITLE=',d.title); print('RESULT_BODY=',b[:5000].replace('\n',' | '))
-                  print('RESULT_MARKERS=',{m:b.count(m) for m in ['劳动争议','案号','法院','裁判日期','案例','登录','注册','暂无','无结果']})
-              else: print('ALPHA_NO_SUBMIT')
-          except Exception as ex: print('ALPHA_ERR=',type(ex).__name__,str(ex)[:500])
-
-          # JUFA
-          print('\n===== JUFA =====')
-          try:
-              d.get('https://www.jufaanli.com/Home/BaseSearch/tool'); time.sleep(8)
-              print('START_URL=',d.current_url,'TITLE=',d.title)
-              print('START_BODY=',body()[:2200].replace('\n',' | '))
-              click_text(['查案例','开始检索'])
-              time.sleep(4)
-              print('AFTER_CLICK_URL=',d.current_url)
-              t=choose_search_control()
-              if t and submit(t):
-                  b=body(); print('RESULT_URL=',d.current_url,'TITLE=',d.title); print('RESULT_BODY=',b[:5000].replace('\n',' | '))
-                  print('RESULT_MARKERS=',{m:b.count(m) for m in ['劳动争议','案号','法院','裁判日期','案例','登录','注册','暂无','无结果']})
-              else: print('JUFA_NO_SUBMIT')
-          except Exception as ex: print('JUFA_ERR=',type(ex).__name__,str(ex)[:500])
+          # Jufa
+          print('===== JUFA2 =====')
+          d.get('https://www.jufaanli.com/Home/BaseSearch/tool'); time.sleep(8)
+          ins=[]
+          for e in d.find_elements(By.CSS_SELECTOR,'input'):
+              try:
+                  if e.is_displayed() and e.is_enabled(): ins.append(e)
+              except:pass
+          print('JUFA_INPUTS',[(e.get_attribute('class'),e.get_attribute('placeholder'),d.execute_script('return arguments[0].getBoundingClientRect().toJSON()',e)) for e in ins])
+          t=next((e for e in ins if 'jufa-main-search' in (e.get_attribute('class') or '')), ins[0] if ins else None)
+          if t:
+              print('JUFA_PARENT',nearby(t)); set_native(t,'劳动争议'); print('JUFA_VALUE',t.get_attribute('value'))
+              # Click the dedicated search control in the same search container first.
+              clicked=False
+              try:
+                  parent=t.find_element(By.XPATH,'..')
+                  for e in parent.find_elements(By.XPATH,'.//*'):
+                      try:
+                          cls=e.get_attribute('class') or ''; txt=(e.text or '').strip()
+                          if e.is_displayed() and (('search' in cls.lower() and e!=t) or txt in ['开始检索','检索','搜索']):
+                              print('JUFA_LOCAL_CANDIDATE',e.tag_name,txt,cls[:120]); d.execute_script('arguments[0].click();',e); clicked=True; time.sleep(10); break
+                      except:pass
+              except Exception as ex: print('JUFA_PARENT_ERR',type(ex).__name__)
+              if not clicked:
+                  click_exact('开始检索') or click_searchish()
+              time.sleep(8); b=body(); print('JUFA_URL',d.current_url); print('JUFA_BODY',b[:6000].replace('\n',' | ')); print('JUFA_STATS',{m:b.count(m) for m in ['劳动争议','案号','法院','裁判日期','登录','注册','案例','验证码']})
+          else: print('JUFA_NO_TARGET')
           d.quit()
           PY
-          python /tmp/search_probe.py
+          python /tmp/probe2.py
