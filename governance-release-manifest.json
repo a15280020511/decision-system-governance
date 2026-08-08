@@ -3,8 +3,8 @@
   "governance_version": "4.2.3",
   "migration_source_repository": "a15280020511/test",
   "migration_source_commit": "abac3d776340c8c162b8fc0c670167fde94f3baa",
-  "file_count": 164,
-  "total_bytes": 1061749,
+  "file_count": 165,
+  "total_bytes": 1065178,
   "files": [
     {
       "path": ".github/dependabot.yml",
@@ -785,6 +785,11 @@
       "path": "tests/test_resilient_http.py",
       "size_bytes": 5867,
       "sha256": "f99f67e8807fe13c9aa09f576d133b3a6e6a295a71e99b736a56f4c0a962e0b6"
+    },
+    {
+      "path": "tests/test_route_pause_policy.py",
+      "size_bytes": 3429,
+      "sha256": "48045387b65e64715d149e4716d7e5fc62dc5b3ef36731e6c508dcb60999bdec"
     },
     {
       "path": "tests/test_top50_reasoning_pool_extension.py",
