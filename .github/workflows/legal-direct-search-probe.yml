@@ -1,0 +1,138 @@
+name: Legal Direct Search Probe
+
+on:
+  push:
+    branches:
+      - probe/legal-search-direct-20260808
+    paths:
+      - .github/workflows/legal-direct-search-probe.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Install Selenium
+        run: python -m pip install -q selenium
+
+      - name: Direct browser search
+        shell: bash
+        run: |
+          cat > /tmp/search_probe.py <<'PY'
+          import time
+          from selenium import webdriver
+          from selenium.webdriver.chrome.options import Options
+          from selenium.webdriver.common.by import By
+          from selenium.webdriver.common.keys import Keys
+
+          opts=Options()
+          for a in ['--headless=new','--no-sandbox','--disable-dev-shm-usage','--window-size=1600,1400','--lang=zh-CN']:
+              opts.add_argument(a)
+          opts.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0 Safari/537.36')
+          d=webdriver.Chrome(options=opts)
+          d.set_page_load_timeout(35)
+
+          def body():
+              try:return d.find_element(By.TAG_NAME,'body').text
+              except:return ''
+
+          def visible_text_controls():
+              els=[]
+              sels=['input','textarea','[contenteditable="true"]','[role="textbox"]']
+              seen=set()
+              for sel in sels:
+                  for e in d.find_elements(By.CSS_SELECTOR,sel):
+                      try:
+                          k=e.id
+                          if k in seen: continue
+                          seen.add(k)
+                          if e.is_displayed() and e.is_enabled():
+                              els.append(e)
+                      except: pass
+              return els
+
+          def describe(e):
+              try:
+                  return {
+                    'tag':e.tag_name,'type':e.get_attribute('type'),'placeholder':e.get_attribute('placeholder'),
+                    'aria':e.get_attribute('aria-label'),'role':e.get_attribute('role'),'class':(e.get_attribute('class') or '')[:120],
+                    'text':(e.text or '')[:100]
+                  }
+              except:return {}
+
+          def click_text(exacts):
+              for text in exacts:
+                  for xp in [f"//*[normalize-space(text())='{text}']", f"//*[contains(normalize-space(.),'{text}')]"]:
+                      for e in d.find_elements(By.XPATH,xp):
+                          try:
+                              if e.is_displayed() and e.is_enabled():
+                                  d.execute_script("arguments[0].click();",e); print('CLICK',text,e.tag_name,(e.text or '')[:80]); time.sleep(3); return True
+                          except: pass
+              return False
+
+          def choose_search_control():
+              ctrls=visible_text_controls()
+              print('CONTROLS=',[describe(e) for e in ctrls])
+              keys=['搜索','检索','关键词','关键字','案由','标题','请输入','模糊搜索']
+              for key in keys:
+                  for e in ctrls:
+                      s=' '.join(str(describe(e).get(k) or '') for k in ['placeholder','aria','text'])
+                      if key in s:
+                          print('TARGET_KEY=',key,describe(e)); return e
+              if ctrls:
+                  print('TARGET_FALLBACK=',describe(ctrls[0])); return ctrls[0]
+              return None
+
+          def submit(e, keyword='劳动争议'):
+              try:
+                  d.execute_script('arguments[0].scrollIntoView({block:"center"});',e)
+                  time.sleep(1)
+                  try:e.click()
+                  except:d.execute_script('arguments[0].click();',e)
+                  try:e.clear()
+                  except:pass
+                  try:
+                      e.send_keys(Keys.CONTROL,'a'); e.send_keys(keyword); e.send_keys(Keys.ENTER)
+                  except Exception as ex:
+                      print('SENDKEY_ERR',type(ex).__name__,str(ex)[:200]); return False
+                  print('SUBMITTED',keyword); time.sleep(10); return True
+              except Exception as ex:
+                  print('SUBMIT_ERR',type(ex).__name__,str(ex)[:300]); return False
+
+          # ALPHA
+          print('\n===== ALPHA =====')
+          try:
+              d.get('https://alphalawyer.cn/main/'); time.sleep(8)
+              print('START_URL=',d.current_url,'TITLE=',d.title)
+              print('START_BODY=',body()[:2200].replace('\n',' | '))
+              click_text(['案例'])
+              time.sleep(4)
+              print('AFTER_CASE_URL=',d.current_url)
+              t=choose_search_control()
+              if t and submit(t):
+                  b=body(); print('RESULT_URL=',d.current_url,'TITLE=',d.title); print('RESULT_BODY=',b[:5000].replace('\n',' | '))
+                  print('RESULT_MARKERS=',{m:b.count(m) for m in ['劳动争议','案号','法院','裁判日期','案例','登录','注册','暂无','无结果']})
+              else: print('ALPHA_NO_SUBMIT')
+          except Exception as ex: print('ALPHA_ERR=',type(ex).__name__,str(ex)[:500])
+
+          # JUFA
+          print('\n===== JUFA =====')
+          try:
+              d.get('https://www.jufaanli.com/Home/BaseSearch/tool'); time.sleep(8)
+              print('START_URL=',d.current_url,'TITLE=',d.title)
+              print('START_BODY=',body()[:2200].replace('\n',' | '))
+              click_text(['查案例','开始检索'])
+              time.sleep(4)
+              print('AFTER_CLICK_URL=',d.current_url)
+              t=choose_search_control()
+              if t and submit(t):
+                  b=body(); print('RESULT_URL=',d.current_url,'TITLE=',d.title); print('RESULT_BODY=',b[:5000].replace('\n',' | '))
+                  print('RESULT_MARKERS=',{m:b.count(m) for m in ['劳动争议','案号','法院','裁判日期','案例','登录','注册','暂无','无结果']})
+              else: print('JUFA_NO_SUBMIT')
+          except Exception as ex: print('JUFA_ERR=',type(ex).__name__,str(ex)[:500])
+          d.quit()
+          PY
+          python /tmp/search_probe.py
