@@ -31,7 +31,10 @@ def trusted_terminal(
 ) -> tuple[str, str, bool] | None:
     """Return a task-bound terminal without allowing success revocation.
 
-    Success always requires the exact Task ID plus its normal Artifact contract.
+    The default contract treats a missing/mismatched Task ID as provisional and
+    also ignores incomplete success evidence. Success always requires the exact
+    Task ID plus its normal Artifact contract.
+
     Failures normally require the exact Task ID as well. The sole compatibility
     exception is a trusted Expert ``EXECUTION_REJECTED`` with no Task ID at all:
     admission can fail before the Expert ticket parser persists ``task_id``. The
