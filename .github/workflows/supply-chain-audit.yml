@@ -58,7 +58,7 @@ jobs:
             -czf "supply-chain-audit-${GITHUB_RUN_ID}.tar.gz" supply-chain-audit
       - name: Upload audit artifact
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: supply-chain-audit-${{ github.run_id }}
           path: supply-chain-audit-${{ github.run_id }}.tar.gz
