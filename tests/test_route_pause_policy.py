@@ -57,11 +57,12 @@ class RoutePausePolicyTests(unittest.TestCase):
             receipt = json.loads(Path(directory, "route-pause-receipt.json").read_text(encoding="utf-8"))
             self.assertEqual(result, 2)
             self.assertFalse(status["accepted"])
-            self.assertEqual(status["route_pause_state"], "paused-risk-review")
+            self.assertEqual(status["route_pause_state"], "sealed-security-hold")
             self.assertEqual(status["target_repository"], "")
             self.assertEqual(status["child_issue_title"], "")
             self.assertFalse(Path(directory, "child-ticket.json").exists())
             self.assertEqual(receipt["status"], "BLOCKED")
+            self.assertEqual(receipt["pause_state"], "sealed-security-hold")
             self.assertFalse(receipt["child_dispatch_created"])
             self.assertEqual(control.outputs["accepted"], "false")
 
