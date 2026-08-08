@@ -7,7 +7,7 @@ team-size, recovery, free-first, Canary, or optimizer-status admission gates.
 Expert composition is delegated to the Expert Center and recomputed from the
 current task.
 
-The single hard model-execution boundary declared here is ``no-tools``.  Every
+The single hard model-execution boundary declared here is ``no-tools``. Every
 model supplied to the Expert Center must execute without tools/functions/search,
 browser, MCP, code execution, file search, connectors, or equivalent external
 action capabilities.
@@ -27,7 +27,11 @@ BENCHMARKS_API = "https://openrouter.ai/api/v1/benchmarks"
 ENDPOINTS_API = "https://openrouter.ai/api/v1/models/{author}/{slug}/endpoints"
 SCHEMA_VERSION = "governance-expert-dynamic-candidate-plan-v1"
 SELECTOR_SCHEMA_VERSION = "governance-openrouter-unrestricted-candidate-inventory-v1"
-SELECTION_AUTHORITY = "decision-system-governance"
+CANDIDATE_POOL_AUTHORITY = "decision-system-governance"
+MODEL_ASSIGNMENT_AUTHORITY = "expert-assessment-center-dynamic-ortools"
+# Compatibility export: ``selection_authority`` now names the component that
+# actually selects models, not the component that supplies the candidate pool.
+SELECTION_AUTHORITY = MODEL_ASSIGNMENT_AUTHORITY
 DEFAULT_EXPERT_COUNT = 0
 MIN_EXPERT_COUNT = 1
 MAX_EXPERT_COUNT = 0
@@ -112,9 +116,9 @@ def _required_plan_fields(ticket: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "schema_version": SCHEMA_VERSION,
         "selector_schema_version": SELECTOR_SCHEMA_VERSION,
-        "selection_authority": SELECTION_AUTHORITY,
-        "candidate_pool_authority": SELECTION_AUTHORITY,
-        "model_assignment_authority": "expert-assessment-center-dynamic-ortools",
+        "selection_authority": MODEL_ASSIGNMENT_AUTHORITY,
+        "candidate_pool_authority": CANDIDATE_POOL_AUTHORITY,
+        "model_assignment_authority": MODEL_ASSIGNMENT_AUTHORITY,
         "task_sha256": task_sha256(ticket),
         "required_context_tokens": _required_context_tokens(ticket),
         "selected_models": [],
@@ -124,9 +128,17 @@ def _required_plan_fields(ticket: Mapping[str, Any]) -> dict[str, Any]:
         "model_calls": 0,
         "governance_model_calls": 0,
         "selection_performed_by_governance": False,
+        "candidate_pool_selection_performed_by_governance": True,
         "expert_center_pool_selection_allowed": True,
         "expert_center_reranking_allowed": True,
         "model_substitution_allowed": True,
+        "task_adaptive_assignment_required": True,
+        "assignment_recomputed_from_current_task": True,
+        "company_heterogeneity_optimization_authority": (
+            "expert-assessment-center-current-task"
+        ),
+        "company_heterogeneity_hard_gate_required": False,
+        "fixed_company_count_required": False,
         "fixed_team_size_required": False,
         "fixed_four_plus_four_required": False,
         "fixed_role_topology_required": False,
@@ -166,9 +178,11 @@ def enrich_ticket(
 
 __all__ = [
     "BENCHMARKS_API",
+    "CANDIDATE_POOL_AUTHORITY",
     "ENDPOINTS_API",
     "ExpertPlanError",
     "MODELS_API",
+    "MODEL_ASSIGNMENT_AUTHORITY",
     "SCHEMA_VERSION",
     "SELECTION_AUTHORITY",
     "SELECTOR_SCHEMA_VERSION",
